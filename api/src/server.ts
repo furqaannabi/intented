@@ -12,6 +12,7 @@ import { createChainClient, createJudge, systemPrompt, type Network } from "@int
 import { createApp } from "./app.js";
 import { loadAttestationUrls } from "./attestations.js";
 import { createPipeline } from "./pipeline.js";
+import { createRedteamReader } from "./redteam.js";
 import { openStore } from "./store.js";
 import { createWalletReader } from "./wallet.js";
 
@@ -45,6 +46,7 @@ const app = createApp({
   agentToken: process.env.AGENT_API_TOKEN || undefined,
   startPipeline: (id) => pipeline.start(id),
   attestationUrls: loadAttestationUrls(join(root, "..", "docs", "attestations"), ATTESTATIONS_URL),
+  redteam: createRedteamReader(join(root, "..", "redteam", "latest.json")),
   corsOrigins: (process.env.WEB_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean),
 });
 
