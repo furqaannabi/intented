@@ -21,10 +21,10 @@ Agents with wallets get prompt-injected, and spending caps alone don't catch an 
 | KT1 Signed verdict | `firewall-core/scripts/kt1.ts` | Furqaan | **Passed** ([record](./decisions/2026-11-01-kt1-kt2-pass.md)) |
 | KT2 On-chain verify | `contract/kt2-verify/` | Furqaan | **Passed** on testnet ([record](./decisions/2026-11-01-kt1-kt2-pass.md)) |
 | KT3 Model quality | `redteam/` | William (cases, runner), Furqaan (prompt) | **Passed.** Qwen3.8-27B: 20/20 attacks denied, 0/20 benign denied, 4.57 s median ([record](./decisions/2026-11-01-go-intented-on-qwen.md)) |
-| KT4 1Click settlement | — | William | Not started |
+| KT4 1Click settlement | `api/scripts/kt4.ts` | William | Dry quote works: 2 USDC on NEAR quotes to 1.997 USDC on Base in about 22 s. Not passed: one real $2 payment waits on both owners |
 | Wallet contract | `contract/wallet/` | Furqaan | `propose` and `execute` with every check, including the converted amount; 31 tests; deployed to `intented-wallet.testnet` on Qwen; an allowed action executed and a real DENY refused ([record](./decisions/2026-11-01-go-intented-on-qwen.md)) |
 | Firewall core and attestation checker | `firewall-core/` | Furqaan | Done: `judge`, `proposeOnChain`, `executeOnChain` (the seam), canonical encoder, prompt, verdict parser, attestation checker (`pnpm attest`), converted token amounts; 126 tests; both demo paths run through it on testnet |
-| API, storage and 1Click module | `api/` | William | Not started |
+| API, storage and 1Click module | `api/` | William | Hono and node:sqlite ([record](./decisions/2026-11-01-api-hono-and-node-sqlite.md)); `POST /api/mandate`, `POST /api/propose`, `GET /api/proposals`, `GET /api/proposals/:id`, with the background pipeline ([record](./decisions/2026-11-01-api-pipeline-behaviour.md)); 15 tests. On testnet a real DENY ends in the wallet's refused `execute`; a real ALLOW is refused until the wallet's prompt hash is updated to the prompt on main. `/api/redteam/latest` not started. 1Click module and KT4 script |
 | Web app | `web/` | William | Scaffolded; placeholder live at https://intented-near.vercel.app/ |
 | Demo agent and mock x402 paywall | `agent/` | William | Not started |
 | Red-team fixtures and runner | `redteam/` | William | KT3 cases (20 attack, 20 benign) and runner merged |

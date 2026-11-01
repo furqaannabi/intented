@@ -40,10 +40,12 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [Go: Intented goes ahead on Qwen3.8-27B](./2026-11-01-go-intented-on-qwen.md) | Furqaan, William |
 | 2026-11-01 | [Accepted: the signed text includes the model id; signatures are ECDSA through env::ecrecover](./2026-11-01-accept-model-id-signed-text.md) | Furqaan, William |
 | 2026-11-01 | [The model sees token amounts already converted, and the wallet checks the conversion](./2026-11-01-model-sees-converted-amount.md) (proposed, awaiting William) | Furqaan |
+| 2026-11-01 | [api: Hono on Node, with node:sqlite for storage](./2026-11-01-api-hono-and-node-sqlite.md) | William |
+| 2026-11-01 | [api: proposals run in the background, every verdict goes on-chain, and failed means no money moved](./2026-11-01-api-pipeline-behaviour.md) (`updated_at` proposed, awaiting Furqaan) | William |
 
 ## Not decided yet
 
 | Question | Settled by | Owner |
 | --- | --- | --- |
-| API framework (Hono or Express) and host (Railway or Render) | William's pick | William |
+| API host (Railway or Render) | William's pick, by deployment on Day 9 | William |
 | Optional OutLayer integration | Discord question 3 | Furqaan |
