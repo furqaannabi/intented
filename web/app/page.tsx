@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { ArrowUpRight, Check, Cross } from "./components/icons";
+import { REPO, SiteHeader } from "./components/SiteHeader";
 import { TapToPay } from "./components/TapToPay";
 import "./home.css";
 
-const REPO = "https://github.com/furqaannabi/intented";
 const ATTESTATIONS = `${REPO}/tree/main/docs/attestations`;
 const txUrl = (hash: string) => `https://testnet.nearblocks.io/txns/${hash}`;
 
@@ -35,22 +36,10 @@ const secondary = `${button} border-[1.5px] border-line bg-ink-2 text-text hover
 export default function Home() {
   return (
     <div className="overflow-x-clip">
-      <header className="mx-auto flex max-w-[1440px] items-center justify-between px-[clamp(18px,4.5vw,72px)] py-6">
-        <a href="#" className="flex items-center gap-2.5 text-xl font-black">
-          <span className="home-logo" aria-hidden="true" />
-          Intented
-        </a>
-        <nav className="flex gap-6 text-[15px] text-mute">
-          <a href="#how" className="hidden hover:text-text sm:inline">How it works</a>
-          <a href="#proof" className="hidden hover:text-text sm:inline">Proof</a>
-          <a href={REPO} className="inline-flex items-center gap-1 hover:text-text">
-            GitHub <ArrowUpRight className="size-3.5" />
-          </a>
-        </nav>
-      </header>
+      <SiteHeader current="home" />
 
       <main>
-        <section className={`home-hero mx-auto grid max-w-[1440px] items-center gap-[clamp(28px,5vw,80px)] px-[clamp(18px,4.5vw,72px)] pt-[clamp(16px,3vw,40px)] pb-[clamp(56px,7vw,110px)] lg:grid-cols-2`}>
+        <section className={`home-hero mx-auto grid max-w-[1440px] items-center gap-[clamp(28px,5vw,80px)] px-[clamp(18px,4.5vw,72px)] pt-[clamp(24px,4vw,56px)] pb-[clamp(56px,7vw,110px)] lg:grid-cols-2`}>
           <div>
             <h1 className="text-[clamp(46px,6.4vw,96px)] leading-[0.93] font-black tracking-[-0.04em] text-balance">
               Your agent only does what you <span className="text-lime">intented.</span>
@@ -82,7 +71,7 @@ export default function Home() {
           <TapToPay />
         </section>
 
-        <section id="attack" className="scroll-mt-6 border-t border-line">
+        <section id="attack" className="scroll-mt-20 border-t border-line">
           <div className="mx-auto max-w-[1440px] px-[clamp(18px,4.5vw,72px)] py-[clamp(64px,8vw,120px)]">
             <h2 className="max-w-[15em] text-[clamp(34px,4.2vw,60px)] leading-none font-black tracking-[-0.035em] text-balance">
               Agents read text from strangers. Some of it lies.
@@ -128,7 +117,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="how" className="scroll-mt-6 border-t border-line">
+        <section id="how" className="scroll-mt-20 border-t border-line">
           <div className="mx-auto max-w-[1440px] px-[clamp(18px,4.5vw,72px)] py-[clamp(64px,8vw,120px)]">
             <h2 className="max-w-[15em] text-[clamp(34px,4.2vw,60px)] leading-none font-black tracking-[-0.035em] text-balance">
               Four steps between your agent and your money.
@@ -171,7 +160,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="proof" className="scroll-mt-6 border-t border-line">
+        <section id="proof" className="scroll-mt-20 border-t border-line">
           <div className="mx-auto max-w-[1440px] px-[clamp(18px,4.5vw,72px)] py-[clamp(64px,8vw,120px)]">
             <h2 className="max-w-[15em] text-[clamp(34px,4.2vw,60px)] leading-none font-black tracking-[-0.035em] text-balance">
               Tested, and on the chain for anyone to check.
@@ -209,6 +198,9 @@ export default function Home() {
               </a>{" "}
               is verified off-chain and published, and its signing key is then allowlisted in the wallet.
             </p>
+            <Link href="/activity" className="mt-8 inline-flex items-center gap-1.5 font-bold text-lime hover:underline hover:underline-offset-4">
+              See every payment and its receipt <ArrowUpRight className="size-4" />
+            </Link>
           </div>
         </section>
 

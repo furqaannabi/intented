@@ -1,0 +1,36 @@
+/* The live indicator: a lime dot that pings while polling works, coral when the API is unreachable. */
+.act-ping {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lime);
+  animation: act-ping 2s infinite;
+}
+.act-offline {
+  background: var(--coral);
+  animation: none;
+}
+@keyframes act-ping {
+  0% { box-shadow: 0 0 0 0 rgb(200 255 61 / 0.6); }
+  70%, 100% { box-shadow: 0 0 0 8px rgb(200 255 61 / 0); }
+}
+
+/* Three dots for a payment still being judged or paid */
+.act-dots {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: -6px 0 currentColor, 6px 0 currentColor;
+  animation: act-dots 1s infinite;
+}
+@keyframes act-dots {
+  50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .act-ping,
+  .act-dots {
+    animation: none;
+  }
+}

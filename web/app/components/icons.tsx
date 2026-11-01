@@ -16,6 +16,14 @@ export function Cross({ className }: IconProps) {
   );
 }
 
+export function ArrowLeft({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M10 3 5 8l5 5" />
+    </svg>
+  );
+}
+
 export function ArrowUpRight({ className }: IconProps) {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
