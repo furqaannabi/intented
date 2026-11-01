@@ -28,12 +28,14 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [One repo, one folder per part, each owned by one person; decisions as dated records](./2026-11-01-repo-layout-and-ownership.md) | Furqaan, William |
 | 2026-11-01 | [The trust model: attestation checked off-chain, signer allowlisted on-chain, the contract's caps as the backstop](./2026-11-01-signed-verdict-trust-model.md) | Furqaan, William |
 | 2026-11-01 | [The firewall core's interface is the seam: a stub until Day 6, the real core after](./2026-11-01-firewall-core-interface-is-the-seam.md) | Furqaan, William |
+| 2026-11-01 | [KT1 and KT2 pass: NEAR AI signatures verify on-chain, no relayer](./2026-11-01-kt1-kt2-pass.md) | Furqaan |
+| 2026-11-01 | [The signed text includes the model id; signatures are ECDSA through env::ecrecover](./2026-11-01-signed-text-includes-model-id.md) (proposed, awaiting William) | Furqaan |
+| 2026-11-01 | [firewall-core: TypeScript on Node with pnpm, tsx, vitest and ethers v6](./2026-11-01-firewall-core-toolchain.md) | Furqaan |
 
 ## Not decided yet
 
 | Question | Settled by | Owner |
 | --- | --- | --- |
-| Signature scheme: ECDSA via `env::ecrecover`, `env::ed25519_verify`, or a relayer | KT2, 1 November | Furqaan |
-| Model: Qwen3.8-27B or GLM-5.3-flash | KT3, 1 November (retest 2 November) | Furqaan, William |
+| Model: Qwen3.8-27B or GLM-5.3-flash. Both pass KT1; GLM is faster in the smoke test ([KT1/KT2 record](./2026-11-01-kt1-kt2-pass.md)) | KT3, 1 November (retest 2 November) | Furqaan, William |
 | API framework (Hono or Express) and host (Railway or Render) | William's pick | William |
 | Optional OutLayer integration | Discord question 3 | Furqaan |

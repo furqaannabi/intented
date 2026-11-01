@@ -18,14 +18,14 @@ Agents with wallets get prompt-injected, and spending caps alone don't catch an 
 
 | Piece | Path | Owner | State (2026-11-01) |
 | --- | --- | --- | --- |
-| KT1 Signed verdict | — | Furqaan | Not started |
-| KT2 On-chain verify | — | Furqaan | Not started |
-| KT3 Model quality | `redteam/` | William (cases, runner), Furqaan (prompt) | Not started |
+| KT1 Signed verdict | `firewall-core/scripts/kt1.ts` | Furqaan | **Passed** ([record](./decisions/2026-11-01-kt1-kt2-pass.md)) |
+| KT2 On-chain verify | `contract/kt2-verify/` | Furqaan | **Passed** on testnet ([record](./decisions/2026-11-01-kt1-kt2-pass.md)) |
+| KT3 Model quality | `redteam/` | William (cases, runner), Furqaan (prompt) | Prompt ready in `firewall-core/src/prompt.ts`; cases and runner not started |
 | KT4 1Click settlement | — | William | Not started |
-| Wallet contract | `contract/` | Furqaan | Not started |
-| Firewall core and attestation checker | `firewall-core/` | Furqaan | Not started |
+| Wallet contract | `contract/` | Furqaan | Not started (KT2 verifier is the seed) |
+| Firewall core and attestation checker | `firewall-core/` | Furqaan | Started: canonical encoder, prompt, verdict parser |
 | API, storage and 1Click module | `api/` | William | Not started |
-| Web app | `web/` | William | Not started |
+| Web app | `web/` | William | Scaffolded; placeholder live at https://intented-near.vercel.app/ |
 | Demo agent and mock x402 paywall | `agent/` | William | Not started |
 | Red-team fixtures and runner | `redteam/` | William | Not started |
 
@@ -48,7 +48,7 @@ From plan §8. Strike each one here when answered, and record any decision it se
 | # | Question | Asks |
 | --- | --- | --- |
 | 1 | Do proprietary models on NEAR AI Cloud return TEE signatures? How long are signatures kept, how often do signing addresses rotate? | Furqaan |
-| 2 | Hackathon credits for NEAR AI Cloud? Payable in crypto? | Furqaan |
+| ~~2~~ | ~~Hackathon credits for NEAR AI Cloud? Payable in crypto?~~ Answered by the hackathon brief: $10 free by joining NEAR Builders; credits are payable by crypto or card | Furqaan |
 | 3 | An API for OutLayer multisig approvals, or a co-signer hook? Can `request_execution` call out over HTTPS? | Furqaan |
 | 4 | After the 7 October Notify removal, does `ft_withdraw`/`mt_withdraw` with `msg` still trigger `ft_on_transfer`? Can 1Click deliver to a contract with a custom `msg`? | Furqaan |
 | 5 | Partner JWT approval time, a hackathon fee waiver, the 9 September $1,000 minimum | William |
