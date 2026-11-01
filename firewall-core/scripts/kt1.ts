@@ -70,10 +70,13 @@ console.log(`attested signing addresses: ${attested.join(", ")}`);
 
 // 3. One verdict, non-streaming, structured JSON output
 const canonical = "INTENTED_V1|vendor.testnet|ft_transfer|" + "0".repeat(64) + "|1000000000000000000000000|1|1762041600000";
+// KT1_NO_THINK=1 asks Qwen3-family models to skip the reasoning trace (latency, response size).
+const noThink = process.env.KT1_NO_THINK === "1";
 const reqBody = JSON.stringify({
   model: MODEL,
   stream: false,
   temperature: 0,
+  ...(noThink ? { chat_template_kwargs: { enable_thinking: false } } : {}),
   messages: [
     {
       role: "system",
