@@ -1,0 +1,226 @@
+{
+ "status": {
+  "SuccessValue": ""
+ },
+ "transaction": {
+  "hash": "7QNVFvk6faNy75VeV4y9qRuBdqwSP5cchDGNdoRx8u89",
+  "signer_id": "intented-agent.testnet",
+  "receiver_id": "intented-wallet.testnet",
+  "actions": [
+   {
+    "FunctionCall": {
+     "args": "",
+     "deposit": "0",
+     "gas": 300000000000000,
+     "method_name": "execute"
+    }
+   }
+  ]
+ },
+ "receipts": [
+  {
+   "receipt_id": "2KSAjpJ8NDcFtHWtNARMKPjV3Fjafwz5rtyST4dFVdLp",
+   "predecessor_id": "intented-agent.testnet",
+   "receiver_id": "intented-wallet.testnet",
+   "receipt": {
+    "Action": {
+     "actions": [
+      {
+       "FunctionCall": {
+        "args": "",
+        "deposit": "0",
+        "gas": 300000000000000,
+        "method_name": "execute"
+       }
+      }
+     ],
+     "gas_price": "1000000000",
+     "input_data_ids": [],
+     "is_promise_yield": false,
+     "output_data_receivers": [],
+     "signer_id": "intented-agent.testnet",
+     "signer_public_key": "ed25519:E7F6MXsZaYD3CWvJQvG1GoofRHpY8yRPRjx2PssbQTyT"
+    }
+   }
+  },
+  {
+   "receipt_id": "UTKnrJj8aH8Qmjm4kzRSjFEdX6DUfJKVa8eJDcAgZPw",
+   "predecessor_id": "intented-wallet.testnet",
+   "receiver_id": "wrap.testnet",
+   "receipt": {
+    "Action": {
+     "actions": [
+      {
+       "FunctionCall": {
+        "args": "eyJyZWNlaXZlcl9pZCI6ImludGVudGVkLXZlbmRvci50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsIm1lbW8iOiJtYXJrZXQgZGF0YSJ9",
+        "deposit": "1",
+        "gas": 50000000000000,
+        "method_name": "ft_transfer"
+       }
+      }
+     ],
+     "gas_price": "1000000000",
+     "input_data_ids": [],
+     "is_promise_yield": false,
+     "output_data_receivers": [
+      {
+       "data_id": "BafPt7pW6ukyJZxA1WJ4S8nqQjZXDyCnvsASLCX7WPWB",
+       "receiver_id": "intented-wallet.testnet"
+      }
+     ],
+     "signer_id": "intented-agent.testnet",
+     "signer_public_key": "ed25519:E7F6MXsZaYD3CWvJQvG1GoofRHpY8yRPRjx2PssbQTyT"
+    }
+   }
+  },
+  {
+   "receipt_id": "9H2b7MkbYjL8J5GGh8AyvELPfZ8sSv2P77kkgewwjT8q",
+   "predecessor_id": "system",
+   "receiver_id": "intented-agent.testnet",
+   "receipt": {
+    "Action": {
+     "actions": [
+      {
+       "Transfer": {
+        "deposit": "50702688434594300000000"
+       }
+      }
+     ],
+     "gas_price": "0",
+     "input_data_ids": [],
+     "is_promise_yield": false,
+     "output_data_receivers": [],
+     "signer_id": "intented-agent.testnet",
+     "signer_public_key": "ed25519:E7F6MXsZaYD3CWvJQvG1GoofRHpY8yRPRjx2PssbQTyT"
+    }
+   }
+  },
+  {
+   "receipt_id": "AcaueeiAt1zcx7gAdJjKiRTC6CBXwQinjSQfsz1qvikk",
+   "predecessor_id": "intented-wallet.testnet",
+   "receiver_id": "intented-wallet.testnet",
+   "receipt": {
+    "Action": {
+     "actions": [
+      {
+       "FunctionCall": {
+        "args": "",
+        "deposit": "0",
+        "gas": 10000000000000,
+        "method_name": "on_executed"
+       }
+      }
+     ],
+     "gas_price": "1000000000",
+     "input_data_ids": [
+      "BafPt7pW6ukyJZxA1WJ4S8nqQjZXDyCnvsASLCX7WPWB"
+     ],
+     "is_promise_yield": false,
+     "output_data_receivers": [],
+     "signer_id": "intented-agent.testnet",
+     "signer_public_key": "ed25519:E7F6MXsZaYD3CWvJQvG1GoofRHpY8yRPRjx2PssbQTyT"
+    }
+   }
+  },
+  {
+   "receipt_id": "FLvEASgPmRcFWJ4GwaMs497sg2xs5oEsCPhb4peKW8kv",
+   "predecessor_id": "system",
+   "receiver_id": "intented-agent.testnet",
+   "receipt": {
+    "Action": {
+     "actions": [
+      {
+       "Transfer": {
+        "deposit": "10719309583944700000000"
+       }
+      }
+     ],
+     "gas_price": "0",
+     "input_data_ids": [],
+     "is_promise_yield": false,
+     "output_data_receivers": [],
+     "signer_id": "intented-agent.testnet",
+     "signer_public_key": "ed25519:E7F6MXsZaYD3CWvJQvG1GoofRHpY8yRPRjx2PssbQTyT"
+    }
+   }
+  },
+  {
+   "receipt_id": "kouerZdNrX98CY3QRr4A4i9u7d3j2XaHqyn8zcFLnRB",
+   "predecessor_id": "system",
+   "receiver_id": "intented-agent.testnet",
+   "receipt": {
+    "Action": {
+     "actions": [
+      {
+       "Transfer": {
+        "deposit": "238653425426354300000000"
+       }
+      }
+     ],
+     "gas_price": "0",
+     "input_data_ids": [],
+     "is_promise_yield": false,
+     "output_data_receivers": [],
+     "signer_id": "intented-agent.testnet",
+     "signer_public_key": "ed25519:E7F6MXsZaYD3CWvJQvG1GoofRHpY8yRPRjx2PssbQTyT"
+    }
+   }
+  }
+ ],
+ "receipts_outcome": [
+  {
+   "id": "2KSAjpJ8NDcFtHWtNARMKPjV3Fjafwz5rtyST4dFVdLp",
+   "outcome": {
+    "executor_id": "intented-wallet.testnet",
+    "status": {
+     "SuccessReceiptId": "AcaueeiAt1zcx7gAdJjKiRTC6CBXwQinjSQfsz1qvikk"
+    }
+   }
+  },
+  {
+   "id": "UTKnrJj8aH8Qmjm4kzRSjFEdX6DUfJKVa8eJDcAgZPw",
+   "outcome": {
+    "executor_id": "wrap.testnet",
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "9H2b7MkbYjL8J5GGh8AyvELPfZ8sSv2P77kkgewwjT8q",
+   "outcome": {
+    "executor_id": "intented-agent.testnet",
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "AcaueeiAt1zcx7gAdJjKiRTC6CBXwQinjSQfsz1qvikk",
+   "outcome": {
+    "executor_id": "intented-wallet.testnet",
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "FLvEASgPmRcFWJ4GwaMs497sg2xs5oEsCPhb4peKW8kv",
+   "outcome": {
+    "executor_id": "intented-agent.testnet",
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "kouerZdNrX98CY3QRr4A4i9u7d3j2XaHqyn8zcFLnRB",
+   "outcome": {
+    "executor_id": "intented-agent.testnet",
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  }
+ ]
+}

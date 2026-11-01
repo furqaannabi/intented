@@ -1,0 +1,107 @@
+{
+ "status": {
+  "Failure": {
+   "ActionError": {
+    "index": 0,
+    "kind": {
+     "FunctionCallError": {
+      "ExecutionError": "Smart contract panicked: verdict is not ALLOW"
+     }
+    }
+   }
+  }
+ },
+ "transaction": {
+  "hash": "6qMNqsk3e275y1fJnh5ysDYwkBqkckVgrsEJyt8xhwuc",
+  "signer_id": "intented-agent.testnet",
+  "receiver_id": "intented-wallet.testnet",
+  "actions": [
+   {
+    "FunctionCall": {
+     "args": "",
+     "deposit": "0",
+     "gas": 300000000000000,
+     "method_name": "execute"
+    }
+   }
+  ]
+ },
+ "receipts": [
+  {
+   "receipt_id": "6Wq12JAAhHtX94AsHbqEHE3iCkTp8qsCAj3PnHQvZjQN",
+   "predecessor_id": "intented-agent.testnet",
+   "receiver_id": "intented-wallet.testnet",
+   "receipt": {
+    "Action": {
+     "actions": [
+      {
+       "FunctionCall": {
+        "args": "",
+        "deposit": "0",
+        "gas": 300000000000000,
+        "method_name": "execute"
+       }
+      }
+     ],
+     "gas_price": "1000000000",
+     "input_data_ids": [],
+     "is_promise_yield": false,
+     "output_data_receivers": [],
+     "signer_id": "intented-agent.testnet",
+     "signer_public_key": "ed25519:E7F6MXsZaYD3CWvJQvG1GoofRHpY8yRPRjx2PssbQTyT"
+    }
+   }
+  },
+  {
+   "receipt_id": "4n7qy5VcRBtJgythgePXCNpHoopPbXENtVFdEqLgWzdu",
+   "predecessor_id": "system",
+   "receiver_id": "intented-agent.testnet",
+   "receipt": {
+    "Action": {
+     "actions": [
+      {
+       "Transfer": {
+        "deposit": "300647178952348800000000"
+       }
+      }
+     ],
+     "gas_price": "0",
+     "input_data_ids": [],
+     "is_promise_yield": false,
+     "output_data_receivers": [],
+     "signer_id": "intented-agent.testnet",
+     "signer_public_key": "ed25519:E7F6MXsZaYD3CWvJQvG1GoofRHpY8yRPRjx2PssbQTyT"
+    }
+   }
+  }
+ ],
+ "receipts_outcome": [
+  {
+   "id": "6Wq12JAAhHtX94AsHbqEHE3iCkTp8qsCAj3PnHQvZjQN",
+   "outcome": {
+    "executor_id": "intented-wallet.testnet",
+    "status": {
+     "Failure": {
+      "ActionError": {
+       "index": 0,
+       "kind": {
+        "FunctionCallError": {
+         "ExecutionError": "Smart contract panicked: verdict is not ALLOW"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "4n7qy5VcRBtJgythgePXCNpHoopPbXENtVFdEqLgWzdu",
+   "outcome": {
+    "executor_id": "intented-agent.testnet",
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  }
+ ]
+}

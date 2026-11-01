@@ -26,7 +26,7 @@ Agents with wallets get prompt-injected, and spending caps alone don't catch an 
 | Firewall core and attestation checker | `firewall-core/` | Furqaan | Done: `judge`, `proposeOnChain`, `executeOnChain` (the seam), canonical encoder, prompt, verdict parser, attestation checker (`pnpm attest`), converted token amounts; 126 tests; both demo paths run through it on testnet |
 | API, storage and 1Click module | `api/` | William | Hono and node:sqlite ([record](./decisions/2026-11-01-api-hono-and-node-sqlite.md)); `POST /api/mandate`, `POST /api/propose`, `GET /api/proposals`, `GET /api/proposals/:id`, with the background pipeline ([record](./decisions/2026-11-01-api-pipeline-behaviour.md)); 15 tests. On testnet a real DENY ends in the wallet's refused `execute`; a real ALLOW is refused until the wallet's prompt hash is updated to the prompt on main. `/api/redteam/latest` not started. 1Click module and KT4 script |
 | Web app | `web/` | William | Scaffolded; placeholder live at https://intented-near.vercel.app/ |
-| Demo agent and mock x402 paywall | `agent/` | William | Not started |
+| Demo agent and mock x402 paywall | `agent/` | William | Scripted agent and a paywall with honest and poisoned routes that checks payment on testnet ([record](./decisions/2026-11-01-demo-agent-and-paywall.md)); 7 tests. The poisoned path ran through the API to a `DENY` and the wallet's refusal, on the retired wallet; both paths still to run on `intented-wallet.testnet` |
 | Red-team fixtures and runner | `redteam/` | William | KT3 cases (20 attack, 20 benign) and runner merged |
 
 ## Key dates

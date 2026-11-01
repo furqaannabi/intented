@@ -42,6 +42,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [The model sees token amounts already converted, and the wallet checks the conversion](./2026-11-01-model-sees-converted-amount.md) (proposed, awaiting William) | Furqaan |
 | 2026-11-01 | [api: Hono on Node, with node:sqlite for storage](./2026-11-01-api-hono-and-node-sqlite.md) | William |
 | 2026-11-01 | [api: proposals run in the background, every verdict goes on-chain, and failed means no money moved](./2026-11-01-api-pipeline-behaviour.md) (`updated_at` proposed, awaiting Furqaan) | William |
+| 2026-11-01 | [The demo agent is scripted; the mock x402 paywall checks payment on-chain](./2026-11-01-demo-agent-and-paywall.md) | William |
 
 ## Not decided yet
 
