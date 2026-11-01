@@ -22,8 +22,8 @@ Agents with wallets get prompt-injected, and spending caps alone don't catch an 
 | KT2 On-chain verify | `contract/kt2-verify/` | Furqaan | **Passed** on testnet ([record](./decisions/2026-11-01-kt1-kt2-pass.md)) |
 | KT3 Model quality | `redteam/` | William (cases, runner), Furqaan (prompt) | Prompt ready in `firewall-core/src/prompt.ts`; cases and runner not started |
 | KT4 1Click settlement | — | William | Not started |
-| Wallet contract | `contract/` | Furqaan | Not started (KT2 verifier is the seed) |
-| Firewall core and attestation checker | `firewall-core/` | Furqaan | Started: canonical encoder, prompt, verdict parser |
+| Wallet contract | `contract/wallet/` | Furqaan | `propose` and `execute` with every check, 29 tests; deployed to `wallet.intented-owner.testnet`; first allowed action executed and a real DENY refused ([record](./decisions/2026-11-01-first-testnet-execution.md)) |
+| Firewall core and attestation checker | `firewall-core/` | Furqaan | Canonical encoder, prompt and verdict parser done; `judge`, `proposeOnChain`, `executeOnChain` and the attestation checker not started |
 | API, storage and 1Click module | `api/` | William | Not started |
 | Web app | `web/` | William | Scaffolded; placeholder live at https://intented-near.vercel.app/ |
 | Demo agent and mock x402 paywall | `agent/` | William | Not started |
