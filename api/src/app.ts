@@ -19,6 +19,7 @@ function toProposal(p: ProposalRow, attestationUrls: Record<string, string>) {
   return {
     id: p.id,
     created_at: p.created_at,
+    updated_at: p.updated_at,
     action: p.action,
     args: p.args,
     context_excerpt: p.context.slice(0, CONTEXT_EXCERPT_CHARS),
@@ -30,7 +31,7 @@ function toProposal(p: ProposalRow, attestationUrls: Record<string, string>) {
     signature: p.signature,
     signer: p.signer,
     // Null unless a verified report is published for this signer; the UI must not call it attested otherwise.
-    attestation_url: (p.signer && attestationUrls[p.signer]) || null,
+    attestation_url: (p.signer && attestationUrls[p.signer.toLowerCase()]) || null,
     ...(p.near_tx_hash ? { near_tx_hash: p.near_tx_hash } : {}),
   };
 }
