@@ -6,7 +6,8 @@
   "scripts": {
     "kt1": "tsx scripts/kt1.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "kt3:smoke": "tsx scripts/kt3-smoke.ts"
   },
   "engines": {
     "node": ">=22"
@@ -19,5 +20,8 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
+  },
+  "exports": {
+    ".": "./src/index.ts"
   }
 }
