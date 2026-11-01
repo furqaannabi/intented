@@ -5,11 +5,13 @@ import type { WalletStatus } from "../src/settle.js";
 import { openStore } from "../src/store.js";
 
 const HASH = "a".repeat(64);
+const PROMPT = "d".repeat(64);
+const wallet = (over: { mandate_hash?: string; model_id?: string; prompt_hash?: string } = {}) => ({ mandate_hash: HASH, model_id: "m", prompt_hash: PROMPT, ...over });
 const verdict = (v: "ALLOW" | "DENY"): Judgement => ({
   verdict: v, reason: `model says ${v}`, model: "m", chat_id: "chat-1", req_bytes: new Uint8Array([1]), resp_bytes: new Uint8Array([2]), signature: "0xsig", signer: "0xsigner",
 });
 
-function setup(over: { judge?: PipelineDeps["judge"]; execute?: PipelineDeps["chain"]["executeOnChain"]; mandateHash?: string; walletStatus?: WalletStatus } = {}) {
+function setup(over: { judge?: PipelineDeps["judge"]; execute?: PipelineDeps["chain"]["executeOnChain"]; config?: Parameters<typeof wallet>[0]; walletStatus?: WalletStatus } = {}) {
   const store = openStore(":memory:");
   const m = store.createMandate("Buy market data", HASH);
   const calls: string[] = [];
@@ -20,7 +22,8 @@ function setup(over: { judge?: PipelineDeps["judge"]; execute?: PipelineDeps["ch
       proposeOnChain: async () => (calls.push("propose"), { proposal_id: 7, near_tx_hash: "ptx" }),
       executeOnChain: over.execute ?? (async () => (calls.push("execute"), { near_tx_hash: "etx", ok: true })),
     },
-    wallet: { mandateHash: async () => over.mandateHash ?? HASH, proposalStatus: async () => over.walletStatus ?? null },
+    wallet: { config: async () => wallet(over.config), proposalStatus: async () => over.walletStatus ?? null },
+    expected: { model: "m", promptHash: PROMPT },
     log: () => {},
     recheckMs: 5,
   });
@@ -50,10 +53,21 @@ describe("pipeline", () => {
 
   it("fails without judging or transacting when the mandate is not active on the wallet", async () => {
     let judged = false;
-    const t = setup({ mandateHash: "c".repeat(64), judge: async () => ((judged = true), verdict("ALLOW")) });
+    const t = setup({ config: { mandate_hash: "c".repeat(64) }, judge: async () => ((judged = true), verdict("ALLOW")) });
     t.pipeline.start(t.p.id);
     const r = await t.done();
     expect([r.status, judged, t.calls]).toEqual(["failed", false, []]);
+  });
+
+  it("fails without judging when the wallet expects another prompt or model", async () => {
+    for (const config of [{ prompt_hash: "e".repeat(64) }, { model_id: "other/model" }]) {
+      let judged = false;
+      const t = setup({ config, judge: async () => ((judged = true), verdict("ALLOW")) });
+      t.pipeline.start(t.p.id);
+      const r = await t.done();
+      expect([r.status, judged, t.calls]).toEqual(["failed", false, []]);
+      expect(r.reason).toMatch(/^pipeline: the wallet (expects a different prompt|runs model other\/model)/);
+    }
   });
 
   it("fails without transacting when there is no verdict", async () => {
@@ -93,7 +107,8 @@ describe("pipeline", () => {
           return { near_tx_hash: "etx", ok: true };
         },
       },
-      wallet: { mandateHash: async () => HASH, proposalStatus: async () => null },
+      wallet: { config: async () => wallet(), proposalStatus: async () => null },
+      expected: { model: "m", promptHash: PROMPT },
       log: () => {},
     });
     const action = { receiver_id: "wrap.testnet", method: "ft_transfer", args_sha256: "b".repeat(64), deposit: "1", nonce: "1", expiry_ms: String(Date.now() + 60_000) };
