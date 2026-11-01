@@ -1,5 +1,27 @@
+node_modules/
+dist/
+out/
+.next/
+.vercel/
+coverage/
+*.log
+.DS_Store
+
+# Secrets: the NEAR AI key, the 1Click JWT and every account key live in the password manager
 .env
 .env.*
 !.env.example
-node_modules/
-.DS_Store
+*.pem
+.near-credentials/
+**/neardev/
+
+# Rust (contract/)
+target/
+
+# SQLite (api/)
+*.db
+*.db-journal
+*.sqlite
+
+# Red-team runs: the runner writes these; the published numbers go in the README
+redteam/results/

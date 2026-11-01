@@ -1,0 +1,39 @@
+# Decisions
+
+Architecture and product decision records (ADRs). One file per decision, named `YYYY-MM-DD-short-title.md`, **never edited after the fact**: if a decision changes, write a new record that supersedes the old one and link both ways.
+
+[`interface-spec.md`](../interface-spec.md) describes the shared shapes and changes over time. Records here describe *why* something was chosen on a given day and who chose it, so a reader (human or AI judge) can tell a deliberate choice from an accident. They replace the `DECISIONS.md` the build plan mentions.
+
+## Format
+
+```
+# Title
+Date · Decided by · Status (accepted | superseded by <file>)
+
+## Context
+What was true, what was being weighed.
+
+## Decision
+One paragraph, or a short list.
+
+## Consequences
+What this makes easier, what it rules out, what to watch.
+```
+
+## Index
+
+| Date | Decision | By |
+| --- | --- | --- |
+| 2026-11-01 | [Build Intented, with Sealed-lite as the fallback, decided by four kill tests on Day 1](./2026-11-01-build-intented-with-sealed-lite-fallback.md) | Furqaan, William |
+| 2026-11-01 | [One repo, one folder per part, each owned by one person; decisions as dated records](./2026-11-01-repo-layout-and-ownership.md) | Furqaan, William |
+| 2026-11-01 | [The trust model: attestation checked off-chain, signer allowlisted on-chain, the contract's caps as the backstop](./2026-11-01-signed-verdict-trust-model.md) | Furqaan, William |
+| 2026-11-01 | [The firewall core's interface is the seam: a stub until Day 6, the real core after](./2026-11-01-firewall-core-interface-is-the-seam.md) | Furqaan, William |
+
+## Not decided yet
+
+| Question | Settled by | Owner |
+| --- | --- | --- |
+| Signature scheme: ECDSA via `env::ecrecover`, `env::ed25519_verify`, or a relayer | KT2, 1 November | Furqaan |
+| Model: Qwen3.8-27B or GLM-5.3-flash | KT3, 1 November (retest 2 November) | Furqaan, William |
+| API framework (Hono or Express) and host (Railway or Render) | William's pick | William |
+| Optional OutLayer integration | Discord question 3 | Furqaan |
