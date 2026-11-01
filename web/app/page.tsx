@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ArrowUpRight, Check, Cross } from "./components/icons";
 import { REPO, SiteHeader } from "./components/SiteHeader";
 import { TapToPay } from "./components/TapToPay";
-import { getRedteamCounts } from "./lib/redteam";
 import "./home.css";
 
 const ATTESTATIONS = `${REPO}/tree/main/docs/attestations`;
@@ -34,8 +33,7 @@ const button =
 const primary = `${button} bg-lime text-lime-ink`;
 const secondary = `${button} border-[1.5px] border-line bg-ink-2 text-text hover:border-soft`;
 
-export default async function Home() {
-  const redteam = await getRedteamCounts();
+export default function Home() {
   return (
     <div className="overflow-x-clip">
       <SiteHeader current="home" />
@@ -56,24 +54,6 @@ export default async function Home() {
               <a href={REPO} className={secondary}>Read the code</a>
             </div>
             <dl className="mt-10 flex flex-wrap gap-x-10 gap-y-4 text-[13px] leading-tight text-mute">
-              {redteam && (
-                <>
-                  <div>
-                    <dt className="sr-only">Attacks</dt>
-                    <dd>
-                      <b className="block text-[28px] font-black text-text">{redteam.attacks_blocked}/{redteam.attacks_total}</b>
-                      test attacks blocked
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="sr-only">Honest payments</dt>
-                    <dd>
-                      <b className="block text-[28px] font-black text-text">{redteam.benign_denied}/{redteam.benign_total}</b>
-                      honest payments stopped
-                    </dd>
-                  </div>
-                </>
-              )}
               <div>
                 <dt className="sr-only">Verification</dt>
                 <dd><b className="block text-[28px] font-black text-text">On-chain</b>every verdict checked</dd>
@@ -175,23 +155,11 @@ export default async function Home() {
         <section id="proof" className="scroll-mt-20 border-t border-line">
           <div className="mx-auto max-w-[1440px] px-[clamp(18px,4.5vw,72px)] py-[clamp(64px,8vw,120px)]">
             <h2 className="max-w-[15em] text-[clamp(34px,4.2vw,60px)] leading-none font-black tracking-[-0.035em] text-balance">
-              Tested, and on the chain for anyone to check.
+              On the chain, for anyone to check.
             </h2>
-            <dl className="mt-12 grid divide-line border-y border-line sm:grid-cols-3 sm:divide-x">
-              {[
-                ...(redteam
-                  ? [
-                      [`${redteam.attacks_blocked}/${redteam.attacks_total}`, "attack cases blocked, on all three runs"],
-                      [`${redteam.benign_denied}/${redteam.benign_total}`, "honest payments stopped"],
-                    ]
-                  : []),
-                ["4.6 s", "median time to a signed verdict"],
-              ].map(([value, label]) => (
-                <div key={label} className="border-line py-6 not-last:border-b sm:px-6 sm:not-last:border-b-0 sm:first:pl-0">
-                  <dt className="text-[clamp(48px,5vw,76px)] leading-none font-black tracking-[-0.04em] text-lime">{value}</dt>
-                  <dd className="mt-2.5 text-[15px] text-mute">{label}</dd>
-                </div>
-              ))}
+            <dl className="mt-12 border-y border-line py-6">
+              <dt className="text-[clamp(48px,5vw,76px)] leading-none font-black tracking-[-0.04em] text-lime">4.6 s</dt>
+              <dd className="mt-2.5 text-[15px] text-mute">median time to a signed verdict</dd>
             </dl>
             <div className="mt-6 grid gap-3.5 md:grid-cols-2">
               <a href={txUrl(PAID_TX)} className="home-tx">
@@ -208,7 +176,7 @@ export default async function Home() {
               </a>
             </div>
             <p className="mt-5 max-w-[52em] text-sm text-mute">
-              Red-team run on 1 November 2026: {redteam && `${redteam.attacks_total + redteam.benign_total} cases, `}three runs each, Qwen3.8-27B on NEAR AI Cloud. The enclave&apos;s{" "}
+              Verdicts come from Qwen3.8-27B on NEAR AI Cloud; the median is over our test run on 1 November 2026. The enclave&apos;s{" "}
               <a href={ATTESTATIONS} className="text-text underline decoration-line underline-offset-4 hover:decoration-soft">
                 attestation report
               </a>{" "}
