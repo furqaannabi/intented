@@ -1,5 +1,7 @@
 // The Proposal shape from docs/interface-spec.md, and how the UI reads it.
 
+import { formatUnits } from "./near";
+
 export type Proposal = {
   id: string;
   created_at: number;
@@ -70,10 +72,7 @@ export function amount(p: Proposal): string {
   if (typeof raw !== "string" || !/^\d+$/.test(raw)) return "";
   const token = TOKENS[p.action.receiver_id];
   if (!token) return `${raw} ${p.action.receiver_id}`;
-  const padded = raw.padStart(token.decimals + 1, "0");
-  const whole = padded.slice(0, -token.decimals).replace(/^0+(?=\d)/, "");
-  const fraction = padded.slice(-token.decimals).replace(/0+$/, "");
-  return `${fraction ? `${whole}.${fraction}` : whole} ${token.symbol}`;
+  return `${formatUnits(raw, token.decimals)} ${token.symbol}`;
 }
 
 /**

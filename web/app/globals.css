@@ -46,6 +46,15 @@ body {
   outline-offset: 3px;
 }
 
+/* Tailwind 4 gives buttons the default cursor; anything clickable gets the pointer. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

@@ -8,9 +8,10 @@ const LINKS = [
   { href: "/#how", label: "How it works", page: "home" },
   { href: "/#proof", label: "Proof", page: "home" },
   { href: "/activity", label: "Activity", page: "activity" },
+  { href: "/rules", label: "Rules", page: "rules" },
 ] as const;
 
-export function SiteHeader({ current }: { current?: "home" | "activity" }) {
+export function SiteHeader({ current }: { current?: "home" | "activity" | "rules" }) {
   return (
     <header className="site-header sticky top-0 z-50">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-[clamp(18px,4.5vw,72px)] py-4">
@@ -20,7 +21,7 @@ export function SiteHeader({ current }: { current?: "home" | "activity" }) {
         </Link>
         <nav className="flex gap-6 text-[15px] text-mute">
           {LINKS.map((link) => {
-            const active = current === "activity" && link.page === "activity";
+            const active = current !== "home" && link.page === current;
             return (
               <Link
                 key={link.href}
