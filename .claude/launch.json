@@ -4,8 +4,22 @@
     {
       "name": "api",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--dir", "api", "start"],
+      "runtimeArgs": [
+        "--dir",
+        "api",
+        "start"
+      ],
       "port": 8787
+    },
+    {
+      "name": "paywall",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "agent",
+        "paywall"
+      ],
+      "port": 8402
     }
   ]
 }
