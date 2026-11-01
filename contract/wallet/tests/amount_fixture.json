@@ -1,0 +1,68 @@
+[
+  {
+    "raw": "1000000000000000000000",
+    "decimals": 24,
+    "symbol": "wNEAR",
+    "shown": "0.001 wNEAR"
+  },
+  {
+    "raw": "1000000",
+    "decimals": 6,
+    "symbol": "USDC",
+    "shown": "1 USDC"
+  },
+  {
+    "raw": "1500000",
+    "decimals": 6,
+    "symbol": "USDC",
+    "shown": "1.5 USDC"
+  },
+  {
+    "raw": "1",
+    "decimals": 6,
+    "symbol": "USDC",
+    "shown": "0.000001 USDC"
+  },
+  {
+    "raw": "0",
+    "decimals": 6,
+    "symbol": "USDC",
+    "shown": "0 USDC"
+  },
+  {
+    "raw": "50000000",
+    "decimals": 6,
+    "symbol": "USDC",
+    "shown": "50 USDC"
+  },
+  {
+    "raw": "10000",
+    "decimals": 6,
+    "symbol": "USDC.e",
+    "shown": "0.01 USDC.e"
+  },
+  {
+    "raw": "123",
+    "decimals": 0,
+    "symbol": "X",
+    "shown": "123 X"
+  },
+  {
+    "raw": "100",
+    "decimals": 2,
+    "symbol": "T",
+    "shown": "1 T"
+  },
+  {
+    "raw": "340282366920938463463374607431768211455",
+    "decimals": 24,
+    "symbol": "wNEAR",
+    "shown": "340282366920938.463463374607431768211455 wNEAR"
+  },
+  {
+    "raw": "340282366920938463463374607431768211455",
+    "decimals": 38,
+    "symbol": "MAX",
+    "shown": "3.40282366920938463463374607431768211455 MAX"
+  }
+]

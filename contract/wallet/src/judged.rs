@@ -16,6 +16,9 @@ pub struct Expected<'a> {
     pub mandate_hash: &'a str,
     pub canonical_action: &'a str,
     pub args_json: &'a str,
+    /// For a token transfer, the amount in whole tokens the model must have
+    /// been shown (`format_amount`); `None` for any other call.
+    pub amount: Option<&'a str>,
 }
 
 /// Exactly the fields the firewall core sends; any other field, or a
@@ -50,6 +53,9 @@ struct UserData {
     mandate: String,
     action: String,
     args: String,
+    /// The firewall core's conversion of args.amount; absent unless a token transfer.
+    #[serde(default)]
+    amount: Option<String>,
     /// Untrusted by design; not checked.
     #[allow(dead_code)]
     context: String,
@@ -123,10 +129,11 @@ pub fn check_request(req: &[u8], e: &Expected) {
     require!(sha256_hex(&system.content) == e.prompt_hash, "request system prompt is not the registered prompt");
 
     let u: UserData = serde_json::from_str(&user.content)
-        .unwrap_or_else(|err| env::panic_str(&format!("request user message is not {{mandate, action, args, context}}: {err}")));
+        .unwrap_or_else(|err| env::panic_str(&format!("request user message is not {{mandate, action, args, context, amount?}}: {err}")));
     require!(sha256_hex(&u.mandate) == e.mandate_hash, "request mandate is not the registered mandate");
     require!(u.action == e.canonical_action, "request action is not the proposal's action");
     require!(u.args == e.args_json, "request args are not the proposal's args");
+    require!(u.amount.as_deref() == e.amount, "request amount is not the wallet's formatting of args.amount");
 }
 
 /// Panics unless `resp` holds exactly one `ALLOW` verdict for this action.

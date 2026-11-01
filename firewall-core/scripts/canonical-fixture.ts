@@ -8,6 +8,7 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { canonicalBytes, type Action } from "../src/canonical.js";
+import { formatAmount } from "../src/tokens.js";
 
 const out = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "contract", "wallet", "tests", "canonical_fixture.json");
 const U64_MAX = (1n << 64n) - 1n;
@@ -28,3 +29,13 @@ const cases = actions.map((a) => ({
 }));
 writeFileSync(out, JSON.stringify(cases, null, 2) + "\n");
 console.log(`wrote ${cases.length} cases to ${out}`);
+
+// Amounts in whole tokens, as the model is shown them; the contract must format identically.
+const amounts: [string, number, string][] = [
+  ["1000000000000000000000", 24, "wNEAR"], ["1000000", 6, "USDC"], ["1500000", 6, "USDC"], ["1", 6, "USDC"], ["0", 6, "USDC"],
+  ["50000000", 6, "USDC"], ["10000", 6, "USDC.e"], ["123", 0, "X"], ["100", 2, "T"], ["340282366920938463463374607431768211455", 24, "wNEAR"],
+  ["340282366920938463463374607431768211455", 38, "MAX"],
+];
+const amountOut = out.replace("canonical_fixture.json", "amount_fixture.json");
+writeFileSync(amountOut, JSON.stringify(amounts.map(([raw, decimals, symbol]) => ({ raw, decimals, symbol, shown: formatAmount(raw, decimals, symbol) })), null, 2) + "\n");
+console.log(`wrote ${amounts.length} amounts to ${amountOut}`);

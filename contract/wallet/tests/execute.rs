@@ -4,7 +4,7 @@
 
 mod common;
 use common::*;
-use intented_wallet::{Action, Caps, ProposalStatus, Wallet};
+use intented_wallet::{Action, Caps, ProposalStatus, Token, Wallet};
 use near_sdk::json_types::{Base64VecU8, U128};
 use near_sdk::test_utils::get_created_receipts;
 use serde_json::Value;
@@ -28,9 +28,14 @@ fn configured() -> Wallet {
     w.set_mandate(f["mandate_hash"].as_str().unwrap().into());
     w.set_prompt_hash(f["prompt_hash"].as_str().unwrap().into());
     w.allow_receiver(USDC.parse().unwrap());
-    w.set_token_caps(USDC.parse().unwrap(), Caps { per_tx: U128(5_000_000), daily: U128(20_000_000) });
+    w.set_token(USDC.parse().unwrap(), usdc(5_000_000, 20_000_000));
     w.set_near_caps(Caps { per_tx: U128(1), daily: U128(100) });
     w
+}
+
+/// Testnet USDC as the firewall core knows it: symbol USDC, 6 decimals.
+fn usdc(per_tx: u128, daily: u128) -> Token {
+    Token { symbol: "USDC".into(), decimals: 6, caps: Caps { per_tx: U128(per_tx), daily: U128(daily) } }
 }
 
 fn propose_case(w: &mut Wallet, c: &Value) -> u64 {
@@ -226,7 +231,7 @@ fn a_near_deposit_over_its_cap_is_rejected() {
 #[test]
 fn a_token_transfer_without_caps_or_a_readable_amount_is_rejected() {
     let mut w = configured();
-    w.set_token_caps(USDC.parse().unwrap(), Caps { per_tx: U128(0), daily: U128(0) });
+    w.set_token(USDC.parse().unwrap(), usdc(0, 0));
     rejects_with(&mut w, "allow", "over the per-transaction cap");
 
     let mut w = wallet();
@@ -246,7 +251,7 @@ fn a_token_transfer_without_caps_or_a_readable_amount_is_rejected() {
 fn the_daily_cap_holds_within_a_utc_day_and_resets_at_midnight() {
     let mut w = configured();
     as_caller(owner());
-    w.set_token_caps(USDC.parse().unwrap(), Caps { per_tx: U128(1_000_000), daily: U128(2_000_000) });
+    w.set_token(USDC.parse().unwrap(), usdc(1_000_000, 2_000_000));
     let day = 20_000 * DAY_MS;
     for name in ["allow", "allow_nonce_2"] {
         let c = case(name);
@@ -293,4 +298,10 @@ fn the_callback_records_whether_the_call_succeeded() {
         w.on_executed(id);
         assert_eq!(w.get_proposal(id).unwrap().status, expected);
     }
+}
+
+#[test]
+fn a_request_showing_the_model_a_false_amount_or_none_is_rejected() {
+    rejects("wrong_amount_shown", "amount");
+    rejects("no_amount_shown", "amount");
 }

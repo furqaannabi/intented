@@ -46,7 +46,7 @@ What the model must return, as structured JSON output:
 `execute` succeeds only when every check passes:
 
 1. The signer is on the allowlist.
-2. `sha256(req) + ":" + sha256(resp)` recovers that signer.
+2. `model_id + ":" + sha256(req) + ":" + sha256(resp)`, the text NEAR AI signs (EIP-191, recovered with `env::ecrecover`), recovers that signer. `model_id` is stored in the contract.
 3. The verdict is `ALLOW`.
 4. The verdict's `action` equals the canonical bytes of the proposal.
 5. The nonce is unused.
@@ -98,11 +98,12 @@ Proposal = {
 
 ## Open
 
-- **The signature scheme** waits on KT2: ECDSA through `env::ecrecover`, `env::ed25519_verify`, or a relayer with its own key. `sig_65` and `register_signer(eth_address)` assume ECDSA.
-- **The model** waits on KT3: Qwen3.8-27B first, GLM-5.3-flash as the fallback.
+- Nothing. The signature scheme (ECDSA through `env::ecrecover`) and the model (`Qwen/Qwen3.8-27B`) were settled on 1 November.
+- Proposed, awaiting both owners: [`execute` checks the signed request](./decisions/2026-11-01-execute-checks-the-signed-request.md), [the seam as factories](./decisions/2026-11-01-firewall-core-seam-and-near-api-js.md), [the converted amount](./decisions/2026-11-01-model-sees-converted-amount.md).
 
 ## Revision
 
 | Date | Who | Change |
 | --- | --- | --- |
 | 2026-11-01 | Furqaan | Copied from §5 of the build plan, unchanged |
+| 2026-11-01 | Furqaan, William | Check 2 uses NEAR AI's signed text with the model id; signature scheme ECDSA through `env::ecrecover`; model Qwen3.8-27B. Records: [signed text](./decisions/2026-11-01-accept-model-id-signed-text.md), [go on Qwen](./decisions/2026-11-01-go-intented-on-qwen.md) |

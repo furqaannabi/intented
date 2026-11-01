@@ -12,7 +12,7 @@ The words we use, exactly. Code, docs, the UI and the README use these and no sy
 | **Proposal** | An action the agent has submitted with `propose`, waiting for a verdict and then for `execute` |
 | **Verdict** | `ALLOW` or `DENY`, with a reason of at most 280 characters, returned by the model as structured JSON and signed inside the TEE |
 | **Firewall core** | Furqaan's TypeScript library: builds the prompt, calls NEAR AI, fetches the signature, submits to the contract. The seam between the two halves of the code |
-| **Signature** | NEAR AI Cloud's signature over `sha256(request):sha256(response)`, fetched from `/v1/signature/{id}` straight after the call |
+| **Signature** | NEAR AI Cloud's ECDSA signature over `model_id:sha256(request):sha256(response)`, made inside the model's TEE and fetched from `/v1/signature/{id}` straight after the call |
 | **Signer** | The TEE's signing address. Allowlisted in the contract by `register_signer` after the attestation checks out |
 | **Attestation** | NEAR AI Cloud's report that the signer runs inside a TEE, fetched with a fresh nonce and verified **off-chain** |
 | **Caps** | The contract's hard limits per transaction and per day, plus the allowlist and the freeze switch. The verdict can only tighten what they permit |

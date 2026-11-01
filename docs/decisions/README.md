@@ -29,7 +29,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [The trust model: attestation checked off-chain, signer allowlisted on-chain, the contract's caps as the backstop](./2026-11-01-signed-verdict-trust-model.md) | Furqaan, William |
 | 2026-11-01 | [The firewall core's interface is the seam: a stub until Day 6, the real core after](./2026-11-01-firewall-core-interface-is-the-seam.md) | Furqaan, William |
 | 2026-11-01 | [KT1 and KT2 pass: NEAR AI signatures verify on-chain, no relayer](./2026-11-01-kt1-kt2-pass.md) | Furqaan |
-| 2026-11-01 | [The signed text includes the model id; signatures are ECDSA through env::ecrecover](./2026-11-01-signed-text-includes-model-id.md) (proposed, awaiting William) | Furqaan |
+| 2026-11-01 | [The signed text includes the model id; signatures are ECDSA through env::ecrecover](./2026-11-01-signed-text-includes-model-id.md) (accepted by [this record](./2026-11-01-accept-model-id-signed-text.md)) | Furqaan |
 | 2026-11-01 | [firewall-core: TypeScript on Node with pnpm, tsx, vitest and ethers v6](./2026-11-01-firewall-core-toolchain.md) | Furqaan |
 | 2026-11-01 | [Wallet caps count token amounts; the daily window is the UTC day; the allowlist covers receiver contracts](./2026-11-01-wallet-caps-window-allowlist.md) | Furqaan |
 | 2026-11-01 | [execute checks what the signed request asked, not only the signed verdict](./2026-11-01-execute-checks-the-signed-request.md) (proposed, awaiting William) | Furqaan |
@@ -37,11 +37,13 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [The poisoned-paywall refusal is on-chain, with a transaction hash](./2026-11-01-attack-refusal-on-chain.md) | Furqaan |
 | 2026-11-01 | [The attestation checker ports NEAR's verifier and fails closed](./2026-11-01-attestation-checker.md) | Furqaan |
 | 2026-11-01 | [The firewall core's seam is real; on-chain calls use near-api-js 7.3.1](./2026-11-01-firewall-core-seam-and-near-api-js.md) | Furqaan |
+| 2026-11-01 | [Go: Intented goes ahead on Qwen3.8-27B](./2026-11-01-go-intented-on-qwen.md) | Furqaan, William |
+| 2026-11-01 | [Accepted: the signed text includes the model id; signatures are ECDSA through env::ecrecover](./2026-11-01-accept-model-id-signed-text.md) | Furqaan, William |
+| 2026-11-01 | [The model sees token amounts already converted, and the wallet checks the conversion](./2026-11-01-model-sees-converted-amount.md) (proposed, awaiting William) | Furqaan |
 
 ## Not decided yet
 
 | Question | Settled by | Owner |
 | --- | --- | --- |
-| Model: Qwen3.8-27B or GLM-5.3-flash. Both pass KT1; GLM is faster in the smoke test ([KT1/KT2 record](./2026-11-01-kt1-kt2-pass.md)) | KT3, 1 November (retest 2 November) | Furqaan, William |
 | API framework (Hono or Express) and host (Railway or Render) | William's pick | William |
 | Optional OutLayer integration | Discord question 3 | Furqaan |

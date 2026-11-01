@@ -80,13 +80,22 @@ const specs: Spec[] = [
   { name: "near_deposit", deposit: "1000000000000000000000000", nonce: 5n },
   { name: "no_amount", args: `{"receiver_id":"vendor.testnet"}`, nonce: 6n },
   { name: "numeric_amount", args: `{"receiver_id":"vendor.testnet","amount":1000000}`, nonce: 7n },
+  { name: "wrong_amount_shown", tamper: userEdit((u) => (u.amount = "0.0001 USDC")) },
+  { name: "no_amount_shown", tamper: userEdit((u) => delete u.amount) },
 ];
 
 const cases: Record<string, unknown> = {};
 for (const s of specs) {
   const { action, argsJson } = usdcPayment(s.amount ?? 1_000_000n, s.nonce ?? 1n, s.expiry_ms, s.deposit, s.args);
   const canonical = new TextDecoder().decode(canonicalBytes(action));
-  const body = buildJudgeRequest({ model: MODEL, network: NETWORK, mandate: MANDATE, action, argsJson, context: "HTTP 402: pay 1 USDC to vendor.testnet" });
+  // The core refuses to build a request for args without a readable amount; build
+  // one for the standard payment and swap in this case's action and args by hand.
+  const base = s.args ? usdcPayment(1_000_000n, s.nonce ?? 1n, s.expiry_ms, s.deposit) : { action, argsJson };
+  const body = buildJudgeRequest({ model: MODEL, network: NETWORK, mandate: MANDATE, action: base.action, argsJson: base.argsJson, context: "HTTP 402: pay 1 USDC to vendor.testnet" });
+  if (s.args) {
+    userEdit((u) => { u.action = canonical; u.args = argsJson; delete u.amount; })(body);
+    body.response_format.json_schema.schema.properties.action.enum = [canonical] as never;
+  }
   s.tamper?.(body as Body & Record<string, unknown>);
   let req = JSON.stringify(body);
   if (s.name === "duplicate_model_key") req = req.replace(`{"model":"${MODEL}"`, `{"model":"${MODEL}","model":"Qwen/Qwen3.8-27B"`);

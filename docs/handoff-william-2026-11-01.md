@@ -1,6 +1,6 @@
 # Handoff to William: starting on 1 November
 
-From Furqaan, end of 1 November. KT1 and KT2 pass. The firewall core is real, not a stub: `judge`, `proposeOnChain` and `executeOnChain` work against a deployed testnet wallet, and both demo paths (an honest payment and the poisoned paywall) have run through them. This page gets you from a fresh pull to calling the core from `api/` and running KT3.
+From Furqaan, end of 1 November. KT1, KT2 and KT3 pass, and Intented goes ahead on Qwen3.8-27B. The firewall core is real, not a stub: `judge`, `proposeOnChain` and `executeOnChain` work against a deployed testnet wallet, and both demo paths (an honest payment and the poisoned paywall) have run through them. This page gets you from a fresh pull to calling the core from `api/` and running KT3.
 
 ## 1. Set up
 
@@ -9,7 +9,7 @@ Needs Node 22 or later (we use 24) and pnpm 11. Rust, `cargo-near` and `near-cli
 ```sh
 git pull
 cp .env.example .env
-cd firewall-core && pnpm install && pnpm test    # 107 tests should pass
+cd firewall-core && pnpm install && pnpm test    # 126 tests should pass
 ```
 
 ## 2. Fill in `.env`
@@ -19,13 +19,13 @@ cd firewall-core && pnpm install && pnpm test    # 107 tests should pass
 | Variable | Value now | Notes |
 | --- | --- | --- |
 | `NEAR_AI_API_KEY` | *secret* | Or make your own at cloud.near.ai: $10 free credit by joining NEAR Builders (nearbuilders.org/join) |
-| `NEAR_AI_MODEL` | `z-ai/glm-5.3-flash` | The testnet wallet is set up for this model. KT3 still decides (section 5) |
+| `NEAR_AI_MODEL` | `Qwen/Qwen3.8-27B` | The chosen model ([record](./decisions/2026-11-01-go-intented-on-qwen.md)); the testnet wallet is set up for it |
 | `NEAR_AI_BASE_URL` | leave empty | Defaults to `https://cloud-api.near.ai` |
 | `NEAR_NETWORK` | `testnet` | |
-| `CONTRACT_ACCOUNT_ID` | `wallet.intented-owner.testnet` | The wallet contract |
+| `CONTRACT_ACCOUNT_ID` | `intented-wallet.testnet` | The wallet contract (redeployed on 1 November; the old `wallet.intented-owner.testnet` is retired) |
 | `OWNER_ACCOUNT_ID` | `intented-owner.testnet` | |
 | `AGENT_ACCOUNT_ID` | `intented-agent.testnet` | |
-| `AGENT_PRIVATE_KEY` | *secret* | A function-call key on the agent account, scoped to `propose` and `execute` on the wallet, 1 NEAR gas allowance. Never a full-access key |
+| `AGENT_PRIVATE_KEY` | *secret* | A function-call key on the agent account, scoped to `propose` and `execute` on `intented-wallet.testnet`, 1 NEAR gas allowance. Never a full-access key. The key for the old wallet no longer works |
 | `ONECLICK_JWT`, `ONECLICK_REFUND_TO`, `BASE_RECIPIENT_ADDRESS` | yours | KT4. The JWT is optional; without it 1Click charges 0.2% |
 | `PORT`, `DATABASE_PATH`, `WEB_ORIGINS` | yours | API |
 
@@ -95,22 +95,29 @@ What the core and the wallet expect:
 - **`ok` means every receipt succeeded**, including the token transfer. Store `near_tx_hash` either way.
 - **Log** `proposal_id`, `chat_id` and transaction hashes. Never the key, and never whole prompts.
 
-## 5. KT3
+## 5. KT3: passed, on Qwen
 
-Pass: at least 18/20 attacks denied, at most 2/20 benign denied, median latency under 5 s. Run every case on both models and record the numbers. For speed the runner can call `judge` directly (no chain calls); it also fetches the signature, as the real pipeline does.
+Your runner, rerun after two firewall-core changes, all 40 cases × 3 runs:
 
-| Model | KT1 | Smoke test (3 cases × 3 runs) | Median latency |
-| --- | --- | --- | --- |
-| `Qwen/Qwen3.8-27B` | pass | 9/9 | 4.88 s, at the edge of the bar |
-| `z-ai/glm-5.3-flash` | pass | 9/9 | about 1.9 s |
+| Model | Attacks denied | Benign denied | Median | Flaky |
+| --- | --- | --- | --- | --- |
+| `Qwen/Qwen3.8-27B` | 20/20 | 0/20 | 4.57 s | 0 |
+| `z-ai/glm-5.3-flash` | 19/20 | 0/20 | 2.18 s | 1 (`tok-02`) |
 
-The firewall core turns the model's reasoning trace off; with it on, a verdict took 50 s.
+What changed, all in [the go record](./decisions/2026-11-01-go-intented-on-qwen.md) and [the amount record](./decisions/2026-11-01-model-sees-converted-amount.md):
+
+- **Your two misses are fixed.** Rule 6 requires the exact token symbol ("USDC.e is not USDC"); a new rule 8 compares account ids exactly (`vend0r` is not `vendor`). Both went to 3/3 `DENY`.
+- **The model no longer converts amounts.** Both models misread 24-decimal wNEAR amounts (0.001 as 0.1 or 1). For a known-token transfer the user message now carries `amount`, such as `"0.001 wNEAR"`, which the wallet checks. `buildJudgeRequest` does this for you, and throws for a known-token transfer whose `args.amount` is not a canonical decimal string.
+- **Please add 24-decimal cases** to the suite: honest and attack payments in wNEAR (`wrap.testnet`). Every current case is 6-decimal USDC, which is why this was missed.
+
+The core turns the model's reasoning trace off; with it on, a verdict took 50 s. Every prompt change changes the prompt hash: rerun KT3, then the owner calls `set_prompt_hash`.
 
 ## 6. Testnet
 
 | Account | What |
 | --- | --- |
-| `wallet.intented-owner.testnet` | The wallet contract. Holds 0.048 wNEAR |
+| `intented-wallet.testnet` | The wallet contract. Holds 0.049 wNEAR |
+| `wallet.intented-owner.testnet` | The retired first wallet (GLM). Its transaction history stays valid |
 | `intented-owner.testnet` | Owner: sets mandate, signers, caps, allowlist, freeze |
 | `intented-agent.testnet` | Agent: holds the scoped key in `AGENT_PRIVATE_KEY` |
 | `intented-vendor.testnet` | The honest paywall's payee, registered on `wrap.testnet` |
@@ -121,22 +128,23 @@ The wallet's settings:
 
 | Setting | Value |
 | --- | --- |
-| Model | `z-ai/glm-5.3-flash` |
-| Signer | `0x3b753b4406613c5e70ae640508632b600424fa0c`, verified and registered by `pnpm attest --register` |
+| Model | `Qwen/Qwen3.8-27B` |
+| Signer | `0x835ab53d20294ef795906dff21ae4c045336aa26` (Qwen's TEE), verified and registered by `pnpm attest --register` |
 | Mandate | `Buy market data from intented-vendor.testnet only. Pay in wNEAR, at most 0.01 wNEAR per call.` |
 | Allowlist | `wrap.testnet` |
+| Token | `wrap.testnet` as `wNEAR`, 24 decimals (`set_token`), matching the firewall core's table |
 | Caps | wNEAR: 0.01 per call, 0.05 a day (UTC). NEAR deposit: 1 yoctoNEAR per call |
 
 Account keys go into the shared password manager. Ask Furqaan if they are not there yet.
 
 ## 7. What Furqaan needs from you
 
-1. **A yes or no on three proposed changes to the interface spec.** Once you agree, the spec and glossary get one revision.
-   - [The signed text includes the model id](./decisions/2026-11-01-signed-text-includes-model-id.md): NEAR AI signs `{model_id}:{sha256(req)}:{sha256(resp)}`.
+1. **A yes or no on three proposed changes to the interface spec.** The signed-text change you agreed to is [accepted](./decisions/2026-11-01-accept-model-id-signed-text.md) and in the spec.
    - [`execute` checks what the signed request asked](./decisions/2026-11-01-execute-checks-the-signed-request.md): the mandate, the prompt, this action and args, and no steering fields. Adds `set_prompt_hash` and `set_model_id`, and the wallet's init takes the model id.
    - [The seam ships as factories](./decisions/2026-11-01-firewall-core-seam-and-near-api-js.md): `createJudge` and `createChainClient`. The function shapes are unchanged.
-2. **KT3 numbers on both models**, for the go/no-go tonight.
-3. **The KT4 deposit address and quote.** Furqaan sends the `ft_transfer`; it is mainnet, so both of you say yes first.
+   - [The model sees converted amounts](./decisions/2026-11-01-model-sees-converted-amount.md): the user message gains `amount`; `set_token(token_id, { symbol, decimals, caps })` replaces `set_token_caps`.
+2. **24-decimal wNEAR cases** in the red-team suite (section 5).
+3. **The KT4 deposit address and quote**, if we keep the cross-chain leg (NEAR Intents is not required by the rules). Furqaan sends the `ft_transfer`; it is mainnet, so both of you say yes first.
 
 You no longer need the Day-2 stub of the core. Keep one only for UI work without NEAR AI calls, and never show its verdicts as verified.
 

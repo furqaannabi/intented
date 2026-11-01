@@ -16,7 +16,7 @@ fn agent_cannot_freeze() {
     w.freeze();
 }
 
-use intented_wallet::Caps;
+use intented_wallet::{Caps, Token};
 use near_sdk::json_types::U128;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -27,13 +27,17 @@ fn caps(per_tx: u128, daily: u128) -> Caps {
     Caps { per_tx: U128(per_tx), daily: U128(daily) }
 }
 
+fn usdc(per_tx: u128, daily: u128) -> Token {
+    Token { symbol: "USDC".into(), decimals: 6, caps: caps(per_tx, daily) }
+}
+
 #[test]
 fn owner_configures_the_wallet() {
     let mut w = wallet();
     w.set_mandate("ab".repeat(32));
     w.register_signer(SIGNER.into());
     w.allow_receiver(USDC.parse().unwrap());
-    w.set_token_caps(USDC.parse().unwrap(), caps(5_000_000, 20_000_000));
+    w.set_token(USDC.parse().unwrap(), usdc(5_000_000, 20_000_000));
     w.set_near_caps(caps(1, 10));
     w.freeze();
     w.unfreeze();
@@ -44,7 +48,7 @@ fn owner_configures_the_wallet() {
     assert_eq!(c.receivers, vec![USDC.parse::<near_sdk::AccountId>().unwrap()]);
     assert_eq!(c.near_caps, caps(1, 10));
     assert!(!c.frozen);
-    assert_eq!(w.get_token_caps(USDC.parse().unwrap()), Some(caps(5_000_000, 20_000_000)));
+    assert_eq!(w.get_token(USDC.parse().unwrap()), Some(usdc(5_000_000, 20_000_000)));
 
     w.revoke_signer(SIGNER.into());
     w.disallow_receiver(USDC.parse().unwrap());
@@ -60,7 +64,7 @@ fn every_owner_method_refuses_other_callers() {
         ("revoke_signer", Box::new(|w| w.revoke_signer(SIGNER.into()))),
         ("allow_receiver", Box::new(|w| w.allow_receiver(USDC.parse().unwrap()))),
         ("disallow_receiver", Box::new(|w| w.disallow_receiver(USDC.parse().unwrap()))),
-        ("set_token_caps", Box::new(|w| w.set_token_caps(USDC.parse().unwrap(), caps(1, 1)))),
+        ("set_token", Box::new(|w| w.set_token(USDC.parse().unwrap(), usdc(1, 1)))),
         ("set_near_caps", Box::new(|w| w.set_near_caps(caps(1, 1)))),
         ("freeze", Box::new(|w| w.freeze())),
         ("unfreeze", Box::new(|w| w.unfreeze())),
@@ -85,6 +89,10 @@ fn malformed_owner_inputs_are_rejected() {
         ("short signer", Box::new(|w| w.register_signer(SIGNER[..41].into()))),
         ("non-hex signer", Box::new(|w| w.register_signer(format!("0x{}", "g".repeat(40))))),
         ("daily below per-tx", Box::new(|w| w.set_near_caps(caps(10, 9)))),
+        ("token daily below per-tx", Box::new(|w| w.set_token(USDC.parse().unwrap(), usdc(10, 9)))),
+        ("empty symbol", Box::new(|w| w.set_token(USDC.parse().unwrap(), Token { symbol: "".into(), ..usdc(1, 1) }))),
+        ("symbol with a space", Box::new(|w| w.set_token(USDC.parse().unwrap(), Token { symbol: "US DC".into(), ..usdc(1, 1) }))),
+        ("decimals above 38", Box::new(|w| w.set_token(USDC.parse().unwrap(), Token { decimals: 39, ..usdc(1, 1) }))),
     ];
     for (name, call) in &bad {
         let mut w = wallet();

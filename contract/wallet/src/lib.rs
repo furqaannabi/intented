@@ -91,6 +91,16 @@ pub struct Proposal {
     pub status: ProposalStatus,
 }
 
+/// A token the wallet may transfer: its symbol and decimals, which must match
+/// the firewall core's token table, and its caps in the smallest unit.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Token {
+    pub symbol: String,
+    pub decimals: u8,
+    pub caps: Caps,
+}
+
 #[near(serializers = [json])]
 pub struct Config {
     pub owner_id: AccountId,
@@ -117,8 +127,9 @@ pub struct Wallet {
     signers: IterableSet<String>,
     /// Contracts the agent may call.
     receivers: IterableSet<AccountId>,
-    /// Caps per token contract. A token transfer on a contract without caps is rejected.
-    token_caps: LookupMap<AccountId, Caps>,
+    /// Token contracts the wallet may transfer from, with caps. A token transfer
+    /// on any other contract is rejected.
+    tokens: LookupMap<AccountId, Token>,
     /// Caps on the attached NEAR deposit, in yoctoNEAR. Zero until the owner sets them.
     near_caps: Caps,
     proposals: LookupMap<u64, Proposal>,
@@ -140,7 +151,7 @@ impl Wallet {
             prompt_hash: None,
             signers: IterableSet::new(b"s"),
             receivers: IterableSet::new(b"r"),
-            token_caps: LookupMap::new(b"t"),
+            tokens: LookupMap::new(b"t"),
             near_caps: Caps { per_tx: U128(0), daily: U128(0) },
             proposals: LookupMap::new(b"p"),
             next_proposal_id: 0,
@@ -191,10 +202,15 @@ impl Wallet {
         self.receivers.remove(&receiver_id);
     }
 
-    pub fn set_token_caps(&mut self, token_id: AccountId, caps: Caps) {
+    pub fn set_token(&mut self, token_id: AccountId, token: Token) {
         self.assert_owner();
-        assert_caps(&caps);
-        self.token_caps.insert(token_id, caps);
+        assert_caps(&token.caps);
+        require!(
+            !token.symbol.is_empty() && token.symbol.bytes().all(|b| b.is_ascii_graphic()),
+            "symbol must be non-empty printable ASCII with no spaces"
+        );
+        require!(token.decimals <= 38, "decimals must be at most 38");
+        self.tokens.insert(token_id, token);
     }
 
     pub fn set_near_caps(&mut self, caps: Caps) {
@@ -244,6 +260,10 @@ impl Wallet {
         let canonical = String::from_utf8(proposal.action.canonical_bytes()).unwrap();
         let mandate_hash = self.mandate_hash.as_deref().unwrap_or_else(|| env::panic_str("mandate not set"));
         let prompt_hash = self.prompt_hash.as_deref().unwrap_or_else(|| env::panic_str("prompt hash not set"));
+        let shown_amount = TOKEN_TRANSFER_METHODS.contains(&action.method.as_str()).then(|| {
+            let token = self.token_for(&action.receiver_id);
+            format_amount(token_amount(&proposal.args_json), token.decimals, &token.symbol)
+        });
         judged::check_request(
             &req_bytes.0,
             &judged::Expected {
@@ -252,6 +272,7 @@ impl Wallet {
                 mandate_hash,
                 canonical_action: &canonical,
                 args_json: &proposal.args_json,
+                amount: shown_amount.as_deref(),
             },
         );
         judged::check_verdict(&resp_bytes.0, &canonical);
@@ -267,12 +288,8 @@ impl Wallet {
 
         self.charge(Asset::Near, action.deposit.0, &self.near_caps.clone());
         if TOKEN_TRANSFER_METHODS.contains(&action.method.as_str()) {
-            let caps = self
-                .token_caps
-                .get(&action.receiver_id)
-                .cloned()
-                .unwrap_or_else(|| env::panic_str("no caps set for this token"));
-            self.charge(Asset::Token(action.receiver_id.clone()), token_amount(&proposal.args_json), &caps);
+            let token = self.token_for(&action.receiver_id);
+            self.charge(Asset::Token(action.receiver_id.clone()), token_amount(&proposal.args_json), &token.caps);
         }
 
         self.used_nonces.insert(action.nonce.0);
@@ -316,8 +333,8 @@ impl Wallet {
         }
     }
 
-    pub fn get_token_caps(&self, token_id: AccountId) -> Option<Caps> {
-        self.token_caps.get(&token_id).cloned()
+    pub fn get_token(&self, token_id: AccountId) -> Option<Token> {
+        self.tokens.get(&token_id).cloned()
     }
 
     pub fn is_frozen(&self) -> bool {
@@ -328,6 +345,10 @@ impl Wallet {
 impl Wallet {
     fn assert_owner(&self) {
         require!(env::predecessor_account_id() == self.owner_id, "owner only");
+    }
+
+    fn token_for(&self, token_id: &AccountId) -> Token {
+        self.tokens.get(token_id).cloned().unwrap_or_else(|| env::panic_str("no caps set for this token"))
     }
 
     /// Counts `amount` of `asset` against `caps` for today (UTC), or panics.
@@ -394,4 +415,18 @@ fn normalize_eth_address(addr: &str) -> String {
 
 fn assert_caps(caps: &Caps) {
     require!(caps.daily.0 >= caps.per_tx.0, "daily cap must be at least the per-transaction cap");
+}
+
+/// A token amount in whole tokens, as the firewall core shows it to the model:
+/// (10^21, 24, "wNEAR") -> "0.001 wNEAR". No rounding, trailing zeros trimmed.
+pub fn format_amount(raw: u128, decimals: u8, symbol: &str) -> String {
+    let d = decimals as usize;
+    let digits = format!("{raw:0>width$}", width = d + 1);
+    let (whole, fraction) = digits.split_at(digits.len() - d);
+    let fraction = fraction.trim_end_matches('0');
+    if fraction.is_empty() {
+        format!("{whole} {symbol}")
+    } else {
+        format!("{whole}.{fraction} {symbol}")
+    }
 }

@@ -23,3 +23,19 @@ export const KNOWN_TOKENS: Record<Network, readonly KnownToken[]> = {
     { contract: "wrap.near", symbol: "wNEAR", decimals: 24 },
   ],
 };
+
+const U128_MAX = (1n << 128n) - 1n;
+
+/**
+ * A token amount in the token's smallest unit, shown in whole tokens:
+ * "1000000000000000000000", 24, "wNEAR" -> "0.001 wNEAR". No rounding, trailing
+ * zeros trimmed. The wallet contract formats the same way and requires the
+ * model to have been shown exactly this.
+ */
+export function formatAmount(raw: string, decimals: number, symbol: string): string {
+  if (!/^(0|[1-9][0-9]*)$/.test(raw) || BigInt(raw) > U128_MAX) throw new RangeError("amount must be a canonical decimal u128");
+  const digits = raw.padStart(decimals + 1, "0");
+  const whole = digits.slice(0, digits.length - decimals);
+  const fraction = digits.slice(digits.length - decimals).replace(/0+$/, "");
+  return `${whole}${fraction ? `.${fraction}` : ""} ${symbol}`;
+}
