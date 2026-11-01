@@ -31,6 +31,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [KT1 and KT2 pass: NEAR AI signatures verify on-chain, no relayer](./2026-11-01-kt1-kt2-pass.md) | Furqaan |
 | 2026-11-01 | [The signed text includes the model id; signatures are ECDSA through env::ecrecover](./2026-11-01-signed-text-includes-model-id.md) (proposed, awaiting William) | Furqaan |
 | 2026-11-01 | [firewall-core: TypeScript on Node with pnpm, tsx, vitest and ethers v6](./2026-11-01-firewall-core-toolchain.md) | Furqaan |
+| 2026-11-01 | [Wallet caps count token amounts; the daily window is the UTC day; the allowlist covers receiver contracts](./2026-11-01-wallet-caps-window-allowlist.md) | Furqaan |
 
 ## Not decided yet
 

@@ -1,0 +1,57 @@
+[
+  {
+    "action": {
+      "receiver_id": "usdc.fakes.testnet",
+      "method": "ft_transfer",
+      "args_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "deposit": "1",
+      "nonce": "7",
+      "expiry_ms": "1762041600000"
+    },
+    "canonical": "INTENTED_V1|usdc.fakes.testnet|ft_transfer|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|1|7|1762041600000"
+  },
+  {
+    "action": {
+      "receiver_id": "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af",
+      "method": "ft_transfer_call",
+      "args_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "deposit": "0",
+      "nonce": "0",
+      "expiry_ms": "0"
+    },
+    "canonical": "INTENTED_V1|3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af|ft_transfer_call|0000000000000000000000000000000000000000000000000000000000000000|0|0|0"
+  },
+  {
+    "action": {
+      "receiver_id": "a.b-c_d.near",
+      "method": "_private",
+      "args_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "deposit": "340282366920938463463374607431768211455",
+      "nonce": "18446744073709551615",
+      "expiry_ms": "18446744073709551615"
+    },
+    "canonical": "INTENTED_V1|a.b-c_d.near|_private|ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff|340282366920938463463374607431768211455|18446744073709551615|18446744073709551615"
+  },
+  {
+    "action": {
+      "receiver_id": "0xabababababababababababababababababababab",
+      "method": "Withdraw2",
+      "args_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+      "deposit": "1000000000000000000000000",
+      "nonce": "9007199254740993",
+      "expiry_ms": "1"
+    },
+    "canonical": "INTENTED_V1|0xabababababababababababababababababababab|Withdraw2|9999999999999999999999999999999999999999999999999999999999999999|1000000000000000000000000|9007199254740993|1"
+  },
+  {
+    "action": {
+      "receiver_id": "ab",
+      "method": "x",
+      "args_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "deposit": "340282366920938463463374607431768211454",
+      "nonce": "1",
+      "expiry_ms": "2"
+    },
+    "canonical": "INTENTED_V1|ab|x|eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee|340282366920938463463374607431768211454|1|2"
+  }
+]

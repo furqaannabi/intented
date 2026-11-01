@@ -1,0 +1,25 @@
+[package]
+name = "intented-wallet"
+description = "The Intented wallet contract: executes an agent action only with a TEE-signed ALLOW verdict, within hard caps."
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { version = "5.30", features = ["unstable"] }
+hex = "0.4"
+
+[dev-dependencies]
+near-sdk = { version = "5.30", features = ["unit-testing", "unstable"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
