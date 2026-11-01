@@ -3,11 +3,12 @@
 //
 // Usage: pnpm start   (reads ../.env)
 
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
-import { createChainClient, createJudge, type Network } from "@intented/firewall-core";
+import { createChainClient, createJudge, systemPrompt, type Network } from "@intented/firewall-core";
 import { createApp } from "./app.js";
 import { loadAttestationUrls } from "./attestations.js";
 import { createPipeline } from "./pipeline.js";
@@ -33,6 +34,7 @@ const pipeline = createPipeline({
   judge: createJudge({ apiKey: env("NEAR_AI_API_KEY"), model, network }),
   chain: createChainClient({ rpcUrl, walletId, agentId: env("AGENT_ACCOUNT_ID"), agentPrivateKey: env("AGENT_PRIVATE_KEY") }),
   wallet: createWalletReader(rpcUrl, walletId),
+  expected: { model, promptHash: createHash("sha256").update(systemPrompt(network), "utf8").digest("hex") },
   log,
 });
 

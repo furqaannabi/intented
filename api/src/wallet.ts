@@ -1,7 +1,14 @@
-// Free view calls on the wallet contract over NEAR JSON-RPC: its active
-// mandate hash, and its own record of a proposal for settling interruptions.
+// Free view calls on the wallet contract over NEAR JSON-RPC: what it accepts
+// verdicts under, and its own record of a proposal for settling interruptions.
 
 import type { WalletStatus } from "./settle.js";
+
+/** What the wallet accepts verdicts under: each is null until the owner sets it. */
+export interface WalletConfig {
+  mandate_hash: string | null;
+  model_id: string | null;
+  prompt_hash: string | null;
+}
 
 export function createWalletReader(rpcUrl: string, walletId: string) {
   async function view<T>(method: string, args: object): Promise<T> {
@@ -22,9 +29,9 @@ export function createWalletReader(rpcUrl: string, walletId: string) {
   }
 
   return {
-    /** The sha256 of the mandate the wallet accepts verdicts under, or null if none is set. */
-    async mandateHash(): Promise<string | null> {
-      return (await view<{ mandate_hash: string | null }>("get_config", {})).mandate_hash;
+    async config(): Promise<WalletConfig> {
+      const c = await view<Partial<WalletConfig>>("get_config", {});
+      return { mandate_hash: c.mandate_hash ?? null, model_id: c.model_id ?? null, prompt_hash: c.prompt_hash ?? null };
     },
     async proposalStatus(chainProposalId: number): Promise<WalletStatus> {
       const p = await view<{ status: Exclude<WalletStatus, null> } | null>("get_proposal", { proposal_id: chainProposalId });

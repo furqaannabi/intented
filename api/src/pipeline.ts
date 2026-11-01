@@ -6,7 +6,7 @@ import type { Judgement } from "@intented/firewall-core";
 import { settle, type Settled } from "./settle.js";
 import type { ProposalRow, Store } from "./store.js";
 import { toAction } from "./validate.js";
-import type { WalletReader } from "./wallet.js";
+import type { WalletConfig, WalletReader } from "./wallet.js";
 
 type Action = ReturnType<typeof toAction>;
 
@@ -17,7 +17,9 @@ export interface PipelineDeps {
     proposeOnChain(action: Action, argsJson: string): Promise<{ proposal_id: number; near_tx_hash: string }>;
     executeOnChain(proposalId: number, req: Uint8Array, resp: Uint8Array, sig: string): Promise<{ near_tx_hash: string; ok: boolean; error?: string }>;
   };
-  wallet: WalletReader;
+  wallet: Pick<WalletReader, "config" | "proposalStatus">;
+  /** What this API judges with; the wallet refuses a verdict from any other model or prompt. */
+  expected: { model: string; promptHash: string };
   /** Proposal ids, statuses and transaction hashes only: never context, prompts or keys. */
   log: (line: string) => void;
   /** How often an interrupted proposal re-reads the wallet while it could still execute. */
@@ -67,14 +69,16 @@ export function createPipeline(d: PipelineDeps) {
     const mandate = d.store.getMandate(p.mandate_id)!;
     const action = toAction(p.action);
 
-    // 1. The wallet refuses a verdict under any other mandate; fail before spending a NEAR AI call.
-    let active: string | null;
+    // 1. The wallet refuses a verdict under any other mandate, model or prompt; fail before spending a NEAR AI call.
+    let w: WalletConfig;
     try {
-      active = await d.wallet.mandateHash();
+      w = await d.wallet.config();
     } catch (e) {
-      return finish(p, { status: "failed", reason: `pipeline: could not read the wallet's mandate (${errorText(e)})` });
+      return finish(p, { status: "failed", reason: `pipeline: could not read the wallet's config (${errorText(e)})` });
     }
-    if (active !== mandate.text_hash) return finish(p, { status: "failed", reason: "pipeline: this mandate is not active on the wallet" });
+    if (w.mandate_hash !== mandate.text_hash) return finish(p, { status: "failed", reason: "pipeline: this mandate is not active on the wallet" });
+    if (w.model_id !== d.expected.model) return finish(p, { status: "failed", reason: `pipeline: the wallet runs model ${w.model_id ?? "(none)"}, not ${d.expected.model}` });
+    if (w.prompt_hash !== d.expected.promptHash) return finish(p, { status: "failed", reason: "pipeline: the wallet expects a different prompt than this API's firewall core" });
 
     // 2. The verdict. No verdict, no transactions.
     let v: Judgement;
