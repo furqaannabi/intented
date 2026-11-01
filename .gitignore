@@ -25,5 +25,5 @@ target/
 *.db-wal
 *.sqlite
 
-# Red-team runs: the runner writes these; the published numbers go in the README
+# Red-team runs: the runner writes these; the one published run is redteam/latest.json
 redteam/results/

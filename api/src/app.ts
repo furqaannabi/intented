@@ -4,6 +4,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { Network } from "@intented/firewall-core";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import type { RedteamLatest } from "./redteam.js";
 import type { ProposalRow, Store } from "./store.js";
 import { checkPropose } from "./validate.js";
 
@@ -46,6 +47,8 @@ export interface AppDeps {
   startPipeline: (proposalId: string) => void;
   /** Lowercase signer address to its published attestation report. */
   attestationUrls: Record<string, string>;
+  /** The published red-team run, or null when none is published. */
+  redteam: () => RedteamLatest | null;
   /** Origins the web app is served from (WEB_ORIGINS). */
   corsOrigins?: string[];
 }
@@ -57,7 +60,7 @@ function tokenMatches(header: string | undefined, token: string): boolean {
   return given.length === want.length && timingSafeEqual(given, want);
 }
 
-export function createApp({ store, network, model, agentToken, startPipeline, attestationUrls, corsOrigins = [] }: AppDeps) {
+export function createApp({ store, network, model, agentToken, startPipeline, attestationUrls, redteam, corsOrigins = [] }: AppDeps) {
   const app = new Hono();
   // Before the routes: Hono runs middleware in registration order.
   if (corsOrigins.length) app.use("/api/*", cors({ origin: corsOrigins }));
@@ -96,6 +99,11 @@ export function createApp({ store, network, model, agentToken, startPipeline, at
   app.get("/api/proposals/:id", (c) => {
     const p = store.getProposal(c.req.param("id"));
     return p ? c.json(toProposal(p, attestationUrls)) : c.json({ error: "no such proposal" }, 404);
+  });
+
+  app.get("/api/redteam/latest", (c) => {
+    const run = redteam();
+    return run ? c.json(run) : c.json({ error: "no red-team run is published" }, 404);
   });
 
   return app;
