@@ -4,9 +4,36 @@
 //! TEE-signed `ALLOW` verdict for exactly that action, within its own caps.
 //! Decisions: docs/decisions/2026-11-01-wallet-caps-window-allowlist.md.
 
-use near_sdk::json_types::{U128, U64};
-use near_sdk::store::{IterableSet, LookupMap};
-use near_sdk::{env, near, require, AccountId, PanicOnDefault};
+mod judged;
+
+use near_sdk::json_types::{Base64VecU8, U128, U64};
+use near_sdk::store::{IterableSet, LookupMap, LookupSet};
+use near_sdk::{env, near, require, AccountId, Gas, NearToken, PanicOnDefault, Promise};
+
+/// Gas for the proposed call and for the callback that records its outcome.
+const CALL_GAS: Gas = Gas::from_tgas(50);
+const CALLBACK_GAS: Gas = Gas::from_tgas(10);
+
+const DAY_MS: u64 = 86_400_000;
+
+/// Token methods whose `amount` argument counts against that token's caps.
+const TOKEN_TRANSFER_METHODS: [&str; 2] = ["ft_transfer", "ft_transfer_call"];
+
+/// What a cap limits: the attached NEAR deposit, or one token.
+#[near(serializers = [borsh])]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum Asset {
+    Near,
+    Token(AccountId),
+}
+
+/// Spent so far on one UTC day (`day` = block_timestamp_ms / DAY_MS).
+#[near(serializers = [borsh])]
+#[derive(Clone)]
+struct DaySpend {
+    day: u64,
+    amount: u128,
+}
 
 /// A per-transaction and a daily limit, in the asset's smallest unit.
 #[near(serializers = [borsh, json])]
@@ -45,8 +72,13 @@ impl Action {
 #[serde(rename_all = "lowercase")]
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProposalStatus {
+    /// Proposed, not yet executed.
     Pending,
+    /// The verdict checked out and the call was sent.
+    Allowed,
+    /// The call succeeded.
     Executed,
+    /// The call failed.
     Failed,
 }
 
@@ -75,8 +107,12 @@ pub struct Config {
 pub struct Wallet {
     owner_id: AccountId,
     agent_id: AccountId,
+    /// The NEAR AI model id; it prefixes the signed text and must be the request's model.
+    model_id: String,
     frozen: bool,
     mandate_hash: Option<String>,
+    /// sha256 of the firewall core's system prompt for this network.
+    prompt_hash: Option<String>,
     /// Allowlisted TEE signers, lowercase `0x` Ethereum addresses.
     signers: IterableSet<String>,
     /// Contracts the agent may call.
@@ -87,23 +123,29 @@ pub struct Wallet {
     near_caps: Caps,
     proposals: LookupMap<u64, Proposal>,
     next_proposal_id: u64,
+    used_nonces: LookupSet<u64>,
+    spent: LookupMap<Asset, DaySpend>,
 }
 
 #[near]
 impl Wallet {
     #[init]
-    pub fn new(owner_id: AccountId, agent_id: AccountId) -> Self {
+    pub fn new(owner_id: AccountId, agent_id: AccountId, model_id: String) -> Self {
         Self {
             owner_id,
             agent_id,
+            model_id,
             frozen: false,
             mandate_hash: None,
+            prompt_hash: None,
             signers: IterableSet::new(b"s"),
             receivers: IterableSet::new(b"r"),
             token_caps: LookupMap::new(b"t"),
             near_caps: Caps { per_tx: U128(0), daily: U128(0) },
             proposals: LookupMap::new(b"p"),
             next_proposal_id: 0,
+            used_nonces: LookupSet::new(b"n"),
+            spent: LookupMap::new(b"d"),
         }
     }
 
@@ -114,6 +156,19 @@ impl Wallet {
         self.assert_owner();
         require!(is_lower_hex(&text_hash, 64), "text_hash must be 64 lowercase hex characters");
         self.mandate_hash = Some(text_hash);
+    }
+
+    /// `text_hash` is the lowercase hex sha256 of the firewall core's system prompt.
+    pub fn set_prompt_hash(&mut self, text_hash: String) {
+        self.assert_owner();
+        require!(is_lower_hex(&text_hash, 64), "text_hash must be 64 lowercase hex characters");
+        self.prompt_hash = Some(text_hash);
+    }
+
+    pub fn set_model_id(&mut self, model_id: String) {
+        self.assert_owner();
+        require!(!model_id.is_empty() && !model_id.contains(':'), "model_id must be non-empty with no ':'");
+        self.model_id = model_id;
     }
 
     pub fn register_signer(&mut self, eth_address: String) {
@@ -174,6 +229,75 @@ impl Wallet {
         id
     }
 
+    /// Execute a proposal with a NEAR AI verdict: `req_bytes` and `resp_bytes`
+    /// exactly as sent and received, and the 65-byte signature over them.
+    pub fn execute(&mut self, proposal_id: u64, req_bytes: Base64VecU8, resp_bytes: Base64VecU8, sig_65: String) -> Promise {
+        require!(env::predecessor_account_id() == self.agent_id, "agent only");
+        let mut proposal = self.proposals.get(&proposal_id).cloned().unwrap_or_else(|| env::panic_str("no such proposal"));
+        require!(proposal.status == ProposalStatus::Pending, "proposal is not pending");
+        require!(!self.frozen, "wallet is frozen");
+        let action = proposal.action.clone();
+        require!(self.receivers.contains(&action.receiver_id), "receiver is not allowlisted");
+        require!(!self.used_nonces.contains(&action.nonce.0), "nonce already used");
+        require!(env::block_timestamp_ms() <= action.expiry_ms.0, "action has expired");
+
+        let canonical = String::from_utf8(proposal.action.canonical_bytes()).unwrap();
+        let mandate_hash = self.mandate_hash.as_deref().unwrap_or_else(|| env::panic_str("mandate not set"));
+        let prompt_hash = self.prompt_hash.as_deref().unwrap_or_else(|| env::panic_str("prompt hash not set"));
+        judged::check_request(
+            &req_bytes.0,
+            &judged::Expected {
+                model_id: &self.model_id,
+                prompt_hash,
+                mandate_hash,
+                canonical_action: &canonical,
+                args_json: &proposal.args_json,
+            },
+        );
+        judged::check_verdict(&resp_bytes.0, &canonical);
+
+        let signed_text = format!(
+            "{}:{}:{}",
+            self.model_id,
+            hex::encode(env::sha256(&req_bytes.0)),
+            hex::encode(env::sha256(&resp_bytes.0))
+        );
+        let signer = recover_eth_address(signed_text.as_bytes(), &sig_65).unwrap_or_else(|| env::panic_str("bad signature"));
+        require!(self.signers.contains(&signer), "signer is not allowlisted");
+
+        self.charge(Asset::Near, action.deposit.0, &self.near_caps.clone());
+        if TOKEN_TRANSFER_METHODS.contains(&action.method.as_str()) {
+            let caps = self
+                .token_caps
+                .get(&action.receiver_id)
+                .cloned()
+                .unwrap_or_else(|| env::panic_str("no caps set for this token"));
+            self.charge(Asset::Token(action.receiver_id.clone()), token_amount(&proposal.args_json), &caps);
+        }
+
+        self.used_nonces.insert(action.nonce.0);
+        proposal.status = ProposalStatus::Allowed;
+        let args = proposal.args_json.clone().into_bytes();
+        self.proposals.insert(proposal_id, proposal);
+
+        Promise::new(action.receiver_id)
+            .function_call(action.method, args, NearToken::from_yoctonear(action.deposit.0), CALL_GAS)
+            .then(Promise::new(env::current_account_id()).function_call(
+                "on_executed",
+                near_sdk::serde_json::to_vec(&near_sdk::serde_json::json!({ "proposal_id": proposal_id })).unwrap(),
+                NearToken::from_yoctonear(0),
+                CALLBACK_GAS,
+            ))
+    }
+
+    /// Records whether the proposed call succeeded.
+    #[private]
+    pub fn on_executed(&mut self, proposal_id: u64) {
+        if let Some(p) = self.proposals.get_mut(&proposal_id) {
+            p.status = if near_sdk::is_promise_success() { ProposalStatus::Executed } else { ProposalStatus::Failed };
+        }
+    }
+
     // Views
 
     pub fn get_proposal(&self, proposal_id: u64) -> Option<Proposal> {
@@ -205,6 +329,49 @@ impl Wallet {
     fn assert_owner(&self) {
         require!(env::predecessor_account_id() == self.owner_id, "owner only");
     }
+
+    /// Counts `amount` of `asset` against `caps` for today (UTC), or panics.
+    fn charge(&mut self, asset: Asset, amount: u128, caps: &Caps) {
+        require!(amount <= caps.per_tx.0, "over the per-transaction cap");
+        let day = env::block_timestamp_ms() / DAY_MS;
+        let spent_today = match self.spent.get(&asset) {
+            Some(s) if s.day == day => s.amount,
+            _ => 0,
+        };
+        let total = spent_today.checked_add(amount).unwrap_or_else(|| env::panic_str("over the daily cap"));
+        require!(total <= caps.daily.0, "over the daily cap");
+        self.spent.insert(asset, DaySpend { day, amount: total });
+    }
+}
+
+/// The `amount` of a token transfer: a decimal string in the token's smallest unit.
+fn token_amount(args_json: &str) -> u128 {
+    let args: near_sdk::serde_json::Value =
+        near_sdk::serde_json::from_str(args_json).unwrap_or_else(|_| env::panic_str("token transfer args are not JSON"));
+    let amount = args.get("amount").unwrap_or_else(|| env::panic_str("token transfer args have no amount"));
+    let s = amount.as_str().unwrap_or_else(|| env::panic_str("token transfer amount must be a decimal string"));
+    require!(!s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()), "token transfer amount must be a decimal string");
+    s.parse().unwrap_or_else(|_| env::panic_str("token transfer amount is over u128"))
+}
+
+/// EIP-191 personal_sign recovery (as in KT2): the lowercase `0x` address that
+/// signed `message`, or `None` if the signature is malformed or does not recover.
+fn recover_eth_address(message: &[u8], sig_hex: &str) -> Option<String> {
+    let sig = hex::decode(sig_hex.strip_prefix("0x").unwrap_or(sig_hex)).ok()?;
+    if sig.len() != 65 {
+        return None;
+    }
+    let v = match sig[64] {
+        27 | 28 => sig[64] - 27,
+        0 | 1 => sig[64],
+        _ => return None,
+    };
+    let mut prefixed = format!("\x19Ethereum Signed Message:\n{}", message.len()).into_bytes();
+    prefixed.extend_from_slice(message);
+    let hash = env::keccak256(&prefixed);
+    // malleability_flag = true rejects high-s signatures, as Ethereum does.
+    let public_key = env::ecrecover(&hash, &sig[..64], v, true)?;
+    Some(format!("0x{}", hex::encode(&env::keccak256(&public_key)[12..])))
 }
 
 fn is_lower_hex(s: &str, len: usize) -> bool {

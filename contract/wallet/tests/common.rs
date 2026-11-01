@@ -12,9 +12,11 @@ pub fn as_caller(who: AccountId) {
     testing_env!(VMContextBuilder::new().predecessor_account_id(who).build());
 }
 
+pub const MODEL: &str = "z-ai/glm-5.3-flash";
+
 pub fn wallet() -> Wallet {
     as_caller(owner());
-    Wallet::new(owner(), agent())
+    Wallet::new(owner(), agent(), MODEL.into())
 }
 
 use intented_wallet::Action;
