@@ -1,0 +1,151 @@
+{
+ "propose": {
+  "status": {
+   "SuccessValue": "Mg=="
+  },
+  "transaction": {
+   "hash": "87SF7EhHo31dxpAohX3U3hmWCaB9byXgGkLhrzqmJuHB"
+  },
+  "transaction_outcome": {
+   "outcome": {
+    "status": {
+     "SuccessReceiptId": "5ZyMccWyAonJu3Avm7aLBLBSroyfVe5642uY9BhohZCW"
+    }
+   }
+  },
+  "receipts_outcome": [
+   {
+    "outcome": {
+     "executor_id": "wallet.intented-owner.testnet",
+     "status": {
+      "SuccessValue": "Mg=="
+     }
+    }
+   },
+   {
+    "outcome": {
+     "executor_id": "intented-agent.testnet",
+     "status": {
+      "SuccessValue": ""
+     }
+    }
+   }
+  ]
+ },
+ "execute_ok": {
+  "status": {
+   "SuccessValue": ""
+  },
+  "transaction": {
+   "hash": "J9rtVgT94jQmwNg7oG8hmVzBeqF3cmnssUM5tr5nLkgA"
+  },
+  "transaction_outcome": {
+   "outcome": {
+    "status": {
+     "SuccessReceiptId": "6hiNAW2or2B1Gc2uPyTncLmn8qVKhjzZukvGJYTvtFcw"
+    }
+   }
+  },
+  "receipts_outcome": [
+   {
+    "outcome": {
+     "executor_id": "wallet.intented-owner.testnet",
+     "status": {
+      "SuccessReceiptId": "Gx9EnuZueG9DtdJkdcPm9hJXkx8igj5jPHFpKqYShZfo"
+     }
+    }
+   },
+   {
+    "outcome": {
+     "executor_id": "wrap.testnet",
+     "status": {
+      "SuccessValue": ""
+     }
+    }
+   },
+   {
+    "outcome": {
+     "executor_id": "intented-agent.testnet",
+     "status": {
+      "SuccessValue": ""
+     }
+    }
+   },
+   {
+    "outcome": {
+     "executor_id": "wallet.intented-owner.testnet",
+     "status": {
+      "SuccessValue": ""
+     }
+    }
+   },
+   {
+    "outcome": {
+     "executor_id": "intented-agent.testnet",
+     "status": {
+      "SuccessValue": ""
+     }
+    }
+   },
+   {
+    "outcome": {
+     "executor_id": "intented-agent.testnet",
+     "status": {
+      "SuccessValue": ""
+     }
+    }
+   }
+  ]
+ },
+ "execute_refused": {
+  "status": {
+   "Failure": {
+    "ActionError": {
+     "index": 0,
+     "kind": {
+      "FunctionCallError": {
+       "ExecutionError": "Smart contract panicked: verdict is not ALLOW"
+      }
+     }
+    }
+   }
+  },
+  "transaction": {
+   "hash": "5JJ21D6RiN2QYkJrEtqNZ5Yp4Bs8a5G5sCfm2vZF1WMY"
+  },
+  "transaction_outcome": {
+   "outcome": {
+    "status": {
+     "SuccessReceiptId": "4YjaoD1YoAQXxUyHNPE3Bk8tDgF7ywq6pubTFnskSmzC"
+    }
+   }
+  },
+  "receipts_outcome": [
+   {
+    "outcome": {
+     "executor_id": "wallet.intented-owner.testnet",
+     "status": {
+      "Failure": {
+       "ActionError": {
+        "index": 0,
+        "kind": {
+         "FunctionCallError": {
+          "ExecutionError": "Smart contract panicked: verdict is not ALLOW"
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "outcome": {
+     "executor_id": "intented-agent.testnet",
+     "status": {
+      "SuccessValue": ""
+     }
+    }
+   }
+  ]
+ }
+}

@@ -36,6 +36,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [The wallet executes a real NEAR AI ALLOW on testnet and refuses a real DENY](./2026-11-01-first-testnet-execution.md) | Furqaan |
 | 2026-11-01 | [The poisoned-paywall refusal is on-chain, with a transaction hash](./2026-11-01-attack-refusal-on-chain.md) | Furqaan |
 | 2026-11-01 | [The attestation checker ports NEAR's verifier and fails closed](./2026-11-01-attestation-checker.md) | Furqaan |
+| 2026-11-01 | [The firewall core's seam is real; on-chain calls use near-api-js 7.3.1](./2026-11-01-firewall-core-seam-and-near-api-js.md) | Furqaan |
 
 ## Not decided yet
 

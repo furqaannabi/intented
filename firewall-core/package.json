@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@phala/dcap-qvl-node": "0.3.3",
-    "ethers": "^6.17.0"
+    "ethers": "^6.17.0",
+    "near-api-js": "7.3.1"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
