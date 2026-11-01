@@ -35,6 +35,7 @@ fn usdc(per_tx: u128, daily: u128) -> Token {
 fn owner_configures_the_wallet() {
     let mut w = wallet();
     w.set_mandate("ab".repeat(32));
+    w.set_prompt_hash("cd".repeat(32));
     w.register_signer(SIGNER.into());
     w.allow_receiver(USDC.parse().unwrap());
     w.set_token(USDC.parse().unwrap(), usdc(5_000_000, 20_000_000));
@@ -44,6 +45,8 @@ fn owner_configures_the_wallet() {
 
     let c = w.get_config();
     assert_eq!(c.mandate_hash.as_deref(), Some("ab".repeat(32).as_str()));
+    assert_eq!(c.prompt_hash.as_deref(), Some("cd".repeat(32).as_str()));
+    assert_eq!(c.model_id, MODEL);
     assert_eq!(c.signers, vec![SIGNER.to_lowercase()]);
     assert_eq!(c.receivers, vec![USDC.parse::<near_sdk::AccountId>().unwrap()]);
     assert_eq!(c.near_caps, caps(1, 10));

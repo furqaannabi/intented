@@ -30,7 +30,7 @@ const now = BigInt(Date.now());
 const action: Action = { receiver_id: "wrap.testnet", method: "ft_transfer", args_sha256: createHash("sha256").update(argsJson).digest("hex"), deposit: "1", nonce: now, expiry_ms: now + 900_000n };
 
 const judge = createJudge({ apiKey: env("NEAR_AI_API_KEY"), model: env("NEAR_AI_MODEL"), network: "testnet" });
-const chain = createChainClient({ rpcUrl: "https://rpc.testnet.near.org", walletId: env("CONTRACT_ACCOUNT_ID"), agentId: env("AGENT_ACCOUNT_ID"), agentPrivateKey: env("AGENT_PRIVATE_KEY") });
+const chain = createChainClient({ rpcUrl: process.env.NEAR_RPC_URL || "https://rpc.testnet.near.org", walletId: env("CONTRACT_ACCOUNT_ID"), agentId: env("AGENT_ACCOUNT_ID"), agentPrivateKey: env("AGENT_PRIVATE_KEY") });
 
 const v = await judge(MANDATE, action, argsJson, c.context);
 console.log(`judge: ${v.verdict} by ${v.signer} (chat ${v.chat_id})`);

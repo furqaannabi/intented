@@ -105,8 +105,10 @@ pub struct Token {
 pub struct Config {
     pub owner_id: AccountId,
     pub agent_id: AccountId,
+    pub model_id: String,
     pub frozen: bool,
     pub mandate_hash: Option<String>,
+    pub prompt_hash: Option<String>,
     pub signers: Vec<String>,
     pub receivers: Vec<AccountId>,
     pub near_caps: Caps,
@@ -325,8 +327,10 @@ impl Wallet {
         Config {
             owner_id: self.owner_id.clone(),
             agent_id: self.agent_id.clone(),
+            model_id: self.model_id.clone(),
             frozen: self.frozen,
             mandate_hash: self.mandate_hash.clone(),
+            prompt_hash: self.prompt_hash.clone(),
             signers: self.signers.iter().cloned().collect(),
             receivers: self.receivers.iter().cloned().collect(),
             near_caps: self.near_caps.clone(),

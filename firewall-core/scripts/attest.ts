@@ -74,8 +74,35 @@ for (const v of verified) {
   console.log(`VERIFIED ${v.signing_address}: TDX ${v.tdx_status}, report_data binds signer and nonce, app compose ${v.compose_sha256.slice(0, 16)}…, NVIDIA GPU attestation true`);
 }
 
+// What the checker verified, and the raw evidence, for each signer; committed so
+// anyone can re-verify it, and linked by the API as attestation_url.
+const CHECKS = [
+  "report is for this model, echoes our fresh 32-byte nonce and signs with ecdsa",
+  "TDX quote verifies against Intel's certificate chain and TCB info with status UpToDate",
+  "the verified quote's report_data is the signing address, zero-padded to 32 bytes, then our nonce",
+  "the verified quote's mr_config_id is 01 || sha256(app_compose) || zeros",
+  "GPU evidence carries our nonce; NVIDIA NRAS's token is ES384, signed by a key in NVIDIA's JWKS, for our nonce, unexpired, overall result true",
+];
+const NOT_CHECKED = [
+  "which app image: app_compose is bound to the quote and its sha256 recorded, not compared with a known-good image",
+  "the x5c certificate chains in NVIDIA's JWKS (keys trusted as served over TLS)",
+  "on-chain: the contract trusts the signer allowlist the owner writes after this check",
+];
+function publish(v: VerifiedSigner) {
+  const dir = join(here, "..", "..", "docs", "attestations");
+  mkdirSync(dir, { recursive: true });
+  const attestation = attestations.find((a) => a.signing_address.toLowerCase() === v.signing_address);
+  const file = join(dir, `${v.signing_address}.json`);
+  writeFileSync(
+    file,
+    JSON.stringify({ ...v, checked_at: summary.checked_at, nonce, checked: CHECKS, not_checked: NOT_CHECKED, checker: "firewall-core/scripts/attest.ts", attestation }, null, 2) + "\n",
+  );
+  return file;
+}
+
 if (register) {
   for (const v of verified) {
+    console.log(`published ${publish(v)}`);
     execFileSync(
       "near",
       ["contract", "call-function", "as-transaction", WALLET!, "register_signer", "json-args", JSON.stringify({ eth_address: v.signing_address }),

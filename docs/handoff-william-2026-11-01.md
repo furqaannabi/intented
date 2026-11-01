@@ -22,6 +22,7 @@ cd firewall-core && pnpm install && pnpm test    # 126 tests should pass
 | `NEAR_AI_MODEL` | `Qwen/Qwen3.8-27B` | The chosen model ([record](./decisions/2026-11-01-go-intented-on-qwen.md)); the testnet wallet is set up for it |
 | `NEAR_AI_BASE_URL` | leave empty | Defaults to `https://cloud-api.near.ai` |
 | `NEAR_NETWORK` | `testnet` | |
+| `NEAR_RPC_URL` | `https://test.rpc.fastnear.com` | The default `rpc.testnet.near.org` takes about 11 s per transaction; FastNEAR about 5 s, still at full finality |
 | `CONTRACT_ACCOUNT_ID` | `intented-wallet.testnet` | The wallet contract (redeployed on 1 November; the old `wallet.intented-owner.testnet` is retired) |
 | `OWNER_ACCOUNT_ID` | `intented-owner.testnet` | |
 | `AGENT_ACCOUNT_ID` | `intented-agent.testnet` | |
@@ -139,12 +140,18 @@ Account keys go into the shared password manager. Ask Furqaan if they are not th
 
 ## 7. What Furqaan needs from you
 
-1. **A yes or no on three proposed changes to the interface spec.** The signed-text change you agreed to is [accepted](./decisions/2026-11-01-accept-model-id-signed-text.md) and in the spec.
-   - [`execute` checks what the signed request asked](./decisions/2026-11-01-execute-checks-the-signed-request.md): the mandate, the prompt, this action and args, and no steering fields. Adds `set_prompt_hash` and `set_model_id`, and the wallet's init takes the model id.
-   - [The seam ships as factories](./decisions/2026-11-01-firewall-core-seam-and-near-api-js.md): `createJudge` and `createChainClient`. The function shapes are unchanged.
-   - [The model sees converted amounts](./decisions/2026-11-01-model-sees-converted-amount.md): the user message gains `amount`; `set_token(token_id, { symbol, decimals, caps })` replaces `set_token_caps`.
-2. **24-decimal wNEAR cases** in the red-team suite (section 5).
-3. **The KT4 deposit address and quote**, if we keep the cross-chain leg (NEAR Intents is not required by the rules). Furqaan sends the `ft_transfer`; it is mainnet, so both of you say yes first.
+1. **24-decimal wNEAR cases** in the red-team suite (section 5).
+2. **The KT4 deposit address and quote**, if we keep the cross-chain leg (NEAR Intents is not required by the rules). Furqaan sends the `ft_transfer`; it is mainnet, so both of you say yes first.
+
+## 8. Your end-to-end run, answered
+
+- **"request system prompt is not the registered prompt":** your API called the retired `wallet.intented-owner.testnet` (your poisoned tx `CoAmvx…` went there). The new wallet already has prompt hash `7893d831…`. Set `CONTRACT_ACCOUNT_ID=intented-wallet.testnet` and the new `AGENT_PRIVATE_KEY`; the old key only works on the old wallet, whose contract also predates the amount check.
+- **Speed:** measured on one honest payment, finality is not the cost: `propose` 10.7 s at `FINAL`, 9.7 s optimistic. The public RPC is: with `NEAR_RPC_URL=https://test.rpc.fastnear.com`, `propose` 4.6 s and `execute` 5.4 s at `FINAL`. Keep `FINAL`: the optimistic level returned 5 of 6 receipts, which would make `ok` unreliable. Within one proposal, `propose` does not need the verdict, so it can run alongside `judge`.
+- **`get_config` now also returns `model_id` and `prompt_hash`**, so the API can check both before judging, as it does `mandate_hash`.
+- **`attestation_url`:** `pnpm attest --register` writes `docs/attestations/<signer>.json` (what was checked, what was not, and the raw evidence). Qwen's is `docs/attestations/0x835ab53d20294ef795906dff21ae4c045336aa26.json`.
+- **Accepted and in the spec:** your three yeses, the owner setters, and `updated_at` ([record](./decisions/2026-11-01-accept-wallet-seam-amount-and-updated-at.md)).
+- **Untidy reasons** ("intended-vendor", "0.009 exceeds 0.01"): tightened at the next prompt change, which means a KT3 rerun and a new prompt hash.
+- **Cross-chain payee:** open in the spec. A 1Click deposit address is not the vendor, so the judge would need the quote's real recipient as trusted data, if we keep that leg.
 
 You no longer need the Day-2 stub of the core. Keep one only for UI work without NEAR AI calls, and never show its verdicts as verified.
 

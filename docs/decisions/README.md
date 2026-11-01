@@ -31,17 +31,18 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [KT1 and KT2 pass: NEAR AI signatures verify on-chain, no relayer](./2026-11-01-kt1-kt2-pass.md) | Furqaan |
 | 2026-11-01 | [The signed text includes the model id; signatures are ECDSA through env::ecrecover](./2026-11-01-signed-text-includes-model-id.md) (accepted by [this record](./2026-11-01-accept-model-id-signed-text.md)) | Furqaan |
 | 2026-11-01 | [firewall-core: TypeScript on Node with pnpm, tsx, vitest and ethers v6](./2026-11-01-firewall-core-toolchain.md) | Furqaan |
-| 2026-11-01 | [Wallet caps count token amounts; the daily window is the UTC day; the allowlist covers receiver contracts](./2026-11-01-wallet-caps-window-allowlist.md) | Furqaan |
-| 2026-11-01 | [execute checks what the signed request asked, not only the signed verdict](./2026-11-01-execute-checks-the-signed-request.md) (proposed, awaiting William) | Furqaan |
+| 2026-11-01 | [Wallet caps count token amounts; the daily window is the UTC day; the allowlist covers receiver contracts](./2026-11-01-wallet-caps-window-allowlist.md) (owner setters accepted by [this record](./2026-11-01-accept-wallet-seam-amount-and-updated-at.md)) | Furqaan |
+| 2026-11-01 | [execute checks what the signed request asked, not only the signed verdict](./2026-11-01-execute-checks-the-signed-request.md) (accepted by [this record](./2026-11-01-accept-wallet-seam-amount-and-updated-at.md)) | Furqaan |
 | 2026-11-01 | [The wallet executes a real NEAR AI ALLOW on testnet and refuses a real DENY](./2026-11-01-first-testnet-execution.md) | Furqaan |
 | 2026-11-01 | [The poisoned-paywall refusal is on-chain, with a transaction hash](./2026-11-01-attack-refusal-on-chain.md) | Furqaan |
 | 2026-11-01 | [The attestation checker ports NEAR's verifier and fails closed](./2026-11-01-attestation-checker.md) | Furqaan |
-| 2026-11-01 | [The firewall core's seam is real; on-chain calls use near-api-js 7.3.1](./2026-11-01-firewall-core-seam-and-near-api-js.md) | Furqaan |
+| 2026-11-01 | [The firewall core's seam is real; on-chain calls use near-api-js 7.3.1](./2026-11-01-firewall-core-seam-and-near-api-js.md) (factories accepted by [this record](./2026-11-01-accept-wallet-seam-amount-and-updated-at.md)) | Furqaan |
 | 2026-11-01 | [Go: Intented goes ahead on Qwen3.8-27B](./2026-11-01-go-intented-on-qwen.md) | Furqaan, William |
 | 2026-11-01 | [Accepted: the signed text includes the model id; signatures are ECDSA through env::ecrecover](./2026-11-01-accept-model-id-signed-text.md) | Furqaan, William |
-| 2026-11-01 | [The model sees token amounts already converted, and the wallet checks the conversion](./2026-11-01-model-sees-converted-amount.md) (proposed, awaiting William) | Furqaan |
+| 2026-11-01 | [The model sees token amounts already converted, and the wallet checks the conversion](./2026-11-01-model-sees-converted-amount.md) (accepted by [this record](./2026-11-01-accept-wallet-seam-amount-and-updated-at.md)) | Furqaan |
+| 2026-11-01 | [Accepted: execute checks the signed request, the seam as factories, converted amounts, the owner setters and updated_at](./2026-11-01-accept-wallet-seam-amount-and-updated-at.md) | Furqaan, William |
 | 2026-11-01 | [api: Hono on Node, with node:sqlite for storage](./2026-11-01-api-hono-and-node-sqlite.md) | William |
-| 2026-11-01 | [api: proposals run in the background, every verdict goes on-chain, and failed means no money moved](./2026-11-01-api-pipeline-behaviour.md) (`updated_at` proposed, awaiting Furqaan) | William |
+| 2026-11-01 | [api: proposals run in the background, every verdict goes on-chain, and failed means no money moved](./2026-11-01-api-pipeline-behaviour.md) (`updated_at` accepted by [this record](./2026-11-01-accept-wallet-seam-amount-and-updated-at.md)) | William |
 
 ## Not decided yet
 
