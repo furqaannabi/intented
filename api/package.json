@@ -5,14 +5,22 @@
   "type": "module",
   "scripts": {
     "kt4": "tsx scripts/kt4.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "tsx src/server.ts"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@intented/firewall-core": "link:../firewall-core",
+    "hono": "^4.13.14"
   }
 }

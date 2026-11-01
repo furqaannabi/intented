@@ -1,0 +1,105 @@
+import type { Judgement } from "@intented/firewall-core";
+import { describe, expect, it } from "vitest";
+import { createPipeline, type PipelineDeps } from "../src/pipeline.js";
+import type { WalletStatus } from "../src/settle.js";
+import { openStore } from "../src/store.js";
+
+const HASH = "a".repeat(64);
+const verdict = (v: "ALLOW" | "DENY"): Judgement => ({
+  verdict: v, reason: `model says ${v}`, model: "m", chat_id: "chat-1", req_bytes: new Uint8Array([1]), resp_bytes: new Uint8Array([2]), signature: "0xsig", signer: "0xsigner",
+});
+
+function setup(over: { judge?: PipelineDeps["judge"]; execute?: PipelineDeps["chain"]["executeOnChain"]; mandateHash?: string; walletStatus?: WalletStatus } = {}) {
+  const store = openStore(":memory:");
+  const m = store.createMandate("Buy market data", HASH);
+  const calls: string[] = [];
+  const pipeline = createPipeline({
+    store,
+    judge: over.judge ?? (async () => verdict("ALLOW")),
+    chain: {
+      proposeOnChain: async () => (calls.push("propose"), { proposal_id: 7, near_tx_hash: "ptx" }),
+      executeOnChain: over.execute ?? (async () => (calls.push("execute"), { near_tx_hash: "etx", ok: true })),
+    },
+    wallet: { mandateHash: async () => over.mandateHash ?? HASH, proposalStatus: async () => over.walletStatus ?? null },
+    log: () => {},
+    recheckMs: 5,
+  });
+  const action = { receiver_id: "wrap.testnet", method: "ft_transfer", args_sha256: "b".repeat(64), deposit: "1", nonce: "1", expiry_ms: String(Date.now() + 60_000) };
+  const p = store.createProposal({ mandate_id: m.id, action, args: "{}", context: "" });
+  const done = async () => {
+    for (let i = 0; i < 200 && store.getProposal(p.id)!.step !== "done"; i++) await new Promise((r) => setTimeout(r, 5));
+    return store.getProposal(p.id)!;
+  };
+  return { store, pipeline, p, calls, done };
+}
+
+describe("pipeline", () => {
+  it("executes an ALLOW and stores the execute hash", async () => {
+    const t = setup();
+    t.pipeline.start(t.p.id);
+    const r = await t.done();
+    expect([r.status, r.near_tx_hash, r.propose_tx_hash, r.reason]).toEqual(["executed", "etx", "ptx", "model says ALLOW"]);
+  });
+
+  it("still sends a DENY on-chain, and records it as denied with the refused execute's hash", async () => {
+    const t = setup({ judge: async () => verdict("DENY"), execute: async () => ({ near_tx_hash: "refused", ok: false, error: "verdict is not ALLOW" }) });
+    t.pipeline.start(t.p.id);
+    const r = await t.done();
+    expect([r.status, r.near_tx_hash, r.reason]).toEqual(["denied", "refused", "model says DENY"]);
+  });
+
+  it("fails without judging or transacting when the mandate is not active on the wallet", async () => {
+    let judged = false;
+    const t = setup({ mandateHash: "c".repeat(64), judge: async () => ((judged = true), verdict("ALLOW")) });
+    t.pipeline.start(t.p.id);
+    const r = await t.done();
+    expect([r.status, judged, t.calls]).toEqual(["failed", false, []]);
+  });
+
+  it("fails without transacting when there is no verdict", async () => {
+    const t = setup({ judge: async () => { throw new Error("NEAR AI 503"); } });
+    t.pipeline.start(t.p.id);
+    const r = await t.done();
+    expect([r.status, t.calls, r.reason]).toEqual(["failed", [], "pipeline: no verdict (NEAR AI 503)"]);
+  });
+
+  it("marks executed, not failed, when execute throws but the wallet executed it", async () => {
+    const t = setup({ execute: async () => { throw new Error("RPC timeout"); }, walletStatus: "executed" });
+    t.pipeline.start(t.p.id);
+    expect((await t.done()).status).toBe("executed");
+  });
+
+  it("on restart, fails a proposal stuck before its verdict and never resumes it", async () => {
+    const t = setup();
+    t.pipeline.recover();
+    const r = await t.done();
+    expect([r.status, t.calls]).toEqual(["failed", []]);
+  });
+
+  it("sends one proposal's transactions at a time, so they never race for the agent key's nonce", async () => {
+    const store = openStore(":memory:");
+    const m = store.createMandate("Buy market data", HASH);
+    const events: string[] = [];
+    let n = 0;
+    const pipeline = createPipeline({
+      store,
+      judge: async () => verdict("ALLOW"),
+      chain: {
+        proposeOnChain: async () => (events.push("propose"), { proposal_id: n++, near_tx_hash: "ptx" }),
+        executeOnChain: async (id) => {
+          events.push(`execute ${id} start`);
+          await new Promise((r) => setTimeout(r, 30));
+          events.push(`execute ${id} end`);
+          return { near_tx_hash: "etx", ok: true };
+        },
+      },
+      wallet: { mandateHash: async () => HASH, proposalStatus: async () => null },
+      log: () => {},
+    });
+    const action = { receiver_id: "wrap.testnet", method: "ft_transfer", args_sha256: "b".repeat(64), deposit: "1", nonce: "1", expiry_ms: String(Date.now() + 60_000) };
+    const ids = [0, 1].map(() => store.createProposal({ mandate_id: m.id, action, args: "{}", context: "" }).id);
+    ids.forEach((id) => pipeline.start(id));
+    for (let i = 0; i < 200 && ids.some((id) => store.getProposal(id)!.step !== "done"); i++) await new Promise((r) => setTimeout(r, 5));
+    expect(events).toEqual(["propose", "execute 0 start", "execute 0 end", "propose", "execute 1 start", "execute 1 end"]);
+  });
+});
