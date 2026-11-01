@@ -1,26 +1,53 @@
 @import "tailwindcss";
 
+/* Midnight: navy surfaces, one blue for the agent and its wallet,
+   lime only for ALLOW, coral only for DENY. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #06061a;
+  --ink-2: #0d0d2b;
+  --line: #23234d;
+  --text: #f2f2ff;
+  --mute: #9d9dc9;
+  --blue: #2b2bf5;
+  --soft: #8b8bff;
+  --lime: #c8ff3d;
+  --lime-ink: #0b0b2e;
+  --coral: #ff5b4a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-mute: var(--mute);
+  --color-blue: var(--blue);
+  --color-soft: var(--soft);
+  --color-lime: var(--lime);
+  --color-lime-ink: var(--lime-ink);
+  --color-coral: var(--coral);
+  --font-sans: var(--font-schibsted);
+  --font-mono: var(--font-martian);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  line-height: 1.55;
+}
+
+:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
