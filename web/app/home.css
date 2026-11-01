@@ -1,18 +1,3 @@
-.home-logo {
-  position: relative;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: var(--lime);
-}
-.home-logo::after {
-  content: "";
-  position: absolute;
-  inset: 8px;
-  border-radius: 50%;
-  background: var(--ink);
-}
-
 /* A blue glow behind the hero scene */
 .home-hero {
   position: relative;

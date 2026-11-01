@@ -1,0 +1,66 @@
+/* The receipt: dark paper with a torn bottom edge, like the hero's receipts. */
+.rcpt {
+  position: relative;
+  padding: 28px 28px 44px;
+  border-radius: 22px 22px 0 0;
+  background: #14143a;
+  box-shadow: 0 30px 60px rgb(0 0 0 / 0.4);
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;
+}
+@media (max-width: 640px) {
+  .rcpt {
+    padding: 22px 18px 38px;
+  }
+}
+
+.rcpt-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+}
+
+/* Proposed → judged → settled */
+.rcpt-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 24px;
+}
+.rcpt-steps > li {
+  position: relative;
+  padding: 18px 8px 0 0;
+}
+.rcpt-steps > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  height: 2px;
+  background: var(--line);
+}
+.rcpt-steps > li:last-child::before {
+  display: none;
+}
+.rcpt-steps > li::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--soft);
+}
+.rcpt-steps > .rcpt-paid::after {
+  background: var(--lime);
+}
+.rcpt-steps > .rcpt-refused::after {
+  background: var(--coral);
+}
+.rcpt-steps > .rcpt-failed::after {
+  background: var(--mute);
+}
+.rcpt-steps > .rcpt-pending::after {
+  background: var(--line);
+}
