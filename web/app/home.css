@@ -1,0 +1,108 @@
+.home-logo {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--lime);
+}
+.home-logo::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* A blue glow behind the hero scene */
+.home-hero {
+  position: relative;
+}
+.home-hero::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -10%;
+  width: 60%;
+  height: 120%;
+  background: radial-gradient(closest-side, rgb(52 52 255 / 0.45), transparent 70%);
+  pointer-events: none;
+}
+.home-hero > * {
+  position: relative;
+}
+
+.home-mark {
+  background: none;
+  color: var(--coral);
+  border-bottom: 2px solid var(--coral);
+}
+
+/* The four steps, joined by a line that draws as the section scrolls in */
+.home-step-number {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--lime);
+  color: var(--lime-ink);
+  font: 500 14px var(--font-martian);
+}
+@media (min-width: 1024px) {
+  .home-steps {
+    position: relative;
+  }
+  .home-steps::before,
+  .home-steps::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 27px;
+    height: 2px;
+    background: var(--line);
+  }
+  .home-steps::after {
+    background: var(--lime);
+    transform-origin: 0 50%;
+  }
+  @supports (animation-timeline: view()) {
+    .home-steps::after {
+      animation: draw linear both;
+      animation-timeline: view();
+      animation-range: entry 20% cover 45%;
+    }
+  }
+}
+@keyframes draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.home-tx {
+  display: block;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--ink-2);
+  transition: border-color 0.2s;
+}
+.home-tx:hover {
+  border-color: var(--soft);
+}
+.home-tx code {
+  display: block;
+  margin-top: 8px;
+  font: 12.5px/1.5 var(--font-martian);
+  color: var(--mute);
+  word-break: break-all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-steps::after {
+    animation: none !important;
+  }
+}
