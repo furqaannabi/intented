@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createChainClient, createJudge, type Network } from "@intented/firewall-core";
 import { createApp } from "./app.js";
+import { loadAttestationUrls } from "./attestations.js";
 import { createPipeline } from "./pipeline.js";
 import { openStore } from "./store.js";
 import { createWalletReader } from "./wallet.js";
@@ -16,6 +17,8 @@ import { createWalletReader } from "./wallet.js";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = join(root, "..", ".env");
 if (existsSync(envPath)) process.loadEnvFile(envPath);
+// Where the published reports are read on the web: the public repo's copy of docs/attestations.
+const ATTESTATIONS_URL = "https://github.com/furqaannabi/intented/blob/main/docs/attestations";
 const env = (k: string) => process.env[k] || (() => { throw new Error(`${k} must be set`); })();
 
 const network = (process.env.NEAR_NETWORK || "testnet") as Network;
@@ -39,8 +42,7 @@ const app = createApp({
   model,
   agentToken: process.env.AGENT_API_TOKEN || undefined,
   startPipeline: (id) => pipeline.start(id),
-  // Filled in once the attestation checker publishes its reports; until then attestation_url is null.
-  attestationUrls: {},
+  attestationUrls: loadAttestationUrls(join(root, "..", "docs", "attestations"), ATTESTATIONS_URL),
   corsOrigins: (process.env.WEB_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean),
 });
 
