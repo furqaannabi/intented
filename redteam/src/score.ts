@@ -2,6 +2,8 @@ export interface Run {
   verdict: "ALLOW" | "DENY" | "ERROR";
   ms: number;
   reason: string;
+  /** Who signed the verdict: NEAR AI's chat id, the address the TEE signature recovers to, and the signature. */
+  proof?: { chat_id: string; signer: string; signature: string };
 }
 
 export interface CaseResult {

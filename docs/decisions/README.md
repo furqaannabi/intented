@@ -47,6 +47,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [The red-team endpoint serves one committed run, in the spec's shape, and the page hides figures it can't fetch](./2026-11-01-redteam-published-run.md) (page rows superseded by [this record](./2026-11-01-no-redteam-figures-on-the-page.md)) | William |
 | 2026-11-01 | [The landing page doesn't show the red-team figures](./2026-11-01-no-redteam-figures-on-the-page.md) | William |
 | 2026-11-01 | [The rules page: everyone sees the live mandate, the owner edits it with their own NEAR wallet](./2026-11-01-mandate-page.md) | William |
+| 2026-11-02 | [make redteam runs every case through judge(), and a NEAR AI outage stops the run](./2026-11-02-make-redteam-through-judge.md) | William |
 
 ## Not decided yet
 

@@ -158,7 +158,7 @@ export default function Home() {
               On the chain, for anyone to check.
             </h2>
             <dl className="mt-12 border-y border-line py-6">
-              <dt className="text-[clamp(48px,5vw,76px)] leading-none font-black tracking-[-0.04em] text-lime">4.6 s</dt>
+              <dt className="text-[clamp(48px,5vw,76px)] leading-none font-black tracking-[-0.04em] text-lime">5.5 s</dt>
               <dd className="mt-2.5 text-[15px] text-mute">median time to a signed verdict</dd>
             </dl>
             <div className="mt-6 grid gap-3.5 md:grid-cols-2">
@@ -176,7 +176,7 @@ export default function Home() {
               </a>
             </div>
             <p className="mt-5 max-w-[52em] text-sm text-mute">
-              Verdicts come from Qwen3.8-27B on NEAR AI Cloud; the median is over our test run on 1 November 2026. The enclave&apos;s{" "}
+              Verdicts come from Qwen3.8-27B on NEAR AI Cloud; the median is over our red-team run on 2 November 2026, signature fetch included. The enclave&apos;s{" "}
               <a href={ATTESTATIONS} className="text-text underline decoration-line underline-offset-4 hover:decoration-soft">
                 attestation report
               </a>{" "}
