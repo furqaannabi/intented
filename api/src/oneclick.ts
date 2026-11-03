@@ -109,9 +109,10 @@ export function createOneClick(config: OneClickConfig = {}) {
       return dest_tx_hash ? { status: s.status, dest_tx_hash } : { status: s.status };
     },
 
-    /** Optional: tells 1Click the deposit was sent, so it picks it up sooner. */
-    async submitDeposit(deposit_address: string, tx_hash: string): Promise<void> {
-      await call("/v0/deposit/submit", { method: "POST", body: JSON.stringify({ txHash: tx_hash, depositAddress: deposit_address }) });
+    /** Tells 1Click the deposit was sent, so it picks it up sooner. On NEAR, `near_sender` is the account that signed the transaction. */
+    async submitDeposit(deposit_address: string, tx_hash: string, near_sender?: string): Promise<void> {
+      const body = { txHash: tx_hash, depositAddress: deposit_address, ...(near_sender ? { nearSenderAccount: near_sender } : {}) };
+      await call("/v0/deposit/submit", { method: "POST", body: JSON.stringify(body) });
     },
   };
 }
