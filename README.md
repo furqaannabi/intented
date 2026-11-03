@@ -21,6 +21,8 @@ Agents with wallets get prompt-injected. Spending caps and allowlists check rule
 
 **Trust assumptions:** the TEE attestation is verified off-chain and the signing address is then allowlisted on-chain; the contract does not verify the TDX quote. The contract's hard caps stay as the backstop, so the model can only tighten what the contract permits. See [the trust model](./docs/decisions/2026-11-01-signed-verdict-trust-model.md).
 
+**Privacy:** in this version the active mandate's text is public. The wallet stores only its sha256 hash on-chain, but anyone can read the text on the web app's rules page or from `GET /api/mandates/:text_hash`. See [the record](./docs/decisions/2026-11-03-accept-mandate-lookup.md).
+
 ## Repo map
 
 | Path | What | Owner |

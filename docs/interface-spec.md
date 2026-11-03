@@ -108,6 +108,7 @@ trackDeposit(deposit_address) -> { status, dest_tx_hash? }
 | Method and path | Body or query | Returns |
 | --- | --- | --- |
 | `POST /api/mandate` | `{ text }` | `{ mandate_id, text_hash }` |
+| `GET /api/mandates/:text_hash` | | `{ mandate_id, text, text_hash }`: the stored text whose sha256 is `text_hash`, byte for byte. 400 unless `text_hash` is 64 lowercase hex characters, 404 if none; when several share it, the newest. Public |
 | `POST /api/propose` | `{ mandate_id, action, args, context }` | `{ proposal_id }` |
 | `GET /api/proposals` | `?since=ts` (changed after `ts`) | `[ Proposal ]` |
 | `GET /api/proposals/:id` | | `Proposal` |
@@ -136,3 +137,4 @@ Proposal = {
 | 2026-11-01 | Furqaan | Copied from §5 of the build plan, unchanged |
 | 2026-11-01 | Furqaan, William | Check 2 uses NEAR AI's signed text with the model id; signature scheme ECDSA through `env::ecrecover`; model Qwen3.8-27B. Records: [signed text](./decisions/2026-11-01-accept-model-id-signed-text.md), [go on Qwen](./decisions/2026-11-01-go-intented-on-qwen.md) |
 | 2026-11-01 | Furqaan, William | Judge request section; verdict field order; owner methods, views and init; the full `execute` checks including the request and amount; the core's factories; `updated_at` on `Proposal`; `attestation_url` source. Record: [accepted](./decisions/2026-11-01-accept-wallet-seam-amount-and-updated-at.md) |
+| 2026-11-03 | Furqaan, William | `GET /api/mandates/:text_hash` returns a stored mandate's text by its hash, so the rules page and the agent can read the active mandate; its text is public. Record: [accepted](./decisions/2026-11-03-accept-mandate-lookup.md) |

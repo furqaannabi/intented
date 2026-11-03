@@ -48,6 +48,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-01 | [The landing page doesn't show the red-team figures](./2026-11-01-no-redteam-figures-on-the-page.md) | William |
 | 2026-11-01 | [The rules page: everyone sees the live mandate, the owner edits it with their own NEAR wallet](./2026-11-01-mandate-page.md) | William |
 | 2026-11-02 | [make redteam runs every case through judge(), and a NEAR AI outage stops the run](./2026-11-02-make-redteam-through-judge.md) | William |
+| 2026-11-03 | [Accepted: look up a mandate's text by its hash, and say the active mandate is public](./2026-11-03-accept-mandate-lookup.md) | Furqaan, William |
 
 ## Not decided yet
 

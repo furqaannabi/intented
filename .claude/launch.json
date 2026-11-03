@@ -31,6 +31,18 @@
         "3000"
       ],
       "port": 3000
+    },
+    {
+      "name": "mockups",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8090",
+        "--directory",
+        "/private/tmp/claude-501/-Users-Codypharm-dev-intented/2c3cdd31-5186-452d-a232-3f109f5254d2/scratchpad/mockups"
+      ],
+      "port": 8090
     }
   ]
 }
