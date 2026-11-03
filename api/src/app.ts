@@ -5,7 +5,7 @@ import type { Network } from "@intented/firewall-core";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { buildCrossChain, checkCrossChainPropose } from "./crosschain.js";
-import type { CrossChainPayment, Quote } from "./oneclick.js";
+import { verifySignedQuote, type CrossChainPayment, type Quote, type SignedQuote } from "./oneclick.js";
 import type { RedteamLatest } from "./redteam.js";
 import type { ProposalRow, Store } from "./store.js";
 import { checkPropose } from "./validate.js";
@@ -60,9 +60,11 @@ export interface AppDeps {
    * judge sees the real recipient.
    */
   crossChain?: {
-    pay: (p: CrossChainPayment) => Promise<{ deposit_address: string; quote: Quote }>;
+    pay: (p: CrossChainPayment) => Promise<{ deposit_address: string; quote: Quote; signed_quote: SignedQuote }>;
     /** The wallet: 1Click refunds a failed swap here. */
     refundTo: string;
+    /** The key quotes must be signed with: 1Click's on mainnet, the stand-in's on testnet. The same key the owner registers on the wallet. */
+    quoteKey: string;
   };
 }
 
@@ -129,6 +131,8 @@ export function createApp({ store, network, model, agentToken, startPipeline, at
     } catch (e) {
       return json({ error: `could not get a 1Click quote: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}` }, 502);
     }
+    // The wallet refuses a quote that doesn't verify; fail here, before the judge is paid for.
+    if (!verifySignedQuote(paid.signed_quote, crossChain.quoteKey)) return json({ error: "1Click's quote signature does not verify" }, 502);
     // Anything not on mainnet is the stand-in, so every delivery it reports is simulated.
     const built = buildCrossChain(intent, paid, { now: Date.now(), simulated: network !== "mainnet" });
     if ("error" in built) return json({ error: `unusable 1Click quote: ${built.error}` }, 502);

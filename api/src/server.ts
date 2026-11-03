@@ -54,7 +54,7 @@ const app = createApp({
   redteam: createRedteamReader(join(root, "..", "redteam", "latest.json")),
   corsOrigins: (process.env.WEB_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean),
   // Off until the firewall core's judge() puts cross_chain in the request; then:
-  // crossChain: { pay: oneclick.payCrossChain, refundTo: walletId },
+  // crossChain: { pay: oneclick.payCrossChain, refundTo: walletId, quoteKey: network === "mainnet" ? ONE_CLICK_MANAGER_KEY : env("ONECLICK_STANDIN_PUBLIC_KEY") },
 });
 
 pipeline.recover();

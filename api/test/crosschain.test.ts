@@ -37,7 +37,8 @@ describe("buildCrossChain: the transfer to the deposit address, from the quote",
   const now = 1_800_000_000_000;
   const DEPOSIT = "intented-1click.testnet";
   const quote = { amountIn: "808000000000000000000", amountOut: "400000", deadline: new Date(now + 30 * 60_000).toISOString() };
-  const build = (q: Partial<typeof quote> = {}) => buildCrossChain(intent, { deposit_address: DEPOSIT, quote: { ...quote, ...q } }, { now, simulated: true });
+  const signed_quote = { payload: `{"depositAddress":"${DEPOSIT}"}`, signature: "ed25519:sig" };
+  const build = (q: Partial<typeof quote> = {}) => buildCrossChain(intent, { deposit_address: DEPOSIT, quote: { ...quote, ...q }, signed_quote }, { now, simulated: true });
 
   it("transfers the quoted input to the deposit address, on the token the wallet pays with", () => {
     const r = build();
@@ -51,7 +52,7 @@ describe("buildCrossChain: the transfer to the deposit address, from the quote",
 
   it("tells the judge the Base recipient and what it receives", () => {
     expect(build()).toMatchObject({
-      cross_chain: { deposit_address: DEPOSIT, dest_chain: "base", dest_asset: BASE_USDC, recipient: VENDOR, amount_out: "0.4 USDC", deadline_ms: String(now + 30 * 60_000) },
+      cross_chain: { deposit_address: DEPOSIT, dest_chain: "base", dest_asset: BASE_USDC, recipient: VENDOR, amount_out: "0.4 USDC", deadline_ms: String(now + 30 * 60_000), signed_quote },
       oneclick: { deposit_address: DEPOSIT, recipient: VENDOR, amount_out: "0.4 USDC", status: "PENDING_DEPOSIT", simulated: true },
     });
   });

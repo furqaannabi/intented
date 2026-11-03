@@ -1,0 +1,46 @@
+{
+  "quote": {
+    "amountIn": "104384197985210582865391",
+    "amountInFormatted": "0.104384197985210582865391",
+    "amountInUsd": "0.407098372142",
+    "minAmountIn": "103340356005358477036737",
+    "amountOut": "400000",
+    "amountOutFormatted": "0.4",
+    "amountOutUsd": "0.399738800000",
+    "minAmountOut": "400000",
+    "timeEstimate": 24,
+    "refundFee": "0",
+    "withdrawFee": "2400",
+    "deadline": "2026-11-06T13:15:40.842Z",
+    "timeWhenInactive": "2026-11-06T13:15:40.842Z",
+    "depositAddress": "f09f005a15ad7fc17f3e1a4440f7bff3b71f6f306899f0c99896f607014b27da"
+  },
+  "quoteRequest": {
+    "dry": false,
+    "depositMode": "SIMPLE",
+    "swapType": "EXACT_OUTPUT",
+    "slippageTolerance": 100,
+    "originAsset": "nep141:wrap.near",
+    "depositType": "ORIGIN_CHAIN",
+    "destinationAsset": "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+    "amount": "400000",
+    "refundTo": "furqaannabi.near",
+    "refundType": "ORIGIN_CHAIN",
+    "recipient": "0x2ef2fed3f9b3d5385499008051031320b1fb49ef",
+    "recipientType": "DESTINATION_CHAIN",
+    "deadline": "2026-11-03T13:15:40.842Z",
+    "confidentiality": "public",
+    "quoteWaitingTimeMs": 0,
+    "insured": false,
+    "appFees": [
+      {
+        "recipient": "5880ad2b362620fadf759cbceb1cd5737ce8c6ed7fb8e9942881e6731f9247dd",
+        "fee": 20,
+        "limitOrderId": null
+      }
+    ]
+  },
+  "signature": "ed25519:25WAvMnGqLPacoZXxMGugLYZuYGtgX84Au52GyB4XM5HgEL8fcwCUPf3oDM5fymP7KKRgAzp3p4AydJf43eQzqDN",
+  "timestamp": "2026-11-03T12:45:42.957Z",
+  "correlationId": "0e60964a-c699-4119-94a8-dd8d036ef446"
+}

@@ -123,6 +123,7 @@ describe("pipeline: a payment through 1Click", () => {
   const crossChain = {
     deposit_address: "intented-1click.testnet", dest_chain: "base", dest_asset: "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
     recipient: "0x7284d41b5b852f2bd4c99bdf95043d84452d299c", amount_out: "0.4 USDC", deadline_ms: String(Date.now() + 30 * 60_000),
+    signed_quote: { payload: "{}", signature: "ed25519:1" },
   };
   const oneclick = { deposit_address: crossChain.deposit_address, dest_chain: "base", recipient: crossChain.recipient, amount_out: "0.4 USDC", status: "PENDING_DEPOSIT", simulated: true };
 

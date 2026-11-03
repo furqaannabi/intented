@@ -5,6 +5,7 @@
 
 import { createHash } from "node:crypto";
 import { KNOWN_TOKENS, type Network } from "@intented/firewall-core";
+import type { SignedQuote } from "./oneclick.js";
 import type { ActionJson } from "./store.js";
 
 const MAX_CONTEXT_CHARS = 20_000;
@@ -67,6 +68,8 @@ export interface CrossChainField {
   recipient: string;
   amount_out: string;
   deadline_ms: string;
+  /** What 1Click signed for this quote; execute verifies it, so the deposit address isn't the API's word. */
+  signed_quote: SignedQuote;
 }
 
 /** `Proposal.oneclick`: the deposit as the web app shows it. */
@@ -94,7 +97,7 @@ function formatUnits(raw: string, decimals: number, symbol: string): string {
  */
 export function buildCrossChain(
   intent: CrossChainIntent,
-  paid: { deposit_address: string; quote: { amountIn: string; amountOut: string; deadline?: string } },
+  paid: { deposit_address: string; quote: { amountIn: string; amountOut: string; deadline?: string }; signed_quote: SignedQuote },
   opts: { now: number; simulated: boolean },
 ): { action: ActionJson; args: string; cross_chain: CrossChainField; oneclick: OneClickState } | { error: string } {
   const { quote, deposit_address } = paid;
@@ -125,6 +128,7 @@ export function buildCrossChain(
       recipient: intent.recipient,
       amount_out,
       deadline_ms: String(deadline),
+      signed_quote: paid.signed_quote,
     },
     oneclick: { deposit_address, dest_chain: intent.dest_chain, recipient: intent.recipient, amount_out, status: "PENDING_DEPOSIT", simulated: opts.simulated },
   };
