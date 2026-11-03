@@ -39,8 +39,20 @@ What the firewall core sends NEAR AI, and what `execute` checks it was: exactly 
   context,   // what the agent read; untrusted, not checked
   amount?,   // only for ft_transfer / ft_transfer_call on a known token: args.amount in whole
              // tokens with the symbol, e.g. "0.001 wNEAR"; the wallet requires exactly its own formatting
+  cross_chain?,  // only for a payment through 1Click, filled by the firewall from the quote, never by the agent
+}
+
+cross_chain = {
+  deposit_address,  // the 1Click deposit address; equals args.receiver_id
+  dest_chain,       // e.g. "base"
+  dest_asset,       // the 1Click asset id, e.g. nep141:base-0x8335…omft.near
+  recipient,        // the address on dest_chain, lowercase 0x + 40 hex
+  amount_out,       // what the recipient receives, exactly, in whole tokens with the symbol: "0.40 USDC"
+  deadline_ms,      // the quote's deadline, u64 as a decimal string; the action's expiry_ms is earlier
 }
 ```
+
+When `cross_chain` is present, the payee the judge checks is `cross_chain.recipient` on `cross_chain.dest_chain`, not `args.receiver_id`. Like `amount`, it is the firewall's own data, not context.
 
 ## Verdict
 
@@ -59,6 +71,7 @@ What the model must return, as structured JSON output, in this order:
 | `register_signer(eth_address)` · `revoke_signer(eth_address)` | owner |
 | `allow_receiver(receiver_id)` · `disallow_receiver(receiver_id)` | owner |
 | `set_token(token_id, { symbol, decimals, caps: { per_tx, daily } })` · `set_near_caps({ per_tx, daily })` | owner |
+| `set_cross_chain(enabled)` · `allow_cross_chain_recipient(address)` · `disallow_cross_chain_recipient(address)` | owner |
 | `freeze()` · `unfreeze()` | owner |
 | `propose(action, args_json) -> proposal_id` | the agent's function-call key |
 | `execute(proposal_id, req_bytes, resp_bytes, sig_65) -> Promise` | the agent's function-call key |
@@ -71,12 +84,19 @@ What the model must return, as structured JSON output, in this order:
 3. The receiver is on the allowlist.
 4. The nonce is unused.
 5. The action has not expired.
-6. The request is exactly the judge request above: no other fields, no duplicate keys, the wallet's `model_id`, the registered prompt hash, the owner's mandate hash, this proposal's canonical bytes and args, and for a token transfer the wallet's formatting of the amount.
+6. The request is exactly the judge request above: no other fields, no duplicate keys, the wallet's `model_id`, the registered prompt hash, the owner's mandate hash, this proposal's canonical bytes and args, and for a token transfer the wallet's formatting of the amount. A request with `cross_chain` also needs all of these:
+   - the method is `ft_transfer`, and `cross_chain.deposit_address` equals `args.receiver_id`;
+   - `cross_chain.recipient` is lowercase `0x` plus 40 hex characters;
+   - `expiry_ms` is earlier than `cross_chain.deadline_ms`;
+   - the owner's cross-chain switch is on (it is off by default);
+   - if the owner's cross-chain recipient list is not empty, `cross_chain.recipient` is on it.
 7. The verdict is exact JSON for this action, and it is `ALLOW`.
 8. `model_id + ":" + sha256(req) + ":" + sha256(resp)`, the text NEAR AI signs (EIP-191, recovered with `env::ecrecover`), recovers an allowlisted signer.
 9. The NEAR deposit is within its per-transaction and daily caps; for `ft_transfer` and `ft_transfer_call`, the token has caps set and `args.amount` is within them. The daily window is the UTC day.
 
 A callback then marks the proposal `executed` or `failed`.
+
+`get_config` also returns the cross-chain switch and the recipient list. The contract can't prove that 1Click delivers to `cross_chain.recipient`: that link is the API's word about the quote, checkable afterwards through 1Click's status for the deposit address.
 
 ## Firewall core (Furqaan)
 
@@ -84,7 +104,7 @@ The seam. William's API imports it, configured once through two factories:
 
 ```
 createJudge({ apiKey, model, network }) -> judge
-judge(mandate_text, action, args_json, context) ->
+judge(mandate_text, action, args_json, context, cross_chain?) ->
     { verdict, reason, model, chat_id, req_bytes, resp_bytes, signature, signer }
 
 createChainClient({ rpcUrl, walletId, agentId, agentPrivateKey }) -> { proposeOnChain, executeOnChain }
@@ -103,13 +123,15 @@ payCrossChain({ amount, origin_asset, dest_asset, recipient, refund_to })
 trackDeposit(deposit_address) -> { status, dest_tx_hash? }
 ```
 
+The quote is exact-output: `amount` is what `recipient` receives, and the wallet sends `quote.amountIn`, fees and a 1% slippage buffer included. 1Click refunds what the swap doesn't use to `refund_to`, which is always the wallet. 1Click runs on mainnet only; on testnet a local stand-in replaces it, and every delivery it reports is marked `simulated`.
+
 ## HTTP API (William builds; the UI and the agent use it)
 
 | Method and path | Body or query | Returns |
 | --- | --- | --- |
 | `POST /api/mandate` | `{ text }` | `{ mandate_id, text_hash }` |
 | `GET /api/mandates/:text_hash` | | `{ mandate_id, text, text_hash }`: the stored text whose sha256 is `text_hash`, byte for byte. 400 unless `text_hash` is 64 lowercase hex characters, 404 if none; when several share it, the newest. Public |
-| `POST /api/propose` | `{ mandate_id, action, args, context }` | `{ proposal_id }` |
+| `POST /api/propose` | `{ mandate_id, action, args, context }`, or for a payment through 1Click `{ mandate_id, cross_chain: { token, amount, dest_chain, dest_asset, recipient }, context }`, where `amount` is what the recipient receives; the API quotes and builds the action | `{ proposal_id }` |
 | `GET /api/proposals` | `?since=ts` (changed after `ts`) | `[ Proposal ]` |
 | `GET /api/proposals/:id` | | `Proposal` |
 | `GET /api/redteam/latest` | | `{ attacks_blocked, attacks_total, benign_denied, benign_total, cases[] }` |
@@ -120,15 +142,11 @@ Proposal = {
   status: "pending" | "allowed" | "denied" | "executed" | "failed",
   verdict, reason, model, chat_id, signature, signer, attestation_url,
   near_tx_hash?,
-  oneclick?: { deposit_address, status, dest_tx_hash? },
+  oneclick?: { deposit_address, dest_chain, recipient, amount_out, status, dest_tx_hash?, simulated },
 }
 ```
 
 `attestation_url` links the signer's published report in `docs/attestations/<signer>.json`, or is `null`.
-
-## Open
-
-- How the judge sees the real recipient of a cross-chain payment, whose payee on NEAR is a 1Click deposit address. Only needed if the real cross-chain payment stays in.
 
 ## Revision
 
@@ -138,3 +156,4 @@ Proposal = {
 | 2026-11-01 | Furqaan, William | Check 2 uses NEAR AI's signed text with the model id; signature scheme ECDSA through `env::ecrecover`; model Qwen3.8-27B. Records: [signed text](./decisions/2026-11-01-accept-model-id-signed-text.md), [go on Qwen](./decisions/2026-11-01-go-intented-on-qwen.md) |
 | 2026-11-01 | Furqaan, William | Judge request section; verdict field order; owner methods, views and init; the full `execute` checks including the request and amount; the core's factories; `updated_at` on `Proposal`; `attestation_url` source. Record: [accepted](./decisions/2026-11-01-accept-wallet-seam-amount-and-updated-at.md) |
 | 2026-11-03 | Furqaan, William | `GET /api/mandates/:text_hash` returns a stored mandate's text by its hash, so the rules page and the agent can read the active mandate; its text is public. Record: [accepted](./decisions/2026-11-03-accept-mandate-lookup.md) |
+| 2026-11-03 | Furqaan, William | The cross-chain payment through 1Click: the `cross_chain` judge request field and its `execute` checks, the owner's cross-chain switch and recipient list, `judge()`'s fifth argument, the second `POST /api/propose` body, exact-output quotes, and the wider `oneclick` on `Proposal`. Settles the open question on the cross-chain recipient. Record: [accepted](./decisions/2026-11-03-cross-chain-through-1click.md) |
