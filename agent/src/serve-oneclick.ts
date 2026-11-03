@@ -7,7 +7,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
-import { createOneClickStandIn } from "./oneclick-standin.js";
+import { createOneClickStandIn, standInKey } from "./oneclick-standin.js";
 import { rpcLookupTx } from "./paywall.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -21,6 +21,8 @@ const depositAddress = process.env.ONECLICK_STANDIN_DEPOSIT || "";
 const rate = process.env.ONECLICK_STANDIN_RATE || "500";
 if (!/^([a-z0-9]+[-_.])*[a-z0-9]+\.testnet$/.test(depositAddress)) throw new Error("ONECLICK_STANDIN_DEPOSIT must be a testnet account");
 if (!/^[1-9][0-9]*$/.test(rate)) throw new Error("ONECLICK_STANDIN_RATE must be whole USDC per wNEAR");
+if (!process.env.ONECLICK_STANDIN_KEY) throw new Error("ONECLICK_STANDIN_KEY is not set: run pnpm oneclick-key once to create it");
+const key = standInKey(process.env.ONECLICK_STANDIN_KEY);
 
 // wrap.testnet refuses an ft_transfer to an account it hasn't registered, so say so now, not at the first deposit.
 const res = await fetch(rpcUrl, {
@@ -43,7 +45,9 @@ const view = (await res.json()) as { result?: { result: number[] } };
 const registered = view.result && JSON.parse(Buffer.from(view.result.result).toString("utf8")) !== null;
 if (!registered) console.warn(`warning: ${depositAddress} is not registered on wrap.testnet; deposits to it will fail`);
 
-const app = createOneClickStandIn({ depositAddress, lookupTx: rpcLookupTx(rpcUrl), usdcPerWnear: BigInt(rate) });
+const app = createOneClickStandIn({ depositAddress, signingKey: key.privateKey, lookupTx: rpcLookupTx(rpcUrl), usdcPerWnear: BigInt(rate) });
 serve({ fetch: app.fetch, port }, () => {
   console.log(`1Click stand-in on http://localhost:${port}: wNEAR → USDC on Base at ${rate} USDC per wNEAR, deposits to ${depositAddress}. Deliveries are simulated.`);
+  // The public half only. The owner registers it on the testnet wallet; the API checks quotes with it.
+  console.log(`quotes signed by ${key.publicKey}: set_one_click_key on the testnet wallet, and ONECLICK_STANDIN_PUBLIC_KEY for the API`);
 });

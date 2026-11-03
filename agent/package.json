@@ -6,6 +6,7 @@
   "scripts": {
     "paywall": "tsx src/serve-paywall.ts",
     "oneclick": "tsx src/serve-oneclick.ts",
+    "oneclick-key": "tsx src/oneclick-key.ts",
     "agent": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { BASE_USDC, createOneClickStandIn, ORIGIN_ASSET } from "../src/oneclick-standin.js";
+import { base58, signedQuote, verifySignedQuote } from "../../api/src/oneclick.js";
+import { BASE_USDC, createOneClickStandIn, ORIGIN_ASSET, standInKey } from "../src/oneclick-standin.js";
 
 const DEPOSIT = "intented-1click.testnet";
 const RECIPIENT = "0x2ef2fed3f9b3d5385499008051031320b1fb49ef";
+// A test seed only; the real one is created by pnpm oneclick-key and lives in .env.
+const KEY = standInKey(`ed25519:${base58(Buffer.alloc(32, 7))}`);
 
 // The smallest EXPERIMENTAL_tx_status result findPayment reads: one ft_transfer receipt.
 const transferTx = (receiverId: string, amount: string, outcome: Record<string, unknown> = { SuccessValue: "" }) => ({
@@ -27,6 +30,7 @@ function setup(txs: Record<string, unknown> = {}) {
   let clock = Date.parse("2026-11-03T12:00:00Z");
   const app = createOneClickStandIn({
     depositAddress: DEPOSIT,
+    signingKey: KEY.privateKey,
     lookupTx: async (hash) => txs[hash] ?? null,
     usdcPerWnear: 50n,
     deliverAfterMs: 5000,
@@ -64,6 +68,20 @@ describe("1Click stand-in", () => {
       amountIn: "8080000000000000000000",
       amountInFormatted: "0.00808",
     });
+  });
+
+  it("signs each quote as 1Click does, so the API's verifier accepts it with the stand-in's key", async () => {
+    const { quote } = setup();
+    const r = await (await quote()).json();
+    expect(verifySignedQuote(signedQuote(r), KEY.publicKey)).toBe(true);
+    expect(JSON.parse(signedQuote(r).payload)).toMatchObject({ depositAddress: DEPOSIT, recipient: RECIPIENT, refundTo: "intented-wallet.testnet", dry: false });
+  });
+
+  it("signs nothing a changed deposit address or another key would pass", async () => {
+    const { quote } = setup();
+    const q = signedQuote(await (await quote()).json());
+    expect(verifySignedQuote({ ...q, payload: q.payload.replace(DEPOSIT, "attacker.testnet") }, KEY.publicKey)).toBe(false);
+    expect(verifySignedQuote(q, standInKey(`ed25519:${base58(Buffer.alloc(32, 8))}`).publicKey)).toBe(false);
   });
 
   it("gives no deposit address for a dry quote", async () => {

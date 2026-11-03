@@ -5,8 +5,12 @@
 // deposit account, checks the real testnet deposit, and then reports a
 // delivery that never happens: nothing reaches Base. Every delivery it
 // reports is simulated. One quote at a time: a new live quote replaces the last.
+// It signs its quotes as 1Click does, with its own key, built by the API's own
+// payload builder so the two can't drift.
 
+import { createPrivateKey, createPublicKey, sign, type KeyObject } from "node:crypto";
 import { Hono } from "hono";
+import { base58, quoteMessage, signedQuote, unbase58 } from "../../api/src/oneclick.js";
 import { findPayment } from "./payment.js";
 import type { LookupTx } from "./paywall.js";
 
@@ -16,9 +20,20 @@ const WNEAR_DECIMALS = 24;
 const USDC_DECIMALS = 6;
 const SLIPPAGE_BPS = 100n; // the buffer the API asks for; refunded on mainnet, kept here
 
+/** The stand-in's quote-signing key from its seed ("ed25519:" + base58 of 32 bytes), as 1Click's would be. */
+export function standInKey(seed: string): { privateKey: KeyObject; publicKey: string } {
+  const raw = unbase58(seed.replace(/^ed25519:/, ""));
+  if (raw.length !== 32) throw new Error("the stand-in's key must be ed25519: plus the base58 of a 32-byte seed");
+  const privateKey = createPrivateKey({ key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), raw]), format: "der", type: "pkcs8" });
+  const spki = createPublicKey(privateKey).export({ format: "der", type: "spki" });
+  return { privateKey, publicKey: `ed25519:${base58(spki.subarray(-32))}` };
+}
+
 export interface StandInConfig {
   /** The testnet account every quote deposits to. It must be registered on wrap.testnet. */
   depositAddress: string;
+  /** Signs every quote; its public half is what the owner registers on the testnet wallet with set_one_click_key. */
+  signingKey: KeyObject;
   lookupTx: LookupTx;
   /** The fixed demo rate: whole USDC per whole wNEAR. */
   usdcPerWnear?: bigint;
@@ -92,7 +107,10 @@ export function createOneClickStandIn(config: StandInConfig) {
       timeEstimate: Math.round(deliverAfterMs / 1000),
     };
     if (!body.dry) live = { quote, quoteRequest: body, amountIn: amountIn.toString(), deadlineMs, updatedAt: now() };
-    return c.json({ quote, quoteRequest: body, timestamp: new Date(now()).toISOString(), simulated: true });
+    const timestamp = new Date(now()).toISOString();
+    const { payload } = signedQuote({ quote, quoteRequest: body, timestamp, signature: "" });
+    const signature = `ed25519:${base58(sign(null, quoteMessage(payload), config.signingKey))}`;
+    return c.json({ quote, quoteRequest: body, signature, timestamp, simulated: true });
   });
 
   app.post("/v0/deposit/submit", async (c) => {

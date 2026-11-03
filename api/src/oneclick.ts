@@ -47,7 +47,7 @@ export function base58(bytes: Uint8Array): string {
   return out;
 }
 
-function unbase58(text: string): Buffer {
+export function unbase58(text: string): Buffer {
   let n = 0n;
   for (const c of text) {
     const i = B58.indexOf(c);

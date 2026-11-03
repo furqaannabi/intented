@@ -15,6 +15,7 @@ pnpm agent honest          # pays 0.001 wNEAR to intented-vendor.testnet, then g
 pnpm agent poisoned        # proposes 0.01 wNEAR to intented-attacker.testnet; DENY, and the wallet refuses
 pnpm agent base            # 0.40 USDC to the vendor's Base address, through 1Click
 pnpm agent base-poisoned   # 4 USDC to 0xbad0…0bad, through 1Click
+pnpm oneclick-key          # once: the stand-in's signing key, into ../.env
 pnpm oneclick              # the 1Click stand-in, testnet only: http://localhost:8403
 pnpm test
 ```
@@ -50,6 +51,7 @@ Each transaction unlocks the data once. If an RPC or the stand-in can't be reach
 1Click runs on mainnet only. On testnet, `pnpm oneclick` stands in for it, speaking the three calls the API's 1Click module makes: `POST /v0/quote`, `POST /v0/deposit/submit` and `GET /v0/status`. So the API only needs `ONECLICK_BASE_URL` pointed at it.
 
 - **Quotes:** wNEAR on testnet for USDC on Base, exact output only, at a fixed demo rate (`ONECLICK_STANDIN_RATE`, default 500 USDC per wNEAR) plus a 1% buffer. Every live quote deposits to one account, `ONECLICK_STANDIN_DEPOSIT`. It must be registered on wrap.testnet; the stand-in warns at startup if it isn't.
+- **Signed quotes:** each quote is signed the way 1Click signs its own ([record](../docs/decisions/2026-11-03-accept-signed-1click-quote.md)): ed25519 over `base58(sha256(stable JSON))` of the fields 1Click signs, with the stand-in's key in place of 1Click's. `pnpm oneclick-key` makes that key once and writes `ONECLICK_STANDIN_KEY` and `ONECLICK_STANDIN_PUBLIC_KEY` to `../.env`; it prints only the public key. The API checks quotes with the public key, and the owner registers it on the testnet wallet with `set_one_click_key`. The stand-in won't start without the key.
 - **Deposits:** accepted only if the testnet transaction really transferred exactly the quoted amount to that account and succeeded.
 - **Status:** `PENDING_DEPOSIT`, then `PROCESSING`, then `SUCCESS` 5 seconds after the deposit; a quote nobody pays is `FAILED` at its deadline. It reports the deposit transaction it confirmed, and never a Base transaction. **Every delivery it reports is simulated.**
 - It refuses to start unless `NEAR_NETWORK` is testnet.
