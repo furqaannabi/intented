@@ -286,19 +286,6 @@
   60% { transform: translateX(-6px); }
   80% { transform: translateX(4px); }
 }
-.ttp-ring {
-  position: absolute;
-  inset: -10px;
-  border-radius: 30px;
-  border: 2px solid rgb(255 255 255 / 0.35);
-  opacity: 0;
-  pointer-events: none;
-  animation: ring 0.9s ease-out;
-}
-@keyframes ring {
-  0% { opacity: 0.9; transform: scale(0.98); }
-  100% { opacity: 0; transform: scale(1.12); }
-}
 
 /* The NEAR AI terminal */
 .ttp-terminal {

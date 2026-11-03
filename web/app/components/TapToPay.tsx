@@ -212,7 +212,6 @@ export function TapToPay() {
                 <div className="ttp-card-label">NEAR</div>
               </div>
             </div>
-            {frame.denials > 0 && <div className="ttp-ring" />}
           </div>
         </div>
 
