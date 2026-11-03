@@ -26,6 +26,9 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 24px;
 }
+.rcpt-steps.rcpt-steps-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
 .rcpt-steps > li {
   position: relative;
   padding: 18px 8px 0 0;
@@ -63,4 +66,9 @@
 }
 .rcpt-steps > .rcpt-pending::after {
   background: var(--line);
+}
+/* A delivery nothing real made: a dashed lime ring, not a filled dot. */
+.rcpt-steps > .rcpt-sim::after {
+  background: transparent;
+  border: 2px dashed var(--lime);
 }

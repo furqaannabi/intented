@@ -18,12 +18,34 @@ export type Proposal = {
   signer: string | null;
   attestation_url: string | null;
   near_tx_hash?: string | null;
+  /** A payment through 1Click only. On testnet every delivery is simulated: nothing reaches Base. */
+  oneclick?: OneClick;
 };
 
-/** What the owner sees: the wallet's outcome, not the pipeline's step. */
-export type Outcome = "paid" | "refused" | "failed" | "judging" | "approved";
+export type OneClick = {
+  deposit_address: string;
+  dest_chain: string;
+  recipient: string;
+  amount_out: string;
+  status: string;
+  dest_tx_hash?: string;
+  simulated: boolean;
+};
+
+/** What the owner sees: the wallet's outcome, then for a payment through 1Click, the delivery's. */
+export type Outcome = "paid" | "refused" | "failed" | "judging" | "approved" | "delivering" | "delivered" | "refunded";
 
 export function outcome(p: Proposal): Outcome {
+  const paid = walletOutcome(p);
+  if (paid !== "paid" || !p.oneclick) return paid;
+  if (p.oneclick.status === "SUCCESS") return "delivered";
+  if (p.oneclick.status === "REFUNDED") return "refunded";
+  if (p.oneclick.status === "FAILED") return "failed";
+  return "delivering";
+}
+
+/** The wallet contract's side alone: did it pay? */
+export function walletOutcome(p: Proposal): Outcome {
   switch (p.status) {
     case "executed":
       return "paid";
@@ -44,6 +66,9 @@ export const OUTCOME_LABEL: Record<Outcome, string> = {
   failed: "Failed",
   judging: "Judging",
   approved: "Approved",
+  delivering: "Delivering",
+  delivered: "Delivered",
+  refunded: "Refunded",
 };
 
 // Tokens the UI can show in whole units. Others show the raw amount and the contract.
@@ -60,14 +85,20 @@ function parseArgs(p: Proposal): Record<string, unknown> {
   }
 }
 
-/** Who gets paid: the transfer's receiver_id, or the contract called. */
+/** Who gets paid: the Base recipient of a payment through 1Click, the transfer's receiver_id, or the contract called. */
 export function payee(p: Proposal): string {
+  if (p.oneclick) return p.oneclick.recipient;
   const to = parseArgs(p).receiver_id;
   return typeof to === "string" ? to : p.action.receiver_id;
 }
 
-/** The transfer amount in whole tokens, e.g. "0.001 wNEAR", from the base-unit string. */
+/** What the payee gets, e.g. "0.001 wNEAR", or "0.4 USDC" on Base. */
 export function amount(p: Proposal): string {
+  return p.oneclick ? p.oneclick.amount_out : walletAmount(p);
+}
+
+/** What left the wallet, in whole tokens, from the transfer's base-unit amount. */
+export function walletAmount(p: Proposal): string {
   const raw = parseArgs(p).amount;
   if (typeof raw !== "string" || !/^\d+$/.test(raw)) return "";
   const token = TOKENS[p.action.receiver_id];
@@ -97,3 +128,8 @@ export const utcDate = (ms: number) =>
 export const seconds = (p: Proposal) => `${((p.updated_at - p.created_at) / 1000).toFixed(1)} s`;
 
 export const nearTxUrl = (hash: string) => `https://testnet.nearblocks.io/txns/${hash}`;
+
+export const baseTxUrl = (hash: string) => `https://basescan.org/tx/${hash}`;
+
+/** "0x7284d4…d299c" */
+export const shortAddress = (a: string) => (a.length > 16 ? `${a.slice(0, 8)}…${a.slice(-5)}` : a);

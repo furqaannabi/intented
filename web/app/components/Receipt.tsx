@@ -1,6 +1,8 @@
 import { ArrowUpRight, Check, Cross } from "./icons";
+import { Tag } from "./Tag";
 import {
   amount,
+  baseTxUrl,
   nearTxUrl,
   outcome,
   OUTCOME_LABEL,
@@ -10,26 +12,38 @@ import {
   splitReason,
   utcDate,
   utcTime,
+  walletAmount,
+  walletOutcome,
+  type OneClick,
   type Outcome,
   type Proposal,
 } from "../lib/proposal";
 import "./receipt.css";
 
+const PAID_DEPOSIT = "The wallet contract checked the signed ALLOW and paid 1Click's deposit address.";
+const SIMULATED = "1Click's delivery is simulated: on testnet nothing reaches Base.";
+
 const SUMMARY: Record<Outcome, (p: Proposal) => string> = {
   paid: () => "The wallet contract checked the signed ALLOW and paid.",
   refused: (p) =>
     p.near_tx_hash ? "Nothing was sent. The wallet contract refused the payment on-chain." : "Nothing was sent.",
-  failed: () => "The payment did not go through.",
+  failed: (p) => (p.oneclick && walletOutcome(p) === "paid" ? `${PAID_DEPOSIT} 1Click did not deliver.` : "The payment did not go through."),
   judging: () => "NEAR AI Cloud is judging this payment against your rules.",
   approved: () => "Signed ALLOW. The wallet contract is paying.",
+  delivering: (p) => `${PAID_DEPOSIT} 1Click is delivering.${p.oneclick?.simulated ? ` ${SIMULATED}` : ""}`,
+  delivered: (p) => `${PAID_DEPOSIT}${p.oneclick?.simulated ? ` ${SIMULATED}` : " 1Click delivered on Base."}`,
+  refunded: () => `${PAID_DEPOSIT} 1Click refunded it to the wallet instead of delivering.`,
 };
 
 const SETTLED: Record<Outcome, (p: Proposal) => string> = {
-  paid: () => "Paid on-chain",
+  paid: (p) => (p.oneclick ? "Paid on NEAR" : "Paid on-chain"),
   refused: (p) => (p.near_tx_hash ? "Refused on-chain" : "Refused"),
   failed: () => "Failed",
   judging: () => "Waiting",
   approved: () => "Paying",
+  delivering: () => "Paid on NEAR",
+  delivered: () => "Paid on NEAR",
+  refunded: () => "Paid on NEAR",
 };
 
 const VERDICT_COLOUR: Record<Outcome, string> = {
@@ -38,7 +52,25 @@ const VERDICT_COLOUR: Record<Outcome, string> = {
   failed: "text-mute",
   judging: "text-soft",
   approved: "text-soft",
+  delivering: "text-soft",
+  delivered: "text-lime",
+  refunded: "text-mute",
 };
+
+/** The fourth step: 1Click's delivery, dashed while it is simulated. */
+function DeliveryStep({ kind, oneclick: oc }: { kind: Outcome; oneclick: OneClick }) {
+  const done = kind === "delivered";
+  const cls = done ? (oc.simulated ? "rcpt-sim" : "rcpt-paid") : kind === "delivering" ? "rcpt-pending" : "rcpt-failed";
+  const label = done ? `Delivered on ${chainName(oc.dest_chain)}` : kind === "refunded" ? "Refunded" : kind === "failed" ? "Not delivered" : "Delivering";
+  return (
+    <li className={cls}>
+      <b className="block text-sm font-bold text-text">{label}</b>
+      <span className="font-mono text-xs">{done && oc.simulated ? "simulated" : oc.status.toLowerCase().replace(/_/g, " ")}</span>
+    </li>
+  );
+}
+
+const chainName = (c: string) => (c === "base" ? "Base" : c);
 
 function Link({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -60,15 +92,18 @@ function Label({ children, aside }: { children: React.ReactNode; aside?: string 
 
 export function Receipt({ proposal: p }: { proposal: Proposal }) {
   const kind = outcome(p);
+  // The third step is the wallet's alone; a payment through 1Click adds the delivery after it.
+  const wallet = walletOutcome(p);
   const { signed, error } = splitReason(p);
-  const settled = kind === "judging" || kind === "approved";
+  const settled = wallet === "judging" || wallet === "approved";
   const total = amount(p);
+  const oc = p.oneclick;
 
   return (
     <article className="rcpt" aria-label={`Receipt for ${p.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <h2 className={`flex items-center gap-3 text-[clamp(34px,3.4vw,46px)] leading-none font-black tracking-[-0.03em] ${VERDICT_COLOUR[kind]}`}>
-          {kind === "paid" && <Check className="size-[0.8em]" />}
+          {(kind === "paid" || kind === "delivered") && <Check className="size-[0.8em]" />}
           {kind === "refused" && <Cross className="size-[0.8em]" />}
           {OUTCOME_LABEL[kind]}
         </h2>
@@ -86,10 +121,11 @@ export function Receipt({ proposal: p }: { proposal: Proposal }) {
           </>
         )}
         <span className="font-mono text-base break-all">{payee(p)}</span>
+        {oc && ` on ${chainName(oc.dest_chain)}`}
       </p>
       <p className="mt-1 text-sm text-mute">{SUMMARY[kind](p)}</p>
 
-      <ol className="rcpt-steps text-[13px] text-mute">
+      <ol className={`rcpt-steps text-[13px] text-mute ${oc && wallet === "paid" ? "rcpt-steps-4" : ""}`}>
         <li>
           <b className="block text-sm font-bold text-text">Proposed</b>
           <span className="font-mono text-xs">{utcTime(p.created_at)}</span>
@@ -98,10 +134,11 @@ export function Receipt({ proposal: p }: { proposal: Proposal }) {
           <b className="block text-sm font-bold text-text">Judged · {p.verdict ?? "no verdict"}</b>
           <span className="font-mono text-xs">{p.model ? `by ${p.model.split("/").pop()}` : "—"}</span>
         </li>
-        <li className={settled ? "rcpt-pending" : `rcpt-${kind}`}>
-          <b className="block text-sm font-bold text-text">{SETTLED[kind](p)}</b>
+        <li className={settled ? "rcpt-pending" : `rcpt-${wallet}`}>
+          <b className="block text-sm font-bold text-text">{SETTLED[wallet](p)}</b>
           <span className="font-mono text-xs">{settled ? "—" : `+${seconds(p)}`}</span>
         </li>
+        {oc && wallet === "paid" && <DeliveryStep kind={kind} oneclick={oc} />}
       </ol>
 
       {signed && (
@@ -115,6 +152,35 @@ export function Receipt({ proposal: p }: { proposal: Proposal }) {
         <section className="rcpt-section">
           <Label>What went wrong</Label>
           <p className="rounded-xl border border-line bg-ink px-3.5 py-3 font-mono text-xs leading-relaxed break-words text-mute">{error}</p>
+        </section>
+      )}
+
+      {oc && (
+        <section className="rcpt-section">
+          <Label aside={oc.simulated ? "simulated" : undefined}>Cross-chain, through 1Click</Label>
+          <dl className="grid gap-x-5 gap-y-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)] [&_dd]:font-mono [&_dd]:text-[12.5px] [&_dd]:leading-relaxed [&_dd]:break-all [&_dt]:text-mute max-sm:[&_dt]:mt-2">
+            <dt>Recipient</dt>
+            <dd>
+              {oc.recipient} on {chainName(oc.dest_chain)}
+            </dd>
+            <dt>Receives</dt>
+            <dd>{oc.amount_out}</dd>
+            <dt>Wallet pays</dt>
+            <dd>{walletAmount(p) || "—"}</dd>
+            <dt>Deposit address</dt>
+            <dd>{oc.deposit_address}</dd>
+            <dt>Delivery</dt>
+            <dd>
+              {oc.status} {oc.simulated && <Tag dashed>simulated</Tag>}
+            </dd>
+            <dt>{chainName(oc.dest_chain)} transaction</dt>
+            <dd>
+              {oc.simulated ? "none: simulated" : oc.dest_tx_hash ? <Link href={baseTxUrl(oc.dest_tx_hash)}>{shortHash(oc.dest_tx_hash)}</Link> : "—"}
+            </dd>
+          </dl>
+          <p className="mt-2.5 text-[13px] leading-normal text-mute">
+            The contract checks the payment to the deposit address. That 1Click delivers to the recipient is 1Click&rsquo;s word, checked afterwards through its status.
+          </p>
         </section>
       )}
 

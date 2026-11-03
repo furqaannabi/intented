@@ -5,7 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Cross } from "../components/icons";
 import { Receipt } from "../components/Receipt";
-import { amount, outcome, OUTCOME_LABEL, payee, splitReason, type Outcome, type Proposal } from "../lib/proposal";
+import { Tag } from "../components/Tag";
+import { amount, outcome, OUTCOME_LABEL, payee, shortAddress, splitReason, type Outcome, type Proposal } from "../lib/proposal";
 import "./activity.css";
 
 const POLL_MS = 3000;
@@ -17,6 +18,9 @@ const BADGE: Record<Outcome, string> = {
   failed: "bg-line text-mute",
   judging: "bg-line text-soft",
   approved: "bg-line text-soft",
+  delivering: "bg-line text-soft",
+  delivered: "bg-lime text-lime-ink",
+  refunded: "bg-line text-mute",
 };
 
 const STATUS: Record<Outcome, string> = {
@@ -25,15 +29,18 @@ const STATUS: Record<Outcome, string> = {
   failed: "text-mute",
   judging: "text-soft",
   approved: "text-soft",
+  delivering: "text-soft",
+  delivered: "text-lime",
+  refunded: "text-mute",
 };
 
 function Badge({ kind }: { kind: Outcome }) {
   return (
     <span className={`grid size-[34px] shrink-0 place-items-center rounded-[11px] ${BADGE[kind]}`} aria-hidden="true">
-      {kind === "paid" && <Check className="size-4" />}
+      {(kind === "paid" || kind === "delivered") && <Check className="size-4" />}
       {kind === "refused" && <Cross className="size-4" />}
-      {kind === "failed" && <span className="h-0.5 w-2.5 rounded bg-current" />}
-      {(kind === "judging" || kind === "approved") && <span className="act-dots" />}
+      {(kind === "failed" || kind === "refunded") && <span className="h-0.5 w-2.5 rounded bg-current" />}
+      {(kind === "judging" || kind === "approved" || kind === "delivering") && <span className="act-dots" />}
     </span>
   );
 }
@@ -53,15 +60,18 @@ function Row({ proposal: p, selected }: { proposal: Proposal; selected: boolean 
       >
         <Badge kind={kind} />
         <span className="min-w-0">
-          <span className="block truncate font-mono text-sm font-medium">{payee(p)}</span>
+          <span className="flex items-center gap-2 font-mono text-sm font-medium">
+            <span className="truncate">{p.oneclick ? shortAddress(payee(p)) : payee(p)}</span>
+            {p.oneclick && <Tag>{p.oneclick.dest_chain}</Tag>}
+          </span>
           <span className="block truncate text-[13px] text-mute">{signed || error || "Waiting for a verdict"}</span>
         </span>
         <span className="text-right">
           <span className={`block font-mono text-sm whitespace-nowrap ${kind === "refused" ? "text-mute line-through" : ""}`}>
             −{amount(p)}
           </span>
-          <span className={`mt-0.5 block text-[11px] font-black tracking-[0.12em] uppercase ${STATUS[kind]}`}>
-            {OUTCOME_LABEL[kind]}
+          <span className={`mt-0.5 block text-[11px] font-black tracking-[0.12em] whitespace-nowrap uppercase ${STATUS[kind]}`}>
+            {OUTCOME_LABEL[kind]} {p.oneclick?.simulated && kind === "delivered" && <Tag dashed>simulated</Tag>}
           </span>
         </span>
       </Link>
@@ -115,10 +125,12 @@ export function Activity() {
     return <p className="py-10 text-mute">{online ? "Loading payments…" : "Can't reach the API. Retrying every 3 seconds."}</p>;
   }
 
+  // What the wallet did: a payment through 1Click counts as paid once the wallet has paid the deposit.
   const counts = { paid: 0, refused: 0, failed: 0 };
   for (const p of proposals) {
-    const kind = outcome(p);
-    if (kind in counts) counts[kind as keyof typeof counts]++;
+    if (p.status === "executed") counts.paid++;
+    else if (p.status === "denied") counts.refused++;
+    else if (p.status === "failed") counts.failed++;
   }
   const selected = proposals.find((p) => p.id === (selectedId ?? proposals[0]?.id));
 
