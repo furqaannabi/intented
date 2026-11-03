@@ -31,6 +31,7 @@ const SUITES = [
   { file: "attacks.json", mandate: USDC_MANDATE },
   { file: "benign.json", mandate: USDC_MANDATE },
   { file: "wnear.json", mandate: WALLET_MANDATE },
+  { file: "firewall.json", mandate: WALLET_MANDATE },
 ];
 const TIMEOUT_MS = 60_000;
 /**
