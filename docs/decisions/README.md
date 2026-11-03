@@ -50,7 +50,8 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-02 | [make redteam runs every case through judge(), and a NEAR AI outage stops the run](./2026-11-02-make-redteam-through-judge.md) | William |
 | 2026-11-03 | [Accepted: look up a mandate's text by its hash, and say the active mandate is public](./2026-11-03-accept-mandate-lookup.md) | Furqaan, William |
 | 2026-11-03 | [Accepted: the cross-chain payment through 1Click, with the real recipient in front of the judge](./2026-11-03-cross-chain-through-1click.md) | Furqaan, William |
-| 2026-11-03 | [execute verifies 1Click's signed quote, so the deposit address is not the API's word](./2026-11-03-execute-verifies-the-1click-quote.md) (proposed, awaiting William) | Furqaan |
+| 2026-11-03 | [execute verifies 1Click's signed quote, so the deposit address is not the API's word](./2026-11-03-execute-verifies-the-1click-quote.md) (proposed; accepted below) | Furqaan |
+| 2026-11-03 | [Accepted: execute verifies 1Click's signed quote, over the fields 1Click actually signs](./2026-11-03-accept-signed-1click-quote.md) | Furqaan, William |
 
 ## Not decided yet
 
