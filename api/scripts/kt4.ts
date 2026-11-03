@@ -6,7 +6,9 @@
 //        pnpm kt4 quote [--amount N]         a live deposit address, valid 30 minutes
 //        pnpm kt4 submit <deposit> <tx_hash> tell 1Click the deposit was sent
 //        pnpm kt4 status <deposit>           poll until delivered, refunded or failed
-// --amount is in USDC's smallest unit (6 decimals); the default 2000000 is 2 USDC.
+// --amount is what arrives on Base, in USDC's smallest unit (6 decimals); the default
+// 2000000 is 2 USDC. The quote is exact-output, so the wallet sends a little more, fees
+// and the slippage buffer included, and 1Click refunds what the swap doesn't use.
 
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -43,8 +45,8 @@ if (command === "preview" || command === "quote") {
   const result = live ? await oneclick.payCrossChain(p) : { quote: await oneclick.previewCrossChain(p), deposit_address: undefined };
   const q = result.quote;
   console.log(`${live ? "LIVE quote" : "Preview (dry, nothing committed)"}: NEAR USDC → Base USDC`);
-  console.log(`  in:   ${q.amountInFormatted} USDC ($${q.amountInUsd}) from refund account ${p.refund_to}`);
-  console.log(`  out:  ${q.amountOutFormatted} USDC ($${q.amountOutUsd}), at least ${q.minAmountOut} units, to ${p.recipient}`);
+  console.log(`  in:   ${q.amountInFormatted} USDC ($${q.amountInUsd}), at least ${q.minAmountIn} units used; the rest refunded to ${p.refund_to}`);
+  console.log(`  out:  exactly ${q.amountOutFormatted} USDC ($${q.amountOutUsd}) to ${p.recipient}`);
   console.log(`  time: about ${q.timeEstimate} s`);
   if (live) {
     console.log(`  deposit address: ${result.deposit_address}`);

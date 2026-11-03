@@ -12,7 +12,7 @@ export interface OneClickConfig {
 }
 
 export interface CrossChainPayment {
-  /** In the origin asset's smallest unit, as a decimal string. */
+  /** What the recipient receives, exactly, in the destination asset's smallest unit, as a decimal string. */
   amount: string;
   /** 1Click asset ids, e.g. `nep141:17208628…` for NEAR USDC. */
   origin_asset: string;
@@ -26,7 +26,10 @@ export interface CrossChainPayment {
 export interface Quote {
   depositAddress?: string;
   depositMemo?: string;
+  /** What to send: the input with the slippage buffer. 1Click refunds what the swap doesn't use to `refund_to`. */
   amountIn: string;
+  /** The least deposit 1Click will swap; below it the deposit is refunded. */
+  minAmountIn: string;
   amountInFormatted: string;
   amountInUsd: string;
   amountOut: string;
@@ -46,11 +49,15 @@ export type DepositStatus =
   | "REFUNDED"
   | "FAILED";
 
-/** Exact input, 1% slippage, deposit and refund on the origin chain, delivery on the destination chain. */
+/**
+ * Exact output, so the vendor receives exactly its price: the 1% slippage is
+ * taken on the input side. Deposit and refund on the origin chain, delivery on
+ * the destination chain.
+ */
 function quoteRequest(p: CrossChainPayment, dry: boolean, deadlineMs: number) {
   return {
     dry,
-    swapType: "EXACT_INPUT",
+    swapType: "EXACT_OUTPUT",
     slippageTolerance: 100,
     originAsset: p.origin_asset,
     depositType: "ORIGIN_CHAIN",
