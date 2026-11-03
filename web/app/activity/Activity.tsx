@@ -14,9 +14,9 @@ const PAGE = 100; // the API returns at most this many changes per call
 const BADGE: Record<Outcome, string> = {
   paid: "bg-lime text-lime-ink",
   refused: "bg-coral/15 text-coral",
-  failed: "bg-[#1b1b44] text-mute",
-  judging: "bg-[#1b1b44] text-soft",
-  approved: "bg-[#1b1b44] text-soft",
+  failed: "bg-line text-mute",
+  judging: "bg-line text-soft",
+  approved: "bg-line text-soft",
 };
 
 const STATUS: Record<Outcome, string> = {

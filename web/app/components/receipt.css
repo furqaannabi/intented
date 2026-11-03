@@ -3,7 +3,7 @@
   position: relative;
   padding: 28px 28px 44px;
   border-radius: 22px 22px 0 0;
-  background: #14143a;
+  background: #1f1f1f;
   box-shadow: 0 30px 60px rgb(0 0 0 / 0.4);
   -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;
   mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;

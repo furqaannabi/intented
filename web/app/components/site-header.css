@@ -1,6 +1,6 @@
 /* The header stays at the top, on a solid backing so the page reads cleanly as it scrolls under it. */
 .site-header {
-  background: rgb(6 6 26 / 0.92);
+  background: rgb(17 17 17 / 0.92);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(12px);
 }

@@ -1,4 +1,4 @@
-/* A blue glow behind the hero scene */
+/* A soft glow behind the hero scene */
 .home-hero {
   position: relative;
 }
@@ -9,7 +9,7 @@
   top: -10%;
   width: 60%;
   height: 120%;
-  background: radial-gradient(closest-side, rgb(52 52 255 / 0.45), transparent 70%);
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.07), transparent 70%);
   pointer-events: none;
 }
 .home-hero > * {

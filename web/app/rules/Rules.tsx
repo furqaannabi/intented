@@ -367,7 +367,7 @@ function Limit({ label, value, mono }: { label: string; value: React.ReactNode; 
 }
 
 function Step({ n, state, title, note }: { n: number; state: "done" | "now" | "todo"; title: string; note?: string }) {
-  const badge = { done: "bg-lime text-lime-ink", now: "bg-blue text-white", todo: "bg-line text-mute" }[state];
+  const badge = { done: "bg-lime text-lime-ink", now: "bg-soft text-ink", todo: "bg-line text-mute" }[state];
   return (
     <li className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-3">
       <span className={`grid size-7 place-items-center rounded-[9px] font-mono text-xs ${badge}`} aria-hidden="true">

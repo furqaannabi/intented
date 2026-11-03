@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
-/* Midnight: navy surfaces, one blue for the agent and its wallet,
-   lime only for ALLOW, coral only for DENY. */
+/* Carbon: neutral near-black greys, one card grey for the agent and its
+   wallet, lime only for ALLOW, coral only for DENY. */
 :root {
-  --ink: #06061a;
-  --ink-2: #0d0d2b;
-  --line: #23234d;
-  --text: #f2f2ff;
-  --mute: #9d9dc9;
-  --blue: #2b2bf5;
-  --soft: #8b8bff;
+  --ink: #111111;
+  --ink-2: #1a1a1a;
+  --line: #2b2b2b;
+  --text: #f2f2f2;
+  --mute: #a3a3a3;
+  --card: #262626;
+  --soft: #d4d4d4;
   --lime: #c8ff3d;
-  --lime-ink: #0b0b2e;
+  --lime-ink: #111111;
   --coral: #ff5b4a;
 }
 
@@ -21,7 +21,7 @@
   --color-line: var(--line);
   --color-text: var(--text);
   --color-mute: var(--mute);
-  --color-blue: var(--blue);
+  --color-card: var(--card);
   --color-soft: var(--soft);
   --color-lime: var(--lime);
   --color-lime-ink: var(--lime-ink);

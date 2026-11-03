@@ -1,20 +1,20 @@
-# Design: Midnight
+# Design: Carbon
 
 The look William chose on 1 November 2026 for the landing page. The feed, receipt and mandate pages use the same system.
 
 ## Colour
 
-Four colours, and each one has one job. Tokens live in `app/globals.css` and are exposed to Tailwind as `ink`, `ink-2`, `line`, `text`, `mute`, `blue`, `soft`, `lime`, `lime-ink` and `coral`.
+Four colours, and each one has one job. Tokens live in `app/globals.css` and are exposed to Tailwind as `ink`, `ink-2`, `line`, `text`, `mute`, `card`, `soft`, `lime`, `lime-ink` and `coral`.
 
 | Token | Value | Job |
 | --- | --- | --- |
-| `ink` / `ink-2` / `line` | #06061a / #0d0d2b / #23234d | Every surface: page, panels, receipts, borders |
-| `text` / `mute` | #f2f2ff / #9d9dc9 | Body text and secondary text |
-| `blue` (+ `soft` tint #8b8bff) | #2b2bf5 | The agent and its wallet card; "in progress" (waves, judging dots) |
+| `ink` / `ink-2` / `line` | #111111 / #1a1a1a / #2b2b2b | Every surface: page, panels, receipts, borders |
+| `text` / `mute` | #f2f2f2 / #a3a3a3 | Body text and secondary text |
+| `card` (+ `soft` highlight #d4d4d4) | #262626 | The agent and its wallet card; "in progress" (waves, judging dots) |
 | `lime` (on `lime-ink`) | #c8ff3d | ALLOW, a paid payment, the primary button. Nothing else |
 | `coral` | #ff5b4a | DENY, a refused payment, the agent being tricked. Nothing else |
 
-Don't add colours. Panels stay navy: no white or tinted paper. A verdict colours only its own line, never a whole panel.
+Don't add colours. Panels stay neutral grey: no white or tinted paper. A verdict colours only its own line, never a whole panel.
 
 ## Type
 
