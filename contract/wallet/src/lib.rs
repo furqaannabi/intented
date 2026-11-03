@@ -5,6 +5,7 @@
 //! Decisions: docs/decisions/2026-11-01-wallet-caps-window-allowlist.md.
 
 mod judged;
+mod quote;
 
 use near_sdk::json_types::{Base64VecU8, U128, U64};
 use near_sdk::store::{IterableSet, LookupMap, LookupSet};
@@ -114,6 +115,7 @@ pub struct Config {
     pub near_caps: Caps,
     pub cross_chain_enabled: bool,
     pub cross_chain_recipients: Vec<String>,
+    pub one_click_key: Option<String>,
 }
 
 #[near(contract_state)]
@@ -144,6 +146,8 @@ pub struct Wallet {
     cross_chain_enabled: bool,
     /// If not empty, the only destination-chain recipients allowed (lowercase 0x + 40 hex).
     cross_chain_recipients: IterableSet<String>,
+    /// 1Click's quote-signing key, "ed25519:<base58>"; no cross-chain payment until set.
+    one_click_key: Option<String>,
 }
 
 #[near]
@@ -167,6 +171,7 @@ impl Wallet {
             spent: LookupMap::new(b"d"),
             cross_chain_enabled: false,
             cross_chain_recipients: IterableSet::new(b"x"),
+            one_click_key: None,
         }
     }
 
@@ -243,6 +248,14 @@ impl Wallet {
     pub fn disallow_cross_chain_recipient(&mut self, address: String) {
         self.assert_owner();
         self.cross_chain_recipients.remove(&address);
+    }
+
+    /// 1Click's ed25519 quote-signing key: on mainnet 1Click's manager key, on
+    /// testnet the stand-in's.
+    pub fn set_one_click_key(&mut self, public_key: String) {
+        self.assert_owner();
+        require!(quote::ed25519_bytes::<32>(&public_key).is_some(), "public_key must be ed25519: plus a base58 32-byte key");
+        self.one_click_key = Some(public_key);
     }
 
     pub fn freeze(&mut self) {
@@ -363,6 +376,7 @@ impl Wallet {
             near_caps: self.near_caps.clone(),
             cross_chain_enabled: self.cross_chain_enabled,
             cross_chain_recipients: self.cross_chain_recipients.iter().cloned().collect(),
+            one_click_key: self.one_click_key.clone(),
         }
     }
 
@@ -375,10 +389,11 @@ impl Wallet {
     }
 }
 
-/// The stored state before the cross-chain fields (deployed 1–3 November), so
-/// `migrate` can upgrade a live wallet in place. Field order is the storage layout.
+/// The stored state before the 1Click key (deployed 3 November, with the
+/// cross-chain switch and list), so `migrate` can upgrade a live wallet in
+/// place. Field order is the storage layout.
 #[near(serializers = [borsh])]
-struct WalletV1 {
+struct WalletV2 {
     owner_id: AccountId,
     agent_id: AccountId,
     model_id: String,
@@ -393,17 +408,19 @@ struct WalletV1 {
     next_proposal_id: u64,
     used_nonces: LookupSet<u64>,
     spent: LookupMap<Asset, DaySpend>,
+    cross_chain_enabled: bool,
+    cross_chain_recipients: IterableSet<String>,
 }
 
 #[near]
 impl Wallet {
-    /// One-time upgrade of a wallet deployed before the cross-chain fields:
-    /// keeps everything, adds the switch (off) and an empty recipient list.
+    /// One-time upgrade of a wallet deployed before the 1Click key: keeps
+    /// everything, with no key set.
     /// Callable only by the wallet account itself, i.e. in its own deploy.
     #[private]
     #[init(ignore_state)]
     pub fn migrate() -> Self {
-        let old: WalletV1 = env::state_read().unwrap_or_else(|| env::panic_str("no state to migrate"));
+        let old: WalletV2 = env::state_read().unwrap_or_else(|| env::panic_str("no state to migrate"));
         Self {
             owner_id: old.owner_id,
             agent_id: old.agent_id,
@@ -419,8 +436,9 @@ impl Wallet {
             next_proposal_id: old.next_proposal_id,
             used_nonces: old.used_nonces,
             spent: old.spent,
-            cross_chain_enabled: false,
-            cross_chain_recipients: IterableSet::new(b"x"),
+            cross_chain_enabled: old.cross_chain_enabled,
+            cross_chain_recipients: old.cross_chain_recipients,
+            one_click_key: None,
         }
     }
 }
@@ -432,7 +450,7 @@ mod migrate_tests {
     use near_sdk::testing_env;
 
     #[test]
-    fn migrate_keeps_a_v1_wallets_state_and_adds_cross_chain_switched_off() {
+    fn migrate_keeps_a_v2_wallets_state_and_adds_no_1click_key() {
         let me: AccountId = "wallet.testnet".parse().unwrap();
         testing_env!(VMContextBuilder::new().current_account_id(me.clone()).predecessor_account_id(me).build());
         let mut signers = IterableSet::new(b"s");
@@ -443,7 +461,9 @@ mod migrate_tests {
             args_json: "{}".into(),
             status: ProposalStatus::Executed,
         });
-        let mut v1 = WalletV1 {
+        let mut recipients = IterableSet::new(b"x");
+        recipients.insert("0x".to_string() + &"cd".repeat(20));
+        let mut v1 = WalletV2 {
             owner_id: "owner.testnet".parse().unwrap(),
             agent_id: "agent.testnet".parse().unwrap(),
             model_id: "Qwen/Qwen3.8-27B".into(),
@@ -458,8 +478,11 @@ mod migrate_tests {
             next_proposal_id: 5,
             used_nonces: LookupSet::new(b"n"),
             spent: LookupMap::new(b"d"),
+            cross_chain_enabled: true,
+            cross_chain_recipients: recipients,
         };
         v1.signers.flush();
+        v1.cross_chain_recipients.flush();
         v1.proposals.flush();
         env::state_write(&v1);
 
@@ -467,7 +490,7 @@ mod migrate_tests {
         let c = w.get_config();
         assert_eq!((c.model_id.as_str(), c.frozen, c.signers.len()), ("Qwen/Qwen3.8-27B", true, 1));
         assert_eq!(c.mandate_hash, Some("c".repeat(64)));
-        assert!(!c.cross_chain_enabled && c.cross_chain_recipients.is_empty());
+        assert!(c.cross_chain_enabled && c.cross_chain_recipients.len() == 1 && c.one_click_key.is_none());
         assert_eq!(w.get_proposal(4).unwrap().status, ProposalStatus::Executed);
         assert_eq!(w.next_proposal_id, 5);
     }
@@ -501,6 +524,13 @@ impl Wallet {
             self.cross_chain_recipients.is_empty() || self.cross_chain_recipients.contains(&cc.recipient),
             "recipient is not on the cross-chain recipient list"
         );
+        let key = self
+            .one_click_key
+            .as_deref()
+            .and_then(quote::ed25519_bytes::<32>)
+            .unwrap_or_else(|| env::panic_str("no 1Click key is set"));
+        let amount = args.get("amount").and_then(|v| v.as_str()).unwrap_or_else(|| env::panic_str("token transfer args have no amount"));
+        quote::check_signed_quote(cc, &key, &env::current_account_id(), &action.receiver_id, amount);
     }
 
     fn token_for(&self, token_id: &AccountId) -> Token {

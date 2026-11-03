@@ -312,6 +312,7 @@ fn cross_chain_on() -> Wallet {
     let mut w = configured();
     as_caller(owner());
     w.set_cross_chain(true);
+    w.set_one_click_key(fixture()["one_click_test_key"].as_str().unwrap().into());
     w
 }
 
@@ -362,3 +363,69 @@ fn a_non_empty_recipient_list_refuses_any_other_recipient_even_on_an_allow() {
     agent_at(0);
     try_execute(&mut w, id, &c).expect("the listed recipient is paid");
 }
+
+// 1Click's signed quote (check 6, the last seven conditions).
+
+#[test]
+fn a_cross_chain_payment_is_refused_until_the_owner_sets_a_1click_key() {
+    let mut w = configured();
+    as_caller(owner());
+    w.set_cross_chain(true);
+    rejects_with(&mut w, "cc_ok", "no 1Click key is set");
+}
+
+#[test]
+fn each_signed_quote_condition_is_enforced() {
+    for (name, why) in [
+        ("q_other_key", "1Click signature"),
+        ("q_tampered", "1Click signature"),
+        ("q_bad_signature", "1Click signature"),
+        ("q_dup_key", "signed quote"),
+        ("q_dry", "dry"),
+        ("q_exact_input", "EXACT_OUTPUT"),
+        ("q_recipient_type", "DESTINATION_CHAIN"),
+        ("q_memo", "depositMemo"),
+        ("q_deposit", "depositAddress"),
+        ("q_recipient", "recipient"),
+        ("q_dest_asset", "destinationAsset"),
+        ("q_origin", "originAsset"),
+        ("q_amount_in", "amountIn"),
+        ("q_refund", "refundTo"),
+        ("q_amount_out", "amountOutFormatted"),
+    ] {
+        rejects_with(&mut cross_chain_on(), name, why);
+    }
+}
+
+/// Calls run as `who`, on the wallet deployed at `me`.
+fn at(me: &near_sdk::AccountId, who: near_sdk::AccountId) {
+    testing_env!(VMContextBuilder::new().current_account_id(me.clone()).predecessor_account_id(who).build());
+}
+
+#[test]
+fn a_real_mainnet_1click_quote_verifies_and_pays_its_deposit_address() {
+    let f = fixture();
+    let live = &f["live"];
+    let me: near_sdk::AccountId = live["wallet"].as_str().unwrap().parse().unwrap();
+    let token: near_sdk::AccountId = live["token"].as_str().unwrap().parse().unwrap();
+    at(&me, owner());
+    let mut w = Wallet::new(owner(), agent(), MODEL.into());
+    w.register_signer(f["signer"].as_str().unwrap().into());
+    w.set_mandate(f["mandate_hash"].as_str().unwrap().into());
+    w.set_prompt_hash(live["prompt_hash"].as_str().unwrap().into());
+    w.allow_receiver(token.clone());
+    w.set_token(token.clone(), Token { symbol: "wNEAR".into(), decimals: 24, caps: Caps { per_tx: U128(10u128.pow(24)), daily: U128(10u128.pow(24)) } });
+    w.set_near_caps(Caps { per_tx: U128(1), daily: U128(100) });
+    w.set_cross_chain(true);
+    w.set_one_click_key(live["one_click_key"].as_str().unwrap().into());
+
+    let c = case("q_live");
+    let action: Action = serde_json::from_value(c["action"].clone()).unwrap();
+    at(&me, agent());
+    let id = w.propose(action, c["args_json"].as_str().unwrap().into());
+    at(&me, agent());
+    let _ = w.execute(id, b64(&c, "req_b64"), b64(&c, "resp_b64"), c["sig"].as_str().unwrap().into());
+    assert_eq!(w.get_proposal(id).unwrap().status, ProposalStatus::Allowed);
+    assert!(get_created_receipts().iter().any(|r| r.receiver_id == token));
+}
+

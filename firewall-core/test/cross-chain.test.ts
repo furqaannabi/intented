@@ -19,6 +19,7 @@ const crossChain: CrossChain = {
   recipient: "0x1111111111111111111111111111111111111111",
   amount_out: "0.40 USDC",
   deadline_ms: "1762200600000",
+  signed_quote: { payload: '{"amountIn":"813098000000000000000"}', signature: "ed25519:5sig" },
 };
 const input = { model: "Qwen/Qwen3.8-27B", network: "testnet" as const, mandate: "Pay the vendor on Base.", action, argsJson, context: "402" };
 const user = (b: ReturnType<typeof buildJudgeRequest>) => JSON.parse(b.messages[1]!.content);
@@ -32,7 +33,8 @@ describe("buildJudgeRequest with cross_chain", () => {
   it("carries the six cross_chain fields exactly, as firewall data next to the converted amount", () => {
     const u = user(buildJudgeRequest({ ...input, crossChain }));
     expect(u.cross_chain).toEqual(crossChain);
-    expect(Object.keys(u.cross_chain)).toEqual(["deposit_address", "dest_chain", "dest_asset", "recipient", "amount_out", "deadline_ms"]);
+    expect(Object.keys(u.cross_chain)).toEqual(["deposit_address", "dest_chain", "dest_asset", "recipient", "amount_out", "deadline_ms", "signed_quote"]);
+    expect(Object.keys(u.cross_chain.signed_quote)).toEqual(["payload", "signature"]);
     expect(u.amount).toBe("0.000813098 wNEAR");
   });
 
@@ -50,6 +52,9 @@ describe("buildJudgeRequest with cross_chain", () => {
     ["a deadline_ms that is not a u64 decimal", () => ({ ...input, crossChain: { ...crossChain, deadline_ms: "1.7e12" } }), /deadline_ms/],
     ["a deadline_ms above u64", () => ({ ...input, crossChain: { ...crossChain, deadline_ms: "18446744073709551616" } }), /deadline_ms/],
     ["an expiry_ms equal to deadline_ms", () => ({ ...input, crossChain: { ...crossChain, deadline_ms: String(action.expiry_ms) } }), /expiry_ms/],
+    ["no signed_quote", () => ({ ...input, crossChain: { ...crossChain, signed_quote: undefined as never } }), /signed_quote/],
+    ["an empty payload", () => ({ ...input, crossChain: { ...crossChain, signed_quote: { payload: "", signature: "ed25519:5sig" } } }), /signed_quote/],
+    ["a signature without ed25519:", () => ({ ...input, crossChain: { ...crossChain, signed_quote: { payload: "{}", signature: "5sig" } } }), /signed_quote/],
     ["an expiry_ms after deadline_ms", () => ({ ...input, crossChain: { ...crossChain, deadline_ms: String(action.expiry_ms - 1n) } }), /expiry_ms/],
   ])("refuses %s", (_, make, why) => {
     expect(() => buildJudgeRequest(make())).toThrow(why);

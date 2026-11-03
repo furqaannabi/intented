@@ -21,6 +21,7 @@ use near_sdk::json_types::U128;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 const SIGNER: &str = "0x835AB53D20294EF795906DFF21AE4C045336AA26";
+const ONE_CLICK_KEY: &str = "ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc";
 const BASE_RECIPIENT: &str = "0x2ef2fed3f9b3d5385499008051031320b1fb49ef";
 const USDC: &str = "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af";
 
@@ -45,8 +46,10 @@ fn owner_configures_the_wallet() {
     w.unfreeze();
     w.set_cross_chain(true);
     w.allow_cross_chain_recipient(BASE_RECIPIENT.into());
+    w.set_one_click_key(ONE_CLICK_KEY.into());
 
     let c = w.get_config();
+    assert_eq!(c.one_click_key.as_deref(), Some(ONE_CLICK_KEY));
     assert!(c.cross_chain_enabled);
     assert_eq!(c.cross_chain_recipients, vec![BASE_RECIPIENT.to_string()]);
     assert_eq!(c.mandate_hash.as_deref(), Some("ab".repeat(32).as_str()));
@@ -79,6 +82,7 @@ fn every_owner_method_refuses_other_callers() {
         ("freeze", Box::new(|w| w.freeze())),
         ("unfreeze", Box::new(|w| w.unfreeze())),
         ("set_cross_chain", Box::new(|w| w.set_cross_chain(true))),
+        ("set_one_click_key", Box::new(|w| w.set_one_click_key(ONE_CLICK_KEY.into()))),
         ("allow_cross_chain_recipient", Box::new(|w| w.allow_cross_chain_recipient(BASE_RECIPIENT.into()))),
         ("disallow_cross_chain_recipient", Box::new(|w| w.disallow_cross_chain_recipient(BASE_RECIPIENT.into()))),
     ];
@@ -107,6 +111,9 @@ fn malformed_owner_inputs_are_rejected() {
         ("symbol with a space", Box::new(|w| w.set_token(USDC.parse().unwrap(), Token { symbol: "US DC".into(), ..usdc(1, 1) }))),
         ("uppercase cross-chain recipient", Box::new(|w| w.allow_cross_chain_recipient(BASE_RECIPIENT.to_uppercase().replace("0X", "0x")))),
         ("short cross-chain recipient", Box::new(|w| w.allow_cross_chain_recipient(BASE_RECIPIENT[..41].into()))),
+        ("1Click key without ed25519:", Box::new(|w| w.set_one_click_key(ONE_CLICK_KEY[8..].into()))),
+        ("1Click key not 32 bytes", Box::new(|w| w.set_one_click_key("ed25519:2xXcfZRC".into()))),
+        ("secp256k1 1Click key", Box::new(|w| w.set_one_click_key(format!("secp256k1:{}", &ONE_CLICK_KEY[8..])))),
         ("decimals above 38", Box::new(|w| w.set_token(USDC.parse().unwrap(), Token { decimals: 39, ..usdc(1, 1) }))),
     ];
     for (name, call) in &bad {
@@ -120,4 +127,5 @@ fn cross_chain_payments_start_switched_off() {
     let c = wallet().get_config();
     assert!(!c.cross_chain_enabled);
     assert!(c.cross_chain_recipients.is_empty());
+    assert!(c.one_click_key.is_none());
 }

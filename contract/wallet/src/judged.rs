@@ -75,6 +75,15 @@ pub struct CrossChain {
     pub recipient: String,
     pub amount_out: String,
     pub deadline_ms: String,
+    pub signed_quote: SignedQuote,
+}
+
+/// 1Click's signed quote, which execute verifies (quote.rs).
+#[derive(Deserialize, Debug, Clone)]
+#[serde(crate = "near_sdk::serde", deny_unknown_fields)]
+pub struct SignedQuote {
+    pub payload: String,
+    pub signature: String,
 }
 
 #[derive(Deserialize)]
