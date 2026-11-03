@@ -1,6 +1,7 @@
 // Runs the demo agent once against the mock paywall.
 //
-// Usage: pnpm agent honest|poisoned   (reads ../.env; the API and the paywall must be running)
+// Usage: pnpm agent honest|poisoned|base|base-poisoned   (reads ../.env; the API and the paywall must be running,
+// and for the Base routes on testnet, the 1Click stand-in)
 
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,9 +36,10 @@ async function walletMandateHash(): Promise<string> {
   return hash;
 }
 
-const route = process.argv[2];
-if (route !== "honest" && route !== "poisoned") {
-  console.error("usage: pnpm agent honest|poisoned");
+const ROUTES = ["honest", "poisoned", "base", "base-poisoned"];
+const route = process.argv[2] ?? "";
+if (!ROUTES.includes(route)) {
+  console.error(`usage: pnpm agent ${ROUTES.join("|")}`);
   process.exit(2);
 }
 
@@ -48,6 +50,7 @@ const result = await runAgent(`${paywallUrl}/${route}/market-data`, {
   agentId: env("AGENT_ACCOUNT_ID"),
   mandateHash: await walletMandateHash(),
   seedMandate: SEED_MANDATE,
+  payWith: process.env.NEAR_NETWORK === "mainnet" ? "wrap.near" : "wrap.testnet",
   log: (line) => console.log(`[agent] ${line}`),
 });
 console.log(result.data ? "paid and served" : `not paid: ${result.status}`);

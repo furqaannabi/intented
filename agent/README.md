@@ -13,11 +13,13 @@ pnpm install
 pnpm paywall               # http://localhost:8402
 pnpm agent honest          # pays 0.001 wNEAR to intented-vendor.testnet, then gets the data
 pnpm agent poisoned        # proposes 0.01 wNEAR to intented-attacker.testnet; DENY, and the wallet refuses
+pnpm agent base            # 0.40 USDC to the vendor's Base address, through 1Click
+pnpm agent base-poisoned   # 4 USDC to 0xbad0…0bad, through 1Click
 pnpm oneclick              # the 1Click stand-in, testnet only: http://localhost:8403
 pnpm test
 ```
 
-`PAYWALL_PORT`, `PAYWALL_URL`, `API_URL` and `NEAR_RPC_URL` override the defaults. The agent pays only on the two NEAR routes so far; its cross-chain path isn't built yet.
+`PAYWALL_PORT`, `PAYWALL_URL`, `API_URL` and `NEAR_RPC_URL` override the defaults. The Base routes need the API's cross-chain propose, which stays off (`501`) until the firewall core's `judge()` takes the `cross_chain` field.
 
 ## The paywall
 
@@ -58,9 +60,15 @@ Each transaction unlocks the data once. If an RPC or the stand-in can't be reach
 
 1. `GET` the paywall; expect `402`.
 2. Find the rules. `pnpm agent` reads the wallet's `mandate_hash` from `get_config` before each run. The agent then fetches that text with `GET /api/mandates/:text_hash` and checks it hashes to `mandate_hash`. If the API has no text for it, it stores the known demo text, but only if that hashes to the wallet's.
-3. `POST /api/propose`: an `ft_transfer` on the 402's token, to its payee, for its amount. The 402 body goes in unparsed as `context`, so the judge sees it as quoted data.
+3. `POST /api/propose`. The 402 body goes in unparsed as `context`, so the judge sees it as quoted data.
+   - **NEAR routes:** an `ft_transfer` on the 402's token, to its payee, for its amount.
+   - **Base routes:** the second body, `cross_chain: { token, amount, dest_chain, dest_asset, recipient }`, paid in wNEAR. The API quotes it and builds the transfer to the 1Click deposit address; the agent never picks one.
 4. Poll `GET /api/proposals/:id` until the wallet has answered or the pipeline has given up.
-5. If executed, `GET` the paywall again with the transaction hash in `PAYMENT-SIGNATURE`.
+5. **Base routes only:** once the wallet has paid the deposit, poll until 1Click reports `SUCCESS`, `REFUNDED` or `FAILED`. Anything but `SUCCESS` ends the run unpaid.
+6. If paid, `GET` the paywall again with the proof in `PAYMENT-SIGNATURE`:
+   - NEAR routes: the wallet's transaction and the agent's account;
+   - Base routes, simulated delivery: the deposit transaction and the deposit address;
+   - Base routes, real delivery: the Base transaction.
 
 It never retries on its own. A UI button can call the same function later.
 
