@@ -56,9 +56,25 @@ struct UserData {
     /// The firewall core's conversion of args.amount; absent unless a token transfer.
     #[serde(default)]
     amount: Option<String>,
+    /// The quote's data, for a payment through 1Click only.
+    #[serde(default)]
+    cross_chain: Option<CrossChain>,
     /// Untrusted by design; not checked.
     #[allow(dead_code)]
     context: String,
+}
+
+/// A payment through 1Click, as the firewall core fills it from the quote
+/// (interface spec, "Judge request"). Exactly these six fields.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(crate = "near_sdk::serde", deny_unknown_fields)]
+pub struct CrossChain {
+    pub deposit_address: String,
+    pub dest_chain: String,
+    pub dest_asset: String,
+    pub recipient: String,
+    pub amount_out: String,
+    pub deadline_ms: String,
 }
 
 #[derive(Deserialize)]
@@ -113,8 +129,9 @@ fn verdict_schema(canonical_action: &str) -> Value {
 }
 
 /// Panics unless `req` is the firewall core's request for this proposal,
-/// under the owner's mandate and the registered prompt.
-pub fn check_request(req: &[u8], e: &Expected) {
+/// under the owner's mandate and the registered prompt. Returns its
+/// cross_chain field, which the caller checks against the wallet's settings.
+pub fn check_request(req: &[u8], e: &Expected) -> Option<CrossChain> {
     let r: Request = serde_json::from_slice(req)
         .unwrap_or_else(|err| env::panic_str(&format!("request is not the firewall core's shape: {err}")));
     require!(r.model == e.model_id, "request model is not the wallet's model");
@@ -129,11 +146,12 @@ pub fn check_request(req: &[u8], e: &Expected) {
     require!(sha256_hex(&system.content) == e.prompt_hash, "request system prompt is not the registered prompt");
 
     let u: UserData = serde_json::from_str(&user.content)
-        .unwrap_or_else(|err| env::panic_str(&format!("request user message is not {{mandate, action, args, context, amount?}}: {err}")));
+        .unwrap_or_else(|err| env::panic_str(&format!("request user message is not {{mandate, action, args, context, amount?, cross_chain?}}: {err}")));
     require!(sha256_hex(&u.mandate) == e.mandate_hash, "request mandate is not the registered mandate");
     require!(u.action == e.canonical_action, "request action is not the proposal's action");
     require!(u.args == e.args_json, "request args are not the proposal's args");
     require!(u.amount.as_deref() == e.amount, "request amount is not the wallet's formatting of args.amount");
+    u.cross_chain
 }
 
 /// Panics unless `resp` holds exactly one `ALLOW` verdict for this action.

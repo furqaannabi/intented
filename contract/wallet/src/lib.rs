@@ -112,6 +112,8 @@ pub struct Config {
     pub signers: Vec<String>,
     pub receivers: Vec<AccountId>,
     pub near_caps: Caps,
+    pub cross_chain_enabled: bool,
+    pub cross_chain_recipients: Vec<String>,
 }
 
 #[near(contract_state)]
@@ -138,6 +140,10 @@ pub struct Wallet {
     next_proposal_id: u64,
     used_nonces: LookupSet<u64>,
     spent: LookupMap<Asset, DaySpend>,
+    /// The owner's switch for payments through 1Click; off by default.
+    cross_chain_enabled: bool,
+    /// If not empty, the only destination-chain recipients allowed (lowercase 0x + 40 hex).
+    cross_chain_recipients: IterableSet<String>,
 }
 
 #[near]
@@ -159,6 +165,8 @@ impl Wallet {
             next_proposal_id: 0,
             used_nonces: LookupSet::new(b"n"),
             spent: LookupMap::new(b"d"),
+            cross_chain_enabled: false,
+            cross_chain_recipients: IterableSet::new(b"x"),
         }
     }
 
@@ -221,6 +229,22 @@ impl Wallet {
         self.near_caps = caps;
     }
 
+    pub fn set_cross_chain(&mut self, enabled: bool) {
+        self.assert_owner();
+        self.cross_chain_enabled = enabled;
+    }
+
+    pub fn allow_cross_chain_recipient(&mut self, address: String) {
+        self.assert_owner();
+        require!(is_evm_address(&address), "address must be lowercase 0x plus 40 hex characters");
+        self.cross_chain_recipients.insert(address);
+    }
+
+    pub fn disallow_cross_chain_recipient(&mut self, address: String) {
+        self.assert_owner();
+        self.cross_chain_recipients.remove(&address);
+    }
+
     pub fn freeze(&mut self) {
         self.assert_owner();
         self.frozen = true;
@@ -266,7 +290,7 @@ impl Wallet {
             let token = self.token_for(&action.receiver_id);
             format_amount(token_amount(&proposal.args_json), token.decimals, &token.symbol)
         });
-        judged::check_request(
+        let cross_chain = judged::check_request(
             &req_bytes.0,
             &judged::Expected {
                 model_id: &self.model_id,
@@ -277,6 +301,9 @@ impl Wallet {
                 amount: shown_amount.as_deref(),
             },
         );
+        if let Some(cc) = &cross_chain {
+            self.check_cross_chain(cc, &action, &proposal.args_json);
+        }
         judged::check_verdict(&resp_bytes.0, &canonical);
 
         let signed_text = format!(
@@ -334,6 +361,8 @@ impl Wallet {
             signers: self.signers.iter().cloned().collect(),
             receivers: self.receivers.iter().cloned().collect(),
             near_caps: self.near_caps.clone(),
+            cross_chain_enabled: self.cross_chain_enabled,
+            cross_chain_recipients: self.cross_chain_recipients.iter().cloned().collect(),
         }
     }
 
@@ -346,9 +375,132 @@ impl Wallet {
     }
 }
 
+/// The stored state before the cross-chain fields (deployed 1–3 November), so
+/// `migrate` can upgrade a live wallet in place. Field order is the storage layout.
+#[near(serializers = [borsh])]
+struct WalletV1 {
+    owner_id: AccountId,
+    agent_id: AccountId,
+    model_id: String,
+    frozen: bool,
+    mandate_hash: Option<String>,
+    prompt_hash: Option<String>,
+    signers: IterableSet<String>,
+    receivers: IterableSet<AccountId>,
+    tokens: LookupMap<AccountId, Token>,
+    near_caps: Caps,
+    proposals: LookupMap<u64, Proposal>,
+    next_proposal_id: u64,
+    used_nonces: LookupSet<u64>,
+    spent: LookupMap<Asset, DaySpend>,
+}
+
+#[near]
+impl Wallet {
+    /// One-time upgrade of a wallet deployed before the cross-chain fields:
+    /// keeps everything, adds the switch (off) and an empty recipient list.
+    /// Callable only by the wallet account itself, i.e. in its own deploy.
+    #[private]
+    #[init(ignore_state)]
+    pub fn migrate() -> Self {
+        let old: WalletV1 = env::state_read().unwrap_or_else(|| env::panic_str("no state to migrate"));
+        Self {
+            owner_id: old.owner_id,
+            agent_id: old.agent_id,
+            model_id: old.model_id,
+            frozen: old.frozen,
+            mandate_hash: old.mandate_hash,
+            prompt_hash: old.prompt_hash,
+            signers: old.signers,
+            receivers: old.receivers,
+            tokens: old.tokens,
+            near_caps: old.near_caps,
+            proposals: old.proposals,
+            next_proposal_id: old.next_proposal_id,
+            used_nonces: old.used_nonces,
+            spent: old.spent,
+            cross_chain_enabled: false,
+            cross_chain_recipients: IterableSet::new(b"x"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod migrate_tests {
+    use super::*;
+    use near_sdk::test_utils::VMContextBuilder;
+    use near_sdk::testing_env;
+
+    #[test]
+    fn migrate_keeps_a_v1_wallets_state_and_adds_cross_chain_switched_off() {
+        let me: AccountId = "wallet.testnet".parse().unwrap();
+        testing_env!(VMContextBuilder::new().current_account_id(me.clone()).predecessor_account_id(me).build());
+        let mut signers = IterableSet::new(b"s");
+        signers.insert("0x".to_string() + &"ab".repeat(20));
+        let mut proposals = LookupMap::new(b"p");
+        proposals.insert(4u64, Proposal {
+            action: Action { receiver_id: "wrap.testnet".parse().unwrap(), method: "ft_transfer".into(), args_sha256: "a".repeat(64), deposit: U128(1), nonce: U64(9), expiry_ms: U64(1) },
+            args_json: "{}".into(),
+            status: ProposalStatus::Executed,
+        });
+        let mut v1 = WalletV1 {
+            owner_id: "owner.testnet".parse().unwrap(),
+            agent_id: "agent.testnet".parse().unwrap(),
+            model_id: "Qwen/Qwen3.8-27B".into(),
+            frozen: true,
+            mandate_hash: Some("c".repeat(64)),
+            prompt_hash: Some("d".repeat(64)),
+            signers,
+            receivers: IterableSet::new(b"r"),
+            tokens: LookupMap::new(b"t"),
+            near_caps: Caps { per_tx: U128(1), daily: U128(100) },
+            proposals,
+            next_proposal_id: 5,
+            used_nonces: LookupSet::new(b"n"),
+            spent: LookupMap::new(b"d"),
+        };
+        v1.signers.flush();
+        v1.proposals.flush();
+        env::state_write(&v1);
+
+        let w = Wallet::migrate();
+        let c = w.get_config();
+        assert_eq!((c.model_id.as_str(), c.frozen, c.signers.len()), ("Qwen/Qwen3.8-27B", true, 1));
+        assert_eq!(c.mandate_hash, Some("c".repeat(64)));
+        assert!(!c.cross_chain_enabled && c.cross_chain_recipients.is_empty());
+        assert_eq!(w.get_proposal(4).unwrap().status, ProposalStatus::Executed);
+        assert_eq!(w.next_proposal_id, 5);
+    }
+}
+
 impl Wallet {
     fn assert_owner(&self) {
         require!(env::predecessor_account_id() == self.owner_id, "owner only");
+    }
+
+    /// The cross-chain conditions of execute check 6 (interface spec).
+    fn check_cross_chain(&self, cc: &judged::CrossChain, action: &Action, args_json: &str) {
+        require!(self.cross_chain_enabled, "cross-chain payments are off");
+        require!(action.method == "ft_transfer", "a cross-chain payment must be an ft_transfer");
+        let args: near_sdk::serde_json::Value =
+            near_sdk::serde_json::from_str(args_json).unwrap_or_else(|_| env::panic_str("args are not JSON"));
+        require!(
+            args.get("receiver_id").and_then(|v| v.as_str()) == Some(cc.deposit_address.as_str()),
+            "cross_chain.deposit_address must equal args.receiver_id"
+        );
+        require!(is_evm_address(&cc.recipient), "cross_chain.recipient must be lowercase 0x plus 40 hex characters");
+        let canonical_u64 = !cc.deadline_ms.is_empty()
+            && cc.deadline_ms.bytes().all(|b| b.is_ascii_digit())
+            && (cc.deadline_ms == "0" || !cc.deadline_ms.starts_with('0'));
+        let deadline: u64 = canonical_u64
+            .then(|| cc.deadline_ms.parse().ok())
+            .flatten()
+            .unwrap_or_else(|| env::panic_str("cross_chain.deadline_ms must be a u64 decimal string"));
+        require!(action.expiry_ms.0 < deadline, "the action's expiry_ms must be earlier than cross_chain.deadline_ms");
+        require!(
+            self.cross_chain_recipients.is_empty() || self.cross_chain_recipients.contains(&cc.recipient),
+            "recipient is not on the cross-chain recipient list"
+        );
     }
 
     fn token_for(&self, token_id: &AccountId) -> Token {
@@ -397,6 +549,11 @@ fn recover_eth_address(message: &[u8], sig_hex: &str) -> Option<String> {
     // malleability_flag = true rejects high-s signatures, as Ethereum does.
     let public_key = env::ecrecover(&hash, &sig[..64], v, true)?;
     Some(format!("0x{}", hex::encode(&env::keccak256(&public_key)[12..])))
+}
+
+/// A destination-chain address: lowercase 0x plus 40 hex characters.
+fn is_evm_address(s: &str) -> bool {
+    s.strip_prefix("0x").is_some_and(|hex| is_lower_hex(hex, 40))
 }
 
 fn is_lower_hex(s: &str, len: usize) -> bool {

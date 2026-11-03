@@ -305,3 +305,60 @@ fn a_request_showing_the_model_a_false_amount_or_none_is_rejected() {
     rejects("wrong_amount_shown", "amount");
     rejects("no_amount_shown", "amount");
 }
+
+// Payments through 1Click: execute's cross-chain conditions (interface spec, check 6).
+
+fn cross_chain_on() -> Wallet {
+    let mut w = configured();
+    as_caller(owner());
+    w.set_cross_chain(true);
+    w
+}
+
+#[test]
+fn a_cross_chain_payment_is_refused_while_the_switch_is_off() {
+    rejects("cc_ok", "cross-chain payments are off");
+}
+
+#[test]
+fn with_the_switch_on_a_cross_chain_payment_sends_the_transfer_to_the_deposit_address() {
+    let mut w = cross_chain_on();
+    let c = case("cc_ok");
+    let id = propose_case(&mut w, &c);
+    execute_case(&mut w, id, &c);
+    assert_eq!(w.get_proposal(id).unwrap().status, ProposalStatus::Allowed);
+    let call = get_created_receipts().into_iter().find(|r| r.receiver_id.as_str() == USDC).expect("a call to the token");
+    let fc = serde_json::to_value(&call.actions).unwrap();
+    let fc = fc[0].as_object().and_then(|o| o.values().next()).unwrap().clone();
+    assert_eq!(fc["args"], serde_json::json!(c["args_json"].as_str().unwrap().as_bytes().to_vec()));
+}
+
+#[test]
+fn each_cross_chain_condition_is_enforced() {
+    for (name, why) in [
+        ("cc_method", "ft_transfer"),
+        ("cc_deposit_mismatch", "deposit_address"),
+        ("cc_recipient_uppercase", "recipient"),
+        ("cc_recipient_short", "recipient"),
+        ("cc_deadline_at_expiry", "deadline_ms"),
+        ("cc_deadline_not_decimal", "deadline_ms"),
+        ("cc_extra_field", "request"),
+    ] {
+        rejects_with(&mut cross_chain_on(), name, why);
+    }
+}
+
+#[test]
+fn a_non_empty_recipient_list_refuses_any_other_recipient_even_on_an_allow() {
+    let vendor = case("cc_ok")["cross_chain_recipient"].as_str().unwrap().to_string();
+    let mut w = cross_chain_on();
+    w.allow_cross_chain_recipient(vendor.clone());
+    rejects_with(&mut w, "cc_other_recipient", "not on the cross-chain recipient list");
+
+    let mut w = cross_chain_on();
+    w.allow_cross_chain_recipient(vendor);
+    let c = case("cc_ok");
+    let id = propose_case(&mut w, &c);
+    agent_at(0);
+    try_execute(&mut w, id, &c).expect("the listed recipient is paid");
+}
