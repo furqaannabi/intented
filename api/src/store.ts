@@ -89,6 +89,13 @@ export function openStore(path: string) {
       return db.prepare("SELECT * FROM mandates WHERE id = ?").get(mandateId) as Mandate | undefined;
     },
 
+    /** The newest stored mandate with this hash; the agent posts the same text on every run. */
+    getMandateByHash(textHash: string): Mandate | undefined {
+      return db.prepare("SELECT * FROM mandates WHERE text_hash = ? ORDER BY created_at DESC, rowid DESC LIMIT 1").get(textHash) as
+        | Mandate
+        | undefined;
+    },
+
     createProposal(p: { mandate_id: string; action: ActionJson; args: string; context: string }): ProposalRow {
       const now = stamp();
       const pid = id("p");

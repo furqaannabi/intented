@@ -9,7 +9,10 @@ export interface AgentConfig {
   apiUrl: string;
   apiToken: string;
   agentId: string; // the account that signs execute, named in the payment proof
-  mandate: string; // the wallet's mandate text, byte for byte
+  /** The wallet's mandate_hash, read from the contract: the agent proposes under whatever rules are live. */
+  mandateHash: string;
+  /** A text to store if the API has none for that hash yet (a fresh database); used only if it hashes to it. */
+  seedMandate?: string;
   log: (line: string) => void;
   pollMs?: number;
   timeoutMs?: number;
@@ -33,6 +36,31 @@ interface Proposal {
 
 const EXPIRY_MS = 15 * 60_000;
 const sha256 = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
+
+/**
+ * The stored mandate whose text hashes to the wallet's mandate_hash. The hash is checked here too:
+ * proposing under any other text only earns a verdict the wallet refuses.
+ */
+async function activeMandate(
+  cfg: AgentConfig,
+  api: <T>(path: string, init?: RequestInit) => Promise<T>,
+  post: <T>(path: string, body: unknown) => Promise<T>,
+): Promise<string> {
+  const found = await api<{ mandate_id: string; text: string }>(`/api/mandates/${cfg.mandateHash}`).catch((e: Error) => {
+    if (e.message.includes(" 404 ")) return null;
+    throw e;
+  });
+  if (found) {
+    if (sha256(found.text) !== cfg.mandateHash) throw new Error("the API's mandate text doesn't hash to the wallet's mandate_hash");
+    cfg.log(`rules: "${found.text}"`);
+    return found.mandate_id;
+  }
+  if (cfg.seedMandate !== undefined && sha256(cfg.seedMandate) === cfg.mandateHash) {
+    cfg.log("rules: not stored yet; storing the known text that matches the wallet");
+    return (await post<{ mandate_id: string }>("/api/mandate", { text: cfg.seedMandate })).mandate_id;
+  }
+  throw new Error(`no stored mandate has the wallet's hash ${cfg.mandateHash}; set the rules from the rules page`);
+}
 
 export async function runAgent(url: string, cfg: AgentConfig): Promise<AgentResult> {
   const { log } = cfg;
@@ -62,7 +90,7 @@ export async function runAgent(url: string, cfg: AgentConfig): Promise<AgentResu
       body: JSON.stringify(body),
     });
 
-  const { mandate_id } = await post<{ mandate_id: string }>("/api/mandate", { text: cfg.mandate });
+  const mandate_id = await activeMandate(cfg, api, post);
 
   const args = JSON.stringify({ receiver_id: asked.payTo, amount: asked.amount, memo: "market data" });
   const now = Date.now();

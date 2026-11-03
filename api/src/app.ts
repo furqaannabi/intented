@@ -77,6 +77,14 @@ export function createApp({ store, network, model, agentToken, startPipeline, at
     return c.json({ mandate_id: m.id, text_hash });
   });
 
+  // Public: the text whose hash the owner set on a public contract. Callers re-hash it; the wallet enforces the hash, not this text.
+  app.get("/api/mandates/:text_hash", (c) => {
+    const hash = c.req.param("text_hash");
+    if (!/^[0-9a-f]{64}$/.test(hash)) return c.json({ error: "text_hash must be 64 lowercase hex characters" }, 400);
+    const m = store.getMandateByHash(hash);
+    return m ? c.json({ mandate_id: m.id, text: m.text, text_hash: m.text_hash }) : c.json({ error: "no mandate with that hash" }, 404);
+  });
+
   // The agent only: this spends NEAR AI credit and signs with the agent key.
   app.post("/api/propose", async (c) => {
     if (!agentToken) return c.json({ error: "AGENT_API_TOKEN is not configured" }, 503);
