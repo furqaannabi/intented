@@ -11,6 +11,7 @@ import { serve } from "@hono/node-server";
 import { createChainClient, createJudge, systemPrompt, type Network } from "@intented/firewall-core";
 import { createApp } from "./app.js";
 import { loadAttestationUrls } from "./attestations.js";
+import { createOneClick } from "./oneclick.js";
 import { createPipeline } from "./pipeline.js";
 import { createRedteamReader } from "./redteam.js";
 import { openStore } from "./store.js";
@@ -28,15 +29,19 @@ const model = env("NEAR_AI_MODEL");
 const rpcUrl = process.env.NEAR_RPC_URL || `https://rpc.${network}.near.org`;
 const walletId = env("CONTRACT_ACCOUNT_ID");
 const log = (line: string) => console.log(`${new Date().toISOString()} ${line}`);
+const agentId = env("AGENT_ACCOUNT_ID");
+// On testnet ONECLICK_BASE_URL points at the stand-in (agent/: pnpm oneclick); unset, it is the real 1Click.
+const oneclick = createOneClick({ jwt: process.env.ONECLICK_JWT || undefined, baseUrl: process.env.ONECLICK_BASE_URL || undefined });
 
 const store = openStore(process.env.DATABASE_PATH || join(root, "intented.db"));
 const pipeline = createPipeline({
   store,
   judge: createJudge({ apiKey: env("NEAR_AI_API_KEY"), model, network }),
-  chain: createChainClient({ rpcUrl, walletId, agentId: env("AGENT_ACCOUNT_ID"), agentPrivateKey: env("AGENT_PRIVATE_KEY") }),
+  chain: createChainClient({ rpcUrl, walletId, agentId, agentPrivateKey: env("AGENT_PRIVATE_KEY") }),
   wallet: createWalletReader(rpcUrl, walletId),
   expected: { model, promptHash: createHash("sha256").update(systemPrompt(network), "utf8").digest("hex") },
   log,
+  oneclick: { client: oneclick, nearSender: agentId },
 });
 
 const app = createApp({
@@ -48,6 +53,8 @@ const app = createApp({
   attestationUrls: loadAttestationUrls(join(root, "..", "docs", "attestations"), ATTESTATIONS_URL),
   redteam: createRedteamReader(join(root, "..", "redteam", "latest.json")),
   corsOrigins: (process.env.WEB_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean),
+  // Off until the firewall core's judge() puts cross_chain in the request; then:
+  // crossChain: { pay: oneclick.payCrossChain, refundTo: walletId },
 });
 
 pipeline.recover();

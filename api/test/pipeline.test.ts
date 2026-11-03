@@ -118,3 +118,78 @@ describe("pipeline", () => {
     expect(events).toEqual(["propose", "execute 0 start", "execute 0 end", "propose", "execute 1 start", "execute 1 end"]);
   });
 });
+
+describe("pipeline: a payment through 1Click", () => {
+  const crossChain = {
+    deposit_address: "intented-1click.testnet", dest_chain: "base", dest_asset: "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+    recipient: "0x7284d41b5b852f2bd4c99bdf95043d84452d299c", amount_out: "0.4 USDC", deadline_ms: String(Date.now() + 30 * 60_000),
+  };
+  const oneclick = { deposit_address: crossChain.deposit_address, dest_chain: "base", recipient: crossChain.recipient, amount_out: "0.4 USDC", status: "PENDING_DEPOSIT", simulated: true };
+
+  function setupCrossChain(over: { judge?: PipelineDeps["judge"]; statuses?: { status: "PROCESSING" | "SUCCESS"; dest_tx_hash?: string }[] } = {}) {
+    const store = openStore(":memory:");
+    const m = store.createMandate("Buy market data", HASH);
+    const judged: unknown[][] = [];
+    const submitted: unknown[][] = [];
+    const statuses = [...(over.statuses ?? [{ status: "PROCESSING" }, { status: "SUCCESS", dest_tx_hash: "0xbase" }])];
+    const deps: PipelineDeps = {
+      store,
+      judge: over.judge ?? (async (...a) => (judged.push(a), verdict("ALLOW"))),
+      chain: { proposeOnChain: async () => ({ proposal_id: 7, near_tx_hash: "ptx" }), executeOnChain: async () => ({ near_tx_hash: "etx", ok: true }) },
+      wallet: { config: async () => wallet(), proposalStatus: async () => null },
+      expected: { model: "m", promptHash: PROMPT },
+      log: () => {},
+      recheckMs: 5,
+      trackMs: 5,
+      oneclick: {
+        nearSender: "intented-agent.testnet",
+        client: {
+          submitDeposit: async (...a) => void submitted.push(a),
+          trackDeposit: async () => statuses.shift() ?? { status: "SUCCESS", dest_tx_hash: "0xbase" },
+        },
+      },
+    };
+    const action = { receiver_id: "wrap.testnet", method: "ft_transfer", args_sha256: "b".repeat(64), deposit: "1", nonce: "1", expiry_ms: String(Date.now() + 60_000) };
+    const p = store.createProposal({ mandate_id: m.id, action, args: "{}", context: "", cross_chain: crossChain, oneclick });
+    const until = async (ok: () => boolean) => {
+      for (let i = 0; i < 200 && !ok(); i++) await new Promise((r) => setTimeout(r, 5));
+      return store.getProposal(p.id)!;
+    };
+    return { store, deps, p, judged, submitted, until };
+  }
+
+  it("gives the judge the cross_chain field", async () => {
+    const { deps, p, judged, until, store } = setupCrossChain();
+    createPipeline(deps).start(p.id);
+    await until(() => store.getProposal(p.id)!.step === "done");
+    expect(judged[0]?.[4]).toEqual(crossChain);
+  });
+
+  it("after execute, tells 1Click the deposit's transaction and follows it to SUCCESS", async () => {
+    const { deps, p, submitted, until, store } = setupCrossChain();
+    createPipeline(deps).start(p.id);
+    const done = await until(() => store.getProposal(p.id)!.oneclick?.status === "SUCCESS");
+    expect(done.status).toBe("executed");
+    expect(submitted).toEqual([[crossChain.deposit_address, "etx", "intented-agent.testnet"]]);
+    expect(done.oneclick).toEqual({ ...oneclick, status: "SUCCESS", dest_tx_hash: "0xbase" });
+  });
+
+  it("never tells 1Click about a deposit after a DENY", async () => {
+    const { deps, p, submitted, until, store } = setupCrossChain({ judge: async () => verdict("DENY") });
+    deps.chain.executeOnChain = async () => ({ near_tx_hash: "etx", ok: false, error: "verdict is not ALLOW" });
+    createPipeline(deps).start(p.id);
+    const done = await until(() => store.getProposal(p.id)!.step === "done");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(done.status).toBe("denied");
+    expect(submitted).toEqual([]);
+    expect(store.getProposal(p.id)!.oneclick?.status).toBe("PENDING_DEPOSIT");
+  });
+
+  it("after a restart, follows an executed deposit that hadn't finished", async () => {
+    const { deps, p, until, store } = setupCrossChain();
+    store.updateProposal(p.id, { status: "executed", step: "done", near_tx_hash: "etx" });
+    createPipeline(deps).recover();
+    const done = await until(() => store.getProposal(p.id)!.oneclick?.status === "SUCCESS");
+    expect(done.oneclick?.dest_tx_hash).toBe("0xbase");
+  });
+});

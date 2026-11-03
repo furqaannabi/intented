@@ -3,6 +3,7 @@
 
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
+import type { CrossChainField, OneClickState } from "./crosschain.js";
 
 export type Status = "pending" | "allowed" | "denied" | "executed" | "failed";
 /** The pipeline step a proposal last reached; "done" once settled. */
@@ -46,9 +47,15 @@ export interface ProposalRow {
   chain_proposal_id: number | null;
   propose_tx_hash: string | null;
   near_tx_hash: string | null;
+  /** A payment through 1Click only: the judge request's field, and the deposit's state. */
+  cross_chain: CrossChainField | null;
+  oneclick: OneClickState | null;
 }
 
-export type ProposalPatch = Partial<Omit<ProposalRow, "id" | "created_at" | "updated_at" | "mandate_id" | "action" | "args" | "context">>;
+export type ProposalPatch = Partial<Omit<ProposalRow, "id" | "created_at" | "updated_at" | "mandate_id" | "action" | "args" | "context" | "cross_chain">>;
+
+/** 1Click deposit statuses after which nothing changes. */
+export const ONECLICK_FINAL = ["SUCCESS", "REFUNDED", "FAILED"];
 
 const id = (prefix: string) => `${prefix}_${randomBytes(8).toString("hex")}`;
 
@@ -70,9 +77,16 @@ export function openStore(path: string) {
     );
     CREATE INDEX IF NOT EXISTS proposals_updated_at ON proposals(updated_at);
   `);
+  // Added for the cross-chain payment; a database from before it gets the columns empty.
+  const columns = (db.prepare("PRAGMA table_info(proposals)").all() as { name: string }[]).map((c) => c.name);
+  for (const col of ["cross_chain", "oneclick"]) if (!columns.includes(col)) db.exec(`ALTER TABLE proposals ADD COLUMN ${col} TEXT`);
 
+  const json = (v: unknown) => (typeof v === "string" ? JSON.parse(v) : null);
   const toRow = (r: Record<string, unknown>): ProposalRow =>
-    ({ ...r, action: JSON.parse(r.action as string), req_bytes: r.req_bytes ?? null, resp_bytes: r.resp_bytes ?? null }) as ProposalRow;
+    ({
+      ...r, action: JSON.parse(r.action as string), req_bytes: r.req_bytes ?? null, resp_bytes: r.resp_bytes ?? null,
+      cross_chain: json(r.cross_chain), oneclick: json(r.oneclick),
+    }) as ProposalRow;
 
   // updated_at strictly increases, so polling with since=<last updated_at> never misses a change made in the same millisecond.
   let lastStamp = 0;
@@ -96,12 +110,14 @@ export function openStore(path: string) {
         | undefined;
     },
 
-    createProposal(p: { mandate_id: string; action: ActionJson; args: string; context: string }): ProposalRow {
+    createProposal(p: { mandate_id: string; action: ActionJson; args: string; context: string; cross_chain?: CrossChainField; oneclick?: OneClickState }): ProposalRow {
       const now = stamp();
       const pid = id("p");
+      const cc = p.cross_chain ? JSON.stringify(p.cross_chain) : null;
+      const oc = p.oneclick ? JSON.stringify(p.oneclick) : null;
       db.prepare(
-        "INSERT INTO proposals (id, created_at, updated_at, mandate_id, action, args, context, status, step) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'judge')",
-      ).run(pid, now, now, p.mandate_id, JSON.stringify(p.action), p.args, p.context);
+        "INSERT INTO proposals (id, created_at, updated_at, mandate_id, action, args, context, status, step, cross_chain, oneclick) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'judge', ?, ?)",
+      ).run(pid, now, now, p.mandate_id, JSON.stringify(p.action), p.args, p.context, cc, oc);
       return this.getProposal(pid)!;
     },
 
@@ -113,7 +129,7 @@ export function openStore(path: string) {
     updateProposal(proposalId: string, patch: ProposalPatch): void {
       const keys = Object.keys(patch) as (keyof ProposalPatch)[];
       const sets = [...keys.map((k) => `${k} = ?`), "updated_at = ?"].join(", ");
-      const values = keys.map((k) => (patch[k] ?? null) as string | number | Uint8Array | null);
+      const values = keys.map((k) => (k === "oneclick" ? JSON.stringify(patch[k]) : (patch[k] ?? null)) as string | number | Uint8Array | null);
       db.prepare(`UPDATE proposals SET ${sets} WHERE id = ?`).run(...values, stamp(), proposalId);
     },
 
@@ -125,6 +141,13 @@ export function openStore(path: string) {
     /** Proposals the pipeline has not settled, for the startup check. */
     unsettled(): ProposalRow[] {
       return (db.prepare("SELECT * FROM proposals WHERE step != 'done'").all() as Record<string, unknown>[]).map(toRow);
+    },
+
+    /** Executed payments through 1Click whose deposit hasn't reached a final status, for the startup check. */
+    depositsInFlight(): ProposalRow[] {
+      const final = ONECLICK_FINAL.map(() => "?").join(", ");
+      const sql = `SELECT * FROM proposals WHERE status = 'executed' AND oneclick IS NOT NULL AND json_extract(oneclick, '$.status') NOT IN (${final})`;
+      return (db.prepare(sql).all(...ONECLICK_FINAL) as Record<string, unknown>[]).map(toRow);
     },
 
     close: () => db.close(),
