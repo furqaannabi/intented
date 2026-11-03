@@ -33,3 +33,68 @@ describe("paywall", () => {
     expect(res.status).toBe(402);
   });
 });
+
+describe("paywall on Base", () => {
+  const VENDOR = "0x7284d41b5b852f2bd4c99bdf95043d84452d299c";
+  const BASE_HASH = "0xa1c6fb7e2324a3bfbd2a10f15a6174237e5c0f7b34ae3490d49b140c1e49521c";
+  // The real Base USDC transfer to VENDOR, its amount raised to the 0.40 USDC price.
+  const receipt = JSON.parse(readFileSync(new URL("./fixtures/base-usdc-transfer.json", import.meta.url), "utf8"));
+  const transfer = receipt.logs.find((l: { topics: string[] }) => l.topics[0]?.startsWith("0xddf252ad"));
+  transfer.data = `0x${(400000).toString(16).padStart(64, "0")}`;
+
+  const proof = (payload: Record<string, string>) => ({ "PAYMENT-SIGNATURE": encode({ x402Version: 2, payload }) });
+  const mainnet = () =>
+    createPaywall({ lookupTx: async () => null, base: { vendor: VENDOR, lookupReceipt: async (h) => (h === BASE_HASH ? receipt : null) } });
+
+  const DEPOSIT = "intented-1click.testnet";
+  const delivery = (recipient: string, amountOut = "400000") => ({
+    status: "SUCCESS",
+    quoteResponse: { quote: { amountOut }, quoteRequest: { recipient, destinationAsset: "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near" } },
+    swapDetails: { originChainTxHashes: [{ hash: "depositTx" }] },
+  });
+  const testnet = (d: unknown) => createPaywall({ lookupTx: async () => null, base: { vendor: VENDOR, lookupDelivery: async (a) => (a === DEPOSIT ? (d as never) : null) } });
+
+  it("asks for USDC on Base, 0.40 to the vendor or 4 to the attacker", async () => {
+    const honest = (await (await mainnet().request("/base/market-data")).json()) as PaymentRequired;
+    expect(honest.accepts[0]).toMatchObject({ network: "eip155:8453", payTo: VENDOR, amount: "400000", extra: { symbol: "USDC" } });
+    const poisoned = (await (await mainnet().request("/base-poisoned/market-data")).json()) as PaymentRequired;
+    expect(poisoned.accepts[0]).toMatchObject({ payTo: "0xbad0000000000000000000000000000000000bad", amount: "4000000" });
+  });
+
+  it("on mainnet, serves the data once for a Base transfer of the price to the vendor", async () => {
+    const paywall = mainnet();
+    expect((await paywall.request("/base/market-data", { headers: proof({ transaction: BASE_HASH }) })).status).toBe(200);
+    expect((await paywall.request("/base/market-data", { headers: proof({ transaction: BASE_HASH }) })).status).toBe(402);
+  });
+
+  it("on mainnet, does not let the vendor's payment unlock the poisoned route", async () => {
+    expect((await mainnet().request("/base-poisoned/market-data", { headers: proof({ transaction: BASE_HASH }) })).status).toBe(402);
+  });
+
+  it("on testnet, serves the data for the stand-in's delivery of this deposit, marked simulated", async () => {
+    const res = await testnet(delivery(VENDOR)).request("/base/market-data", { headers: proof({ transaction: "depositTx", deposit_address: DEPOSIT }) });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ simulated: true });
+    expect(decode(res.headers.get("PAYMENT-RESPONSE")!)).toMatchObject({ success: true, simulated: true });
+  });
+
+  it("on testnet, refuses another transaction, another recipient, less than the price, or no delivery yet", async () => {
+    const pay = (d: unknown, tx = "depositTx") =>
+      testnet(d).request("/base/market-data", { headers: proof({ transaction: tx, deposit_address: DEPOSIT }) });
+    expect((await pay(delivery(VENDOR), "otherTx")).status).toBe(402);
+    expect((await pay(delivery("0xbad0000000000000000000000000000000000bad"))).status).toBe(402);
+    expect((await pay(delivery(VENDOR, "399999"))).status).toBe(402);
+    expect((await pay({ ...delivery(VENDOR), status: "PROCESSING" })).status).toBe(402);
+  });
+
+  it("refuses, saying why, when the stand-in can't be reached", async () => {
+    const paywall = createPaywall({ lookupTx: async () => null, base: { vendor: VENDOR, lookupDelivery: async () => { throw new Error("fetch failed"); } } });
+    const res = await paywall.request("/base/market-data", { headers: proof({ transaction: "depositTx", deposit_address: DEPOSIT }) });
+    expect(res.status).toBe(402);
+    expect(((await res.json()) as PaymentRequired).error).toBe("could not check the payment: fetch failed");
+  });
+
+  it("has no Base routes unless they are configured", async () => {
+    expect((await app().request("/base/market-data")).status).toBe(404);
+  });
+});

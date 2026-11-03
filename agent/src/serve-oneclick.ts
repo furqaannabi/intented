@@ -18,7 +18,7 @@ if ((process.env.NEAR_NETWORK || "testnet") !== "testnet") throw new Error("the 
 const port = Number(process.env.ONECLICK_STANDIN_PORT || 8403);
 const rpcUrl = process.env.NEAR_RPC_URL || "https://rpc.testnet.near.org";
 const depositAddress = process.env.ONECLICK_STANDIN_DEPOSIT || "";
-const rate = process.env.ONECLICK_STANDIN_RATE || "50";
+const rate = process.env.ONECLICK_STANDIN_RATE || "500";
 if (!/^([a-z0-9]+[-_.])*[a-z0-9]+\.testnet$/.test(depositAddress)) throw new Error("ONECLICK_STANDIN_DEPOSIT must be a testnet account");
 if (!/^[1-9][0-9]*$/.test(rate)) throw new Error("ONECLICK_STANDIN_RATE must be whole USDC per wNEAR");
 

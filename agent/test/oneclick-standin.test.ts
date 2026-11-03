@@ -86,7 +86,11 @@ describe("1Click stand-in", () => {
     expect((await submit("paid")).status).toBe(200);
     expect((await status()).status).toBe("PROCESSING");
     tick(5000);
-    expect(await status()).toMatchObject({ status: "SUCCESS", swapDetails: { destinationChainTxHashes: [] } });
+    expect(await status()).toMatchObject({
+      status: "SUCCESS",
+      quoteResponse: { quoteRequest: { recipient: RECIPIENT } },
+      swapDetails: { originChainTxHashes: [{ hash: "paid" }], destinationChainTxHashes: [] },
+    });
   });
 
   it("refuses a deposit of the wrong amount, to the wrong account, or that failed", async () => {

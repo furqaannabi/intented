@@ -22,7 +22,9 @@ export interface PaymentRequired {
 export interface PaymentPayload {
   x402Version: 2;
   accepted: Requirement;
-  payload: { transaction: string; signer: string }; // the NEAR tx hash and the account that signed it
+  // NEAR routes: the payment's tx hash and the account that signed it. Base routes: the Base tx hash, or on
+  // testnet, where nothing reaches Base, the NEAR deposit's tx hash and the 1Click deposit address.
+  payload: { transaction: string; signer?: string; deposit_address?: string };
 }
 
 export interface SettlementResponse {

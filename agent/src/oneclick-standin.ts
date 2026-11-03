@@ -31,9 +31,11 @@ type Status = "PENDING_DEPOSIT" | "PROCESSING" | "SUCCESS" | "FAILED";
 
 interface Live {
   quote: Record<string, unknown>;
+  quoteRequest: Record<string, unknown>;
   amountIn: string;
   deadlineMs: number;
   depositedAt?: number;
+  depositTx?: string;
   updatedAt: number;
 }
 
@@ -47,7 +49,7 @@ export function formatUnits(units: bigint, decimals: number): string {
 }
 
 export function createOneClickStandIn(config: StandInConfig) {
-  const rate = config.usdcPerWnear ?? 50n;
+  const rate = config.usdcPerWnear ?? 500n;
   const deliverAfterMs = config.deliverAfterMs ?? 5000;
   const now = config.now ?? Date.now;
   let live: Live | null = null;
@@ -89,7 +91,7 @@ export function createOneClickStandIn(config: StandInConfig) {
       deadline: new Date(deadlineMs).toISOString(),
       timeEstimate: Math.round(deliverAfterMs / 1000),
     };
-    if (!body.dry) live = { quote, amountIn: amountIn.toString(), deadlineMs, updatedAt: now() };
+    if (!body.dry) live = { quote, quoteRequest: body, amountIn: amountIn.toString(), deadlineMs, updatedAt: now() };
     return c.json({ quote, quoteRequest: body, timestamp: new Date(now()).toISOString(), simulated: true });
   });
 
@@ -107,20 +109,21 @@ export function createOneClickStandIn(config: StandInConfig) {
         : { ok: false as const, error: "transaction not found" };
       if (!found.ok) return c.json({ message: `${found.error}: the deposit must be exactly amountIn` }, 400);
       live.depositedAt = now();
+      live.depositTx = body.txHash;
       live.updatedAt = now();
     }
-    return c.json({ quoteResponse: { quote: live.quote }, status: status(live), simulated: true });
+    return c.json({ quoteResponse: { quote: live.quote, quoteRequest: live.quoteRequest }, status: status(live), simulated: true });
   });
 
   app.get("/v0/status", (c) => {
     if (!live || c.req.query("depositAddress") !== config.depositAddress) return c.json({ message: "deposit address not found" }, 404);
     const s = status(live);
-    // No destinationChainTxHashes: nothing is sent on Base.
+    // The confirmed deposit is reported as real 1Click does; destinationChainTxHashes stays empty: nothing is sent on Base.
     return c.json({
-      quoteResponse: { quote: live.quote },
+      quoteResponse: { quote: live.quote, quoteRequest: live.quoteRequest },
       status: s,
       updatedAt: new Date(live.updatedAt).toISOString(),
-      swapDetails: { destinationChainTxHashes: [] },
+      swapDetails: { originChainTxHashes: live.depositTx ? [{ hash: live.depositTx }] : [], destinationChainTxHashes: [] },
       simulated: true,
     });
   });
