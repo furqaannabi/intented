@@ -57,4 +57,17 @@ describe("judge", () => {
     const forged = fakeNearAi(allow, async (req, resp) => ({ text: `${MODEL}:${sha(req)}:${sha(resp)}`, signature: await tee.signMessage("something else") }));
     await expect(judgeWith(forged)("Pay the vendor.", action, argsJson, "402")).rejects.toThrow(/signing_address/);
   });
+
+  it("passes cross_chain, its fifth argument, into the signed request", async () => {
+    const deposit = "ab".repeat(32);
+    const ccArgs = JSON.stringify({ receiver_id: deposit, amount: "1000" });
+    const cc = { ...action, args_sha256: sha(ccArgs), expiry_ms: 1_000n };
+    const field = { deposit_address: deposit, dest_chain: "base", dest_asset: "nep141:base.omft.near", recipient: "0x" + "11".repeat(20), amount_out: "0.40 USDC", deadline_ms: "2000" };
+    const canonicalCc = new TextDecoder().decode(canonicalBytes(cc));
+    const ok = JSON.stringify({ reason: "fits", verdict: "ALLOW", action: canonicalCc });
+    const r = await judgeWith(fakeNearAi(ok))("Pay the vendor on Base.", cc, ccArgs, "402", field);
+    const sent = JSON.parse(JSON.parse(new TextDecoder().decode(r.req_bytes)).messages[1].content);
+    expect(sent.cross_chain).toEqual(field);
+    expect(r.verdict).toBe("ALLOW");
+  });
 });

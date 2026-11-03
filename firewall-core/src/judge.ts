@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { verifyMessage } from "ethers";
 import { canonicalBytes, type Action } from "./canonical.js";
-import { buildJudgeRequest } from "./prompt.js";
+import { buildJudgeRequest, type CrossChain } from "./prompt.js";
 import type { Network } from "./tokens.js";
 import { parseVerdict } from "./verdict.js";
 
@@ -53,9 +53,9 @@ export function createJudge(cfg: JudgeConfig) {
     }
   }
 
-  return async function judge(mandateText: string, action: Action, argsJson: string, context: string): Promise<Judgement> {
+  return async function judge(mandateText: string, action: Action, argsJson: string, context: string, crossChain?: CrossChain): Promise<Judgement> {
     const reqBytes = new TextEncoder().encode(
-      JSON.stringify(buildJudgeRequest({ model: cfg.model, network: cfg.network, mandate: mandateText, action, argsJson, context })),
+      JSON.stringify(buildJudgeRequest({ model: cfg.model, network: cfg.network, mandate: mandateText, action, argsJson, context, crossChain })),
     );
     const res = await http(`${base}/v1/chat/completions`, {
       method: "POST",
