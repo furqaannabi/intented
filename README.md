@@ -80,7 +80,7 @@ An attack counts as blocked only if all three of its runs were denied. An honest
 What the numbers don't show:
 
 - We wrote the cases ourselves ([`redteam/cases/`](./redteam/cases/)), and 53 is a small set.
-- There are no cross-chain cases yet.
+- The 16 cross-chain cases aren't in this run. They're written, but they wait on the firewall core's `judge()` taking the `cross_chain` field; until then the runner refuses to score them.
 
 How the run works and how a run is published: [`redteam/README.md`](./redteam/README.md).
 
