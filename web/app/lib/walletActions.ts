@@ -12,6 +12,10 @@ export const ED25519_KEY = /^ed25519:[1-9A-HJ-NP-Za-km-z]{43,44}$/;
 
 export type FunctionCall = { type: "FunctionCall"; params: { methodName: string; args: object; gas: string; deposit: string } };
 
+/** Plain NEAR to the receiver, no contract call: how the wallet gets NEAR for its agent's gas. */
+export type Transfer = { type: "Transfer"; params: { deposit: string } };
+export const transfer = (deposit: string): Transfer => ({ type: "Transfer", params: { deposit } });
+
 export const call = (methodName: string, args: object, deposit = "0", gas = CALL_GAS): FunctionCall => ({
   type: "FunctionCall",
   params: { methodName, args, gas, deposit },

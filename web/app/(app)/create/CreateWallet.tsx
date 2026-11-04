@@ -316,7 +316,10 @@ export function CreateWallet() {
               <div className="mt-4 max-w-[260px]">
                 <Amount id="cw-allow" label="Gas allowance" value={allowance} onChange={setAllowance} unit="NEAR" disabled={busy} />
                 <p className={`mt-2 text-[13px] ${allowanceError ? "text-coral" : "text-mute"}`}>
-                  {allowanceError ?? "The most the agent's transactions may spend on gas, from the wallet's balance."}
+                  {allowanceError ??
+                    (Number(allowance) > 0.5
+                      ? "The most the agent's transactions may spend on gas. The wallet starts with about 0.5 NEAR for it; you can send more when you add a key."
+                      : "The most the agent's transactions may spend on gas. The deposit leaves about 0.5 NEAR for it.")}
                 </p>
               </div>
             )}
@@ -387,7 +390,8 @@ export function CreateWallet() {
               <Skeleton className="h-8 w-28" />
             )}
           </div>
-          <p className="mt-2 text-[12.5px] text-mute">It stays in the wallet: it pays for the contract&apos;s storage and the agent&apos;s gas. If creating fails, it&apos;s refunded.</p>
+          <p className="mt-2 text-[12.5px] text-mute">It stays in the wallet: most of it is locked for the contract&apos;s storage, and about 0.5 NEAR is left for your agent&apos;s gas. If
+            creating fails, it&apos;s refunded.</p>
 
           {near.account ? (
             <button onClick={create} disabled={!ready || busy} className={`${primary} mt-5 w-full py-4`}>

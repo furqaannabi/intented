@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowUpRight, Check, Cross } from "../../../components/icons";
+import { ArrowUpRight, Check, ChevronDown, Cross } from "../../../components/icons";
 import { PaymentsChart } from "../../../components/PaymentsChart";
 import { RulesEditor } from "../../../components/RulesEditor";
 import { Loading, Skeleton } from "../../../components/Skeleton";
@@ -11,7 +11,7 @@ import { REPO } from "../../../components/SiteHeader";
 import { FACTORY_ID, formatUnits, freeNear, nearblocksAccount, nearblocksTx, parseUnits, TESTNET_TOKENS, viewOn, WALLET_ID } from "../../../lib/near";
 import { rememberWallet, walletFromPath } from "../../../lib/myWallets";
 import { useNearWallet } from "../../../lib/useNearWallet";
-import { call, ED25519_KEY, fundActions, WITHDRAW_GAS, type FunctionCall } from "../../../lib/walletActions";
+import { call, ED25519_KEY, fundActions, transfer, WITHDRAW_GAS, type FunctionCall, type Transfer } from "../../../lib/walletActions";
 import { loadWallet, type WalletState } from "../../../lib/walletState";
 import { Pill } from "../MyWallets";
 
@@ -79,7 +79,7 @@ function WalletPage({ walletId }: { walletId: string }) {
   const isOwner = typeof state === "object" && !!state && near.account === state.config.owner_id;
 
   /** Sign one transaction in the owner's wallet, then read the wallet again. True if it went through. */
-  async function sign(what: string, receiverId: string, actions: FunctionCall[]): Promise<boolean> {
+  async function sign(what: string, receiverId: string, actions: (FunctionCall | Transfer)[]): Promise<boolean> {
     if (!near.account) return false;
     setTx({ what, step: "signing" });
     let ok = false;
@@ -118,7 +118,6 @@ function WalletPage({ walletId }: { walletId: string }) {
   }
 
   const { config, account, tokens, agentKeys, fullAccessKeys, rules } = state;
-  const gasLeft = agentKeys.reduce((sum, k) => sum + BigInt(k.allowance ?? "0"), BigInt(0)).toString();
   const busy = tx?.step === "signing";
 
   return (
@@ -186,11 +185,20 @@ function WalletPage({ walletId }: { walletId: string }) {
 
       <div className="mb-6 grid gap-3 md:grid-cols-3">
         <Tile k="Can pay" v={tokens.map((t) => `${t.balance === null ? "—" : formatUnits(t.balance, t.token.decimals)} ${t.token.symbol}`).join(" · ") || "—"} s={isOwner ? "Fund it from the top of the page, with one approval" : "The tokens the agent can pay in"} />
-        <Tile k="NEAR for gas" v={`${near2(account.amount)} NEAR`} s={`${near2(freeNear(account))} above what its storage locks`} />
         {config.agent_id === walletId ? (
-          <Tile k="Agent gas left" v={agentKeys.length ? `${near2(gasLeft)} NEAR` : "—"} s={agentKeys.length ? "The agent keys' allowance" : "No agent key yet"} />
+          <>
+            <GasTile account={account} agentKeys={agentKeys} />
+            <Tile
+              k="Agent"
+              v={agentKeys.length ? `${agentKeys.length} key${agentKeys.length > 1 ? "s" : ""}` : "No key"}
+              s={agentKeys.length ? "Each can propose and execute payments on this wallet, nothing else" : "Add your agent's key in the Agent card below"}
+            />
+          </>
         ) : (
-          <Tile k="Agent" v={config.agent_id} s="A separate account, which pays its own gas" />
+          <>
+            <Tile k="NEAR" v={`${near2(account.amount)} NEAR`} s={`${near2(freeNear(account))} free to withdraw; the rest is locked for storage`} />
+            <Tile k="Agent" v={config.agent_id} s="A separate account, which pays its own gas" />
+          </>
         )}
       </div>
 
@@ -312,7 +320,7 @@ function WalletPage({ walletId }: { walletId: string }) {
   );
 }
 
-type Sign = (what: string, receiverId: string, actions: FunctionCall[]) => Promise<boolean>;
+type Sign = (what: string, receiverId: string, actions: (FunctionCall | Transfer)[]) => Promise<boolean>;
 
 function AgentCard({ state, walletId, isOwner, busy, sign }: { state: WalletState; walletId: string; isOwner: boolean; busy: boolean; sign: Sign }) {
   const [key, setKey] = useState("");
@@ -323,6 +331,23 @@ function AgentCard({ state, walletId, isOwner, busy, sign }: { state: WalletStat
   // Our own wallet's agent is a separate account; a factory wallet is its own agent, with keys on itself.
   const ownAgent = state.config.agent_id === walletId;
 
+  // Every key's gas comes from the wallet's free NEAR. If all their limits, this one included, add up to more,
+  // the missing NEAR can go in the same transaction as the key.
+  const free = BigInt(freeNear(state.account));
+  const limits = state.agentKeys.reduce((sum, a) => sum + BigInt(a.allowance ?? "0"), BigInt(raw && ok ? raw : "0"));
+  // Rounded up to the next 0.01 NEAR, so the amount shown is the amount sent.
+  const cent = BigInt("10000000000000000000000");
+  const short = ok && !state.agentKeys.some((a) => a.allowance === null) && limits > free ? (((limits - free + cent - BigInt(1)) / cent) * cent).toString() : null;
+  const [cover, setCover] = useState(true);
+  const sendNear = short !== null && cover;
+
+  function addKey() {
+    const add = call("add_agent_key", { public_key: k, allowance: raw });
+    sign(sendNear ? `Add the agent key and ${near2(short)} NEAR for gas` : "Add the agent key", walletId, sendNear ? [transfer(short), add] : [add]).then(
+      (done) => done && setKey(""),
+    );
+  }
+
   return (
     <Card title="Agent" lead={ownAgent ? "Keys that can propose and execute on this wallet, nothing else." : `The agent is ${state.config.agent_id}.`}>
       {ownAgent &&
@@ -331,7 +356,7 @@ function AgentCard({ state, walletId, isOwner, busy, sign }: { state: WalletStat
             <div key={a.public_key} className="mt-3.5 grid gap-1.5 rounded-[14px] border border-line p-3.5">
               <code className="font-mono text-[13px] break-all text-soft">{a.public_key}</code>
               <p className="text-[13px] text-mute">
-                Gas allowance left: {a.allowance === null ? "unlimited" : `${near2(a.allowance)} NEAR`} · {a.method_names.join(", ")}
+                Gas limit left: {a.allowance === null ? "unlimited" : `${near2(a.allowance)} NEAR`} · {a.method_names.join(", ")}
               </p>
               {isOwner && (
                 <div>
@@ -357,12 +382,24 @@ function AgentCard({ state, walletId, isOwner, busy, sign }: { state: WalletStat
             </div>
             <button
               disabled={busy || !ok}
-              onClick={() => sign("Add the agent key", walletId, [call("add_agent_key", { public_key: k, allowance: raw })]).then((ok) => ok && setKey(""))}
+              onClick={addKey}
               className={secondary}
             >
-              Add a key
+              {sendNear ? `Add the key and ${near2(short)} NEAR` : "Add a key"}
             </button>
           </div>
+          {short !== null && (
+            <div className="rounded-[12px] border border-line bg-ink px-3.5 py-2.5 text-[13px] text-mute">
+              <p>
+                The wallet has {near2(free.toString())} NEAR free for gas, and its keys&apos; limits{state.agentKeys.length ? ", this one included," : ""} come to{" "}
+                {near2(limits.toString())}.
+              </p>
+              <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-text">
+                <input type="checkbox" checked={cover} onChange={(e) => setCover(e.target.checked)} className="size-4 accent-lime" />
+                Also send {near2(short)} NEAR from your account, so it can cover them
+              </label>
+            </div>
+          )}
           {k && !ED25519_KEY.test(k) && <p className="text-[13px] text-coral">An ed25519 public key: ed25519: then 43 or 44 base58 characters.</p>}
         </div>
       )}
@@ -396,19 +433,20 @@ function OwnerPanel({
   const [pick, setPick] = useState(0); // fund: an index into fundable; withdraw: into tokens, or tokens.length for NEAR
   const [amount, setAmount] = useState("");
 
-  const ft = fundable[pick];
+  // Withdraw lists NEAR last: what's above the storage lock. Fund is payment tokens only; gas NEAR comes with the deposit or a key.
   const isNear = kind === "withdraw" && pick >= tokens.length;
-  const decimals = kind === "fund" ? (ft?.token.decimals ?? 24) : isNear ? 24 : tokens[pick].token.decimals;
+  const ft = kind === "fund" ? fundable[pick] : undefined;
+  const decimals = isNear ? 24 : kind === "fund" ? (ft?.token.decimals ?? 24) : tokens[pick].token.decimals;
   const raw = parseUnits(amount, decimals);
   const max = kind === "withdraw" ? (isNear ? freeNear(state.account) : (tokens[pick].balance ?? "0")) : null;
   const over = !!raw && max !== null && BigInt(raw) > BigInt(max);
-  const symbol = kind === "fund" ? (ft?.token.symbol ?? "") : isNear ? "NEAR" : tokens[pick].token.symbol;
+  const symbol = isNear ? "NEAR" : kind === "fund" ? (ft?.token.symbol ?? "") : tokens[pick].token.symbol;
 
   async function submit() {
     if (!raw) return;
     const ok =
       kind === "fund"
-        ? await sign(`Fund ${amount} ${symbol}`, ft.id, fundActions(ft.known!, owner, walletId, raw))
+        ? ft && (await sign(`Fund ${amount} ${symbol}`, ft.id, fundActions(ft.known!, owner, walletId, raw)))
         : await sign(`Withdraw ${amount} ${symbol}`, walletId, [call("withdraw", { token_id: isNear ? null : tokens[pick].id, amount: raw }, "0", WITHDRAW_GAS)]);
     if (ok) onClose();
   }
@@ -423,8 +461,8 @@ function OwnerPanel({
           <p className="text-[13px] text-mute">
             {kind === "fund"
               ? symbol === "wNEAR"
-                ? "Wrap NEAR from your account and send it to the wallet, in one approval."
-                : `Send ${symbol} from your account to the wallet.`
+                  ? "Wrap NEAR from your account and send it to the wallet, in one approval. The agent pays with it."
+                  : `Send ${symbol} from your account to the wallet. The agent pays with it.`
               : `Back to ${owner}. Not judged: your money is yours.`}
           </p>
         </div>
@@ -443,13 +481,22 @@ function OwnerPanel({
           className="mt-3.5 flex flex-wrap gap-2.5 text-sm"
         >
           {options.length > 1 && (
-            <select aria-label="Asset" value={pick} onChange={(e) => setPick(Number(e.target.value))} className={`${field} px-3 py-2`}>
-              {options.map((o, i) => (
-                <option key={o + i} value={i}>
-                  {o}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              {/* The browser's own arrow sits against the edge; ours keeps 12px of room. */}
+              <select
+                aria-label="Asset"
+                value={pick}
+                onChange={(e) => setPick(Number(e.target.value))}
+                className={`${field} h-full cursor-pointer appearance-none py-2 pr-9 pl-3`}
+              >
+                {options.map((o, i) => (
+                  <option key={o + i} value={i}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-mute" />
+            </div>
           )}
           <div className={`${field} w-[200px]`}>
             <input
@@ -475,7 +522,7 @@ function OwnerPanel({
         </form>
       )}
       {over && max !== null && <p className="mt-2 text-[13px] text-coral">More than the wallet can send: at most {formatUnits(max, decimals)}.</p>}
-      {isNear && <p className="mt-2 text-[12.5px] text-mute">The NEAR its storage locks stays; the agent&apos;s gas comes from what&apos;s left.</p>}
+      {kind === "withdraw" && isNear && <p className="mt-2 text-[12.5px] text-mute">The NEAR its storage locks stays; the agent&apos;s gas comes from what&apos;s left.</p>}
     </section>
   );
 }
@@ -512,7 +559,7 @@ export function WalletSkeleton({ walletId }: { walletId: string | null }) {
         </div>
         <div className="mb-6 grid gap-3 md:grid-cols-3">
           {tile("Can pay")}
-          {tile("NEAR for gas")}
+          {tile(walletId === WALLET_ID ? "NEAR" : "Gas for the agent")}
           {tile("Agent")}
         </div>
         <div className="mb-6">
@@ -535,13 +582,49 @@ export function WalletSkeleton({ walletId }: { walletId: string | null }) {
   );
 }
 
-function Tile({ k, v, s }: { k: string; v: string; s: string }) {
+function Tile({ k, v, s, low }: { k: string; v: string; s: React.ReactNode; low?: boolean }) {
   return (
-    <div className="rounded-[20px] bg-card p-5">
+    <div className={`rounded-[20px] bg-card p-5 ${low ? "ring-1 ring-coral/60" : ""}`}>
       <p className="font-mono text-[11px] font-medium tracking-[0.1em] text-mute uppercase">{k}</p>
-      <p className="mt-2 text-[clamp(22px,2.4vw,32px)] font-black tracking-[-0.02em] break-words">{v}</p>
+      <p className={`mt-2 text-[clamp(22px,2.4vw,32px)] font-black tracking-[-0.02em] break-words ${low ? "text-coral" : ""}`}>{v}</p>
       <p className="mt-1 text-[13px] text-mute">{s}</p>
     </div>
+  );
+}
+
+/** Below this, the agent is a few payments from stopping. */
+const LOW_GAS = BigInt("50000000000000000000000"); // 0.05 NEAR
+
+/**
+ * What the agent can really spend on gas: the wallet's NEAR above its storage lock, or its keys' limit if that is smaller.
+ * Says which of the two is the limit, and what to do when it runs low.
+ */
+function GasTile({ account, agentKeys }: { account: WalletState["account"]; agentKeys: WalletState["agentKeys"] }) {
+  const free = BigInt(freeNear(account));
+  const locked = (BigInt(account.amount) - free).toString();
+  const unlimited = agentKeys.some((a) => a.allowance === null);
+  const limit = agentKeys.reduce((sum, a) => sum + BigInt(a.allowance ?? "0"), BigInt(0));
+  const keyBound = agentKeys.length > 0 && !unlimited && limit < free;
+  const usable = keyBound ? limit : free;
+  const low = usable < LOW_GAS;
+
+  const keys = agentKeys.length > 1 ? "The agent's keys together" : "The agent's key";
+  const why = !agentKeys.length
+    ? `Free NEAR in the wallet, for the agent's gas once it has a key. ${near2(locked)} more is locked for storage.`
+    : keyBound
+      ? `${keys} limit. The wallet has ${near2(free.toString())} NEAR free; ${near2(locked)} more is locked for storage.`
+      : `Free NEAR in the wallet.${unlimited ? "" : ` ${keys} may spend up to ${near2(limit.toString())};`} ${near2(locked)} more is locked for storage.`;
+  const fix = keyBound
+    ? `Low: ${agentKeys.length > 1 ? "the keys' limits are" : "the key's limit is"} nearly used. Add a key with a new limit to keep the agent paying.`
+    : "Low: send NEAR to this wallet from your NEAR wallet, or with Add a key below, to keep the agent paying.";
+
+  return (
+    <Tile
+      k="Gas for the agent"
+      v={`${near2(usable.toString())} NEAR`}
+      low={low && agentKeys.length > 0}
+      s={low && agentKeys.length > 0 ? <><b className="font-bold text-coral">{fix}</b> {why}</> : why}
+    />
   );
 }
 
