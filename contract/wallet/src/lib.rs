@@ -107,6 +107,20 @@ pub struct Token {
     pub caps: Caps,
 }
 
+/// The owner's settings for a wallet made in one call (`new_with`, the factory's).
+#[near(serializers = [json])]
+#[derive(Clone)]
+pub struct Setup {
+    /// The TEE signer to allowlist, from a published attestation report.
+    pub signer: String,
+    pub prompt_hash: String,
+    pub mandate_hash: Option<String>,
+    /// The one token the wallet starts with; also allowlisted as a receiver.
+    pub token_id: AccountId,
+    pub token: Token,
+    pub near_caps: Caps,
+}
+
 #[near(serializers = [json])]
 pub struct Config {
     pub owner_id: AccountId,
@@ -180,6 +194,27 @@ impl Wallet {
         }
     }
 
+    /// A wallet set up in one call: `new`, plus the owner's settings, each
+    /// checked as the owner's setter would. For the factory, which is not the
+    /// owner and can't call the setters afterwards.
+    #[init]
+    pub fn new_with(owner_id: AccountId, agent_id: AccountId, model_id: String, setup: Setup) -> Self {
+        let mut w = Self::new(owner_id, agent_id, model_id);
+        w.signers.insert(normalize_eth_address(&setup.signer));
+        require!(is_lower_hex(&setup.prompt_hash, 64), "prompt_hash must be 64 lowercase hex characters");
+        w.prompt_hash = Some(setup.prompt_hash);
+        if let Some(h) = setup.mandate_hash {
+            require!(is_lower_hex(&h, 64), "mandate_hash must be 64 lowercase hex characters");
+            w.mandate_hash = Some(h);
+        }
+        assert_token(&setup.token);
+        w.receivers.insert(setup.token_id.clone());
+        w.tokens.insert(setup.token_id, setup.token);
+        assert_caps(&setup.near_caps);
+        w.near_caps = setup.near_caps;
+        w
+    }
+
     // Owner methods
 
     /// `text_hash` is the lowercase hex sha256 of the mandate text.
@@ -224,12 +259,7 @@ impl Wallet {
 
     pub fn set_token(&mut self, token_id: AccountId, token: Token) {
         self.assert_owner();
-        assert_caps(&token.caps);
-        require!(
-            !token.symbol.is_empty() && token.symbol.bytes().all(|b| b.is_ascii_graphic()),
-            "symbol must be non-empty printable ASCII with no spaces"
-        );
-        require!(token.decimals <= 38, "decimals must be at most 38");
+        assert_token(&token);
         self.tokens.insert(token_id, token);
     }
 
@@ -646,6 +676,15 @@ fn normalize_eth_address(addr: &str) -> String {
     let ok = lower.strip_prefix("0x").is_some_and(|hex| is_lower_hex(hex, 40));
     require!(ok, "eth_address must be 0x followed by 40 hex characters");
     lower
+}
+
+fn assert_token(token: &Token) {
+    assert_caps(&token.caps);
+    require!(
+        !token.symbol.is_empty() && token.symbol.bytes().all(|b| b.is_ascii_graphic()),
+        "symbol must be non-empty printable ASCII with no spaces"
+    );
+    require!(token.decimals <= 38, "decimals must be at most 38");
 }
 
 fn assert_caps(caps: &Caps) {
