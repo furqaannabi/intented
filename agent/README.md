@@ -20,7 +20,7 @@ pnpm oneclick              # the 1Click stand-in, testnet only: http://localhost
 pnpm test
 ```
 
-`PAYWALL_PORT`, `PAYWALL_URL`, `API_URL` and `NEAR_RPC_URL` override the defaults. The Base routes need the API's cross-chain propose, which stays off (`501`) until the firewall core's `judge()` takes the `cross_chain` field.
+`PAYWALL_PORT`, `PAYWALL_URL`, `API_URL` and `NEAR_RPC_URL` override the defaults. The Base routes need the API's cross-chain propose. On testnet it is on when the API has `ONECLICK_BASE_URL` (the stand-in) and `ONECLICK_STANDIN_PUBLIC_KEY`; without them it answers `501`.
 
 ## The paywall
 

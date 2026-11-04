@@ -23,6 +23,55 @@ Agents with wallets get prompt-injected. Spending caps and allowlists check rule
 
 **Privacy:** in this version the active mandate's text is public. The wallet stores only its sha256 hash on-chain, but anyone can read the text on the web app's rules page or from `GET /api/mandates/:text_hash`. See [the record](./docs/decisions/2026-11-03-accept-mandate-lookup.md).
 
+## Try it
+
+The web app isn't deployed yet; [run it locally](#run-it-yourself) to follow along. Every payment below is a real proposal from 4 November 2026 on the testnet wallet `intented-wallet.testnet`, and every transaction can be checked on nearblocks without the app.
+
+![The landing page: a poisoned paywall tells the agent to pay the attacker, and NEAR AI signs DENY](./docs/screenshots/landing.png)
+
+**1. Open Activity and click a paid `intented-vendor.testnet` payment.** You see `Paid`: the model's reason as it signed it, what the agent read from the paywall (shown as data, never as instructions), the signer and the signature. The wallet paid 0.001 wNEAR: [`87erm1VG…`](https://testnet.nearblocks.io/txns/87erm1VG7rYf6iX88MCMk7RjbM1cXuQvWv151sdD49xz).
+
+![A paid payment's receipt: ALLOW, the signed reason, the paywall's 402 as untrusted data](./docs/screenshots/activity-paid.png)
+
+**2. Click a refused `intented-attacker.testnet` payment.** A poisoned paywall told the agent to pay 0.01 wNEAR to the attacker, which is within the wallet's cap. You see `Refused`: the model signed `DENY` and gave its reason, and the wallet's `execute` refused with "verdict is not ALLOW". Nothing was transferred: [`8YRdanaR…`](https://testnet.nearblocks.io/txns/8YRdanaR7J96YumVVj2MdGdVMSDP98vS8dzWDvVUoCo3).
+
+![A refused payment's receipt: DENY, the signed reason, refused on-chain](./docs/screenshots/activity-refused.png)
+
+**3. Click the Base payments.** `0x2ef2fe…b49ef` is the vendor's Base address: the model signed `ALLOW` for 0.4 USDC, and the wallet paid 0.000808 wNEAR to the 1Click deposit account ([`6ADu75vE…`](https://testnet.nearblocks.io/txns/6ADu75vEGwK8tKoPbw7Nfmh7BwTjJfX151WRYvDY5Vhg)). 1Click runs only on mainnet, so on testnet a stand-in plays its part, and the receipt labels the delivery `SIMULATED`: nothing reached Base. `0xbad000…00bad` is the attack: 4 USDC to an address the rules don't name. The model signed `DENY`, and the wallet refused it on-chain with "recipient is not on the cross-chain recipient list", a check that runs before the verdict check ([`DbLMFYWs…`](https://testnet.nearblocks.io/txns/DbLMFYWsUf4r9DXAfnHfKf1NVyqacM9EVCyeb8nq3W5U)).
+
+![The Base payment's receipt: ALLOW, paid to the 1Click deposit account, delivery simulated](./docs/screenshots/activity-base.png)
+
+![The Base attack's receipt: DENY, refused on-chain](./docs/screenshots/activity-base-refused.png)
+
+**4. Open Rules.** You see the rules the agent pays by, in plain English, and the wallet's on-chain `mandate_hash` with "matches the text": your browser read the hash from the contract and hashed the text itself. Next to it are the limits the contract enforces whatever the model says: 0.01 wNEAR a payment, 0.05 a day, only `wrap.testnet`, one allowlisted signer.
+
+![The Rules page: the live mandate, its hash matching the wallet's, and the contract's limits](./docs/screenshots/rules.png)
+
+**5. Check the signer.** Every verdict above was signed by `0x835ab53d20294ef795906dff21ae4c045336aa26`. Its attestation report was verified off-chain and is published in [`docs/attestations/`](./docs/attestations/); the address was then allowlisted on the wallet. The contract doesn't verify the TDX quote itself.
+
+### Run it yourself
+
+Needs Node 24, pnpm 11, and `.env` at the repo root, filled in from [`.env.example`](./.env.example). The agent needs a function-call key on a wallet contract and a NEAR AI key; the keys for `intented-wallet.testnet` are the team's, so to run it yourself you deploy [the contract](./contract/) to your own testnet account. The Base runs also need the stand-in's signing key to be the wallet's 1Click key: `pnpm --dir agent oneclick-key` makes one, and the wallet's owner sets it with `set_one_click_key`. Each line is its own terminal.
+
+```sh
+(cd firewall-core && pnpm install) && (cd api && pnpm install) && (cd agent && pnpm install) && (cd web && pnpm install)
+pnpm --dir api start          # the API, http://localhost:8787
+pnpm --dir agent paywall      # the mock x402 paywall, http://localhost:8402
+pnpm --dir agent oneclick     # the 1Click stand-in, testnet only, http://localhost:8403
+pnpm --dir web dev            # the web app, http://localhost:3000
+```
+
+Then run the agent and watch Activity:
+
+```sh
+pnpm --dir agent agent honest          # pays 0.001 wNEAR to intented-vendor.testnet, then gets the data
+pnpm --dir agent agent poisoned        # proposes 0.01 wNEAR to intented-attacker.testnet: DENY, refused on-chain
+pnpm --dir agent agent base            # 0.4 USDC to the vendor's Base address, through 1Click
+pnpm --dir agent agent base-poisoned   # 4 USDC to 0xbad0…0bad: DENY, refused on-chain
+```
+
+A paid run spends a little testnet wNEAR from the wallet, and every run a little gas from the agent's account. `make redteam` runs [the red team](#red-team).
+
 ## Repo map
 
 | Path | What | Owner |
@@ -37,7 +86,7 @@ Agents with wallets get prompt-injected. Spending caps and allowlists check rule
 
 ## Status
 
-3 November 2026. Everything runs on NEAR testnet; the mainnet deploy is planned for 11 November.
+4 November 2026. Everything runs on NEAR testnet; the mainnet deploy is planned for 11 November.
 
 **Working on testnet**, on the wallet `intented-wallet.testnet`:
 
@@ -50,17 +99,13 @@ Agents with wallets get prompt-injected. Spending caps and allowlists check rule
   - Rules: the active mandate, shown only if it hashes to the wallet's on-chain `mandate_hash`. The owner changes it by signing `set_mandate` with their own NEAR wallet.
 - **The agent follows the live rules.** It reads the wallet's `mandate_hash` before each run and fetches that exact text.
 
-**In progress: the cross-chain payment to Base through 1Click.** The design is accepted ([record](./docs/decisions/2026-11-03-cross-chain-through-1click.md)).
+**The cross-chain payment to Base through 1Click works on testnet, with simulated delivery** ([record](./docs/decisions/2026-11-03-cross-chain-through-1click.md)).
 
-- Done:
-  - exact-output quotes, so the vendor receives exactly its price;
-  - the paywall's Base routes;
-  - a testnet stand-in for 1Click, which runs on mainnet only. Every delivery the stand-in reports is simulated and labelled so: on testnet nothing reaches Base.
-- Not done:
-  - the judge seeing the real Base recipient;
-  - the wallet's checks on it;
-  - the API's and the agent's cross-chain path;
-  - the first real payment on mainnet.
+- The judge sees the real Base recipient, token and amount, and the mandate names the vendor's Base address.
+- The wallet checks the recipient against its cross-chain recipient list and the signed 1Click quote against the 1Click key it holds. On testnet that key is the stand-in's.
+- The API quotes the payment and builds the transfer to the deposit address; the agent never picks one. A retried propose with the same `Idempotency-Key` gets the first proposal back, so it can't pay twice.
+- 1Click runs only on mainnet. On testnet a stand-in quotes, signs and reports delivery, and every delivery it reports is simulated and labelled so: nothing reaches Base.
+- Not done: the first real payment on mainnet, through 1Click itself.
 
 ## Red team
 
@@ -89,11 +134,11 @@ How the run works and how a run is published: [`redteam/README.md`](./redteam/RE
 
 | Folder | Tests | Run |
 | --- | --- | --- |
-| `contract/wallet` | 31, including every `execute` refusal: unknown signer, a flipped byte, `DENY`, a different action, a reused nonce, expiry, caps, freeze | `cargo test` |
-| `firewall-core` | 126 | `pnpm test` |
-| `api` | 22 | `pnpm test` |
-| `agent` | 25 | `pnpm test` |
-| `redteam` | 9 | `pnpm test` |
+| `contract/wallet` | 40, including every `execute` refusal: unknown signer, a flipped byte, `DENY`, a different action, a reused nonce, expiry, caps, freeze | `cargo test` |
+| `firewall-core` | 141 | `pnpm test` |
+| `api` | 74 | `pnpm test` |
+| `agent` | 34 | `pnpm test` |
+| `redteam` | 16 | `pnpm test` |
 
 The status board is in [`docs/README.md`](./docs/README.md).
 
