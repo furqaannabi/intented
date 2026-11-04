@@ -140,9 +140,9 @@ The quote is exact-output: `amount` is what `recipient` receives, and the wallet
 
 | Method and path | Body or query | Returns |
 | --- | --- | --- |
-| `POST /api/mandate` | `{ text }` | `{ mandate_id, text_hash }` |
+| `POST /api/mandate` | `{ text }` | `{ mandate_id, text_hash }`. A text already stored gets its stored `mandate_id`. Over the rate limit, `429` with `Retry-After` |
 | `GET /api/mandates/:text_hash` | | `{ mandate_id, text, text_hash }`: the stored text whose sha256 is `text_hash`, byte for byte. 400 unless `text_hash` is 64 lowercase hex characters, 404 if none; when several share it, the newest. Public |
-| `POST /api/propose` | `{ mandate_id, action, args, context }`, or for a payment through 1Click `{ mandate_id, cross_chain: { token, amount, dest_chain, dest_asset, recipient }, context }`, where `amount` is what the recipient receives; the API quotes and builds the action | `{ proposal_id }` |
+| `POST /api/propose` | `{ mandate_id, action, args, context }`, or for a payment through 1Click `{ mandate_id, cross_chain: { token, amount, dest_chain, dest_asset, recipient }, context }`, where `amount` is what the recipient receives; the API quotes and builds the action. Optional header `Idempotency-Key`, 1 to 64 characters of `A–Z a–z 0–9 _ -`, kept 24 hours | `{ proposal_id }`. The same key with the same body gets the first `proposal_id`, and so does a retry with the same nonce. `409` for the same key with a different body, or a different action reusing a nonce. `400` for a malformed key |
 | `GET /api/proposals` | `?since=ts` (changed after `ts`) | `[ Proposal ]` |
 | `GET /api/proposals/:id` | | `Proposal` |
 | `GET /api/redteam/latest` | | `{ attacks_blocked, attacks_total, benign_denied, benign_total, cases[] }` |
@@ -169,3 +169,4 @@ Proposal = {
 | 2026-11-03 | Furqaan, William | `GET /api/mandates/:text_hash` returns a stored mandate's text by its hash, so the rules page and the agent can read the active mandate; its text is public. Record: [accepted](./decisions/2026-11-03-accept-mandate-lookup.md) |
 | 2026-11-03 | Furqaan, William | The cross-chain payment through 1Click: the `cross_chain` judge request field and its `execute` checks, the owner's cross-chain switch and recipient list, `judge()`'s fifth argument, the second `POST /api/propose` body, exact-output quotes, and the wider `oneclick` on `Proposal`. Settles the open question on the cross-chain recipient. Record: [accepted](./decisions/2026-11-03-cross-chain-through-1click.md) |
 | 2026-11-03 | Furqaan, William | `cross_chain.signed_quote` and `set_one_click_key`: `execute` verifies 1Click's signed quote, so the deposit address is tied to the recipient. The payload is built from 1Click's signed fields, checked against a live mainnet quote. Records: [proposed](./decisions/2026-11-03-execute-verifies-the-1click-quote.md), [accepted](./decisions/2026-11-03-accept-signed-1click-quote.md) |
+| 2026-11-04 | Furqaan, William | `POST /api/propose` takes an optional `Idempotency-Key`, so a retried cross-chain payment is sent once; the spec lists the `409` for a reused key or nonce, and `POST /api/mandate`'s stored-text answer and `429`. Records: [proposed](./decisions/2026-11-04-idempotency-key-on-propose.md), [accepted](./decisions/2026-11-04-accept-idempotency-key.md) |
