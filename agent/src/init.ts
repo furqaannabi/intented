@@ -3,10 +3,10 @@
 // project folder; only the public half leaves, in a link to the Create page,
 // where the owner registers it as a key that can call propose and execute only.
 
-import { generateKeyPairSync } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createPrivateKey, createPublicKey, generateKeyPairSync } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { base58 } from "../../api/src/oneclick.js";
+import { base58, unbase58 } from "../../api/src/oneclick.js";
 
 export const FACTORY_ID = "intented.testnet";
 
@@ -63,4 +63,37 @@ export function initAgent({ name, home, webUrl }: InitOptions): InitResult {
     return { walletId, path, publicKey: saved.public_key, link: linkFor(saved.public_key), created: false };
   }
   return { walletId, path, publicKey: keys.publicKey, link: linkFor(keys.publicKey), created: true };
+}
+
+export interface AgentKey {
+  walletId: string;
+  publicKey: string;
+  /** NEAR's text form, ed25519: plus base58 of the seed and the public key. Never logged. */
+  privateKey: string;
+}
+
+/**
+ * The agent's saved key for a wallet, checked before it signs anything: the file is this user's
+ * alone, and its private key really is the half of the public key registered on the wallet.
+ */
+export function loadAgentKey({ walletId, home }: { walletId: string; home: string }): AgentKey {
+  const path = join(home, "testnet", `${walletId}.json`);
+  if (!existsSync(path)) throw new Error(`no key saved for ${walletId} in ${join(home, "testnet")}; run: pnpm intented init ${walletId.replace(`.${FACTORY_ID}`, "")}`);
+  if (statSync(path).mode & 0o077) throw new Error(`${path} is readable by others; run chmod 600 on it, or make a new key`);
+
+  const saved = JSON.parse(readFileSync(path, "utf8")) as { account_id?: unknown; public_key?: unknown; private_key?: unknown };
+  if (saved.account_id !== walletId || typeof saved.public_key !== "string" || typeof saved.private_key !== "string") {
+    throw new Error(`${path} isn't a key file for ${walletId}`);
+  }
+  const secret = unbase58(saved.private_key.replace(/^ed25519:/, ""));
+  const derived =
+    secret.length === 64
+      ? createPublicKey(createPrivateKey({ key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), secret.subarray(0, 32)]), format: "der", type: "pkcs8" }))
+          .export({ format: "der", type: "spki" })
+          .subarray(-32)
+      : null;
+  if (!derived || !derived.equals(secret.subarray(32)) || `ed25519:${base58(derived)}` !== saved.public_key) {
+    throw new Error(`the private key in ${path} doesn't match its public key ${saved.public_key}`);
+  }
+  return { walletId, publicKey: saved.public_key, privateKey: saved.private_key };
 }

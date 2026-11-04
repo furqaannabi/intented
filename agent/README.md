@@ -34,6 +34,14 @@ A wallet made by the factory has no agent account of its own: its owner adds the
 
 `INTENTED_HOME` and `INTENTED_WEB_URL` (default `http://localhost:3000`) change where keys are kept and which web app the link opens. Testnet only for now.
 
+## The agent's own transactions: `src/wallet.ts`
+
+On a factory wallet the agent sends its own `propose` and `execute`, signed with the key from `intented init`, and the API only judges ([the proposal](../docs/decisions/2026-11-04-verdict-for-any-wallet.md)):
+
+- `loadAgentKey({ walletId, home })` reads the saved key. It refuses a file that is missing, readable by others, or whose private key doesn't match its public key.
+- `walletAgent({ key, rpcUrl })` signs through the firewall core's `createChainClient`, the code the API uses for the demo wallet, with the wallet itself as the signer. `propose(payment)` records an `ft_transfer` as pending and returns its `proposal_id`; `execute(proposal_id, verdict)` hands the wallet the signed verdict, which it pays on only if every check holds.
+- The verdict comes from `POST /api/verdict`, which isn't built yet. Until then `execute` can only be refused: on 4 November, `william-test-1104.intented.testnet` took proposal 0 from the agent's own key (tx `2jF1cMsxhn7zNKWaR1sDvm1s8eEvC5ZGzKLvkSQjmUyx`) and refused an unsigned verdict for it (tx `4xjkjQ7iTSYEvxX2PwjJDN7a55JfU5g9DWt4TL72DwKS`). No wNEAR moved.
+
 ## The paywall
 
 | Route | Asks | Payee |

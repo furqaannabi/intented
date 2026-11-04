@@ -1,10 +1,10 @@
 import { createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { unbase58 } from "../../api/src/oneclick.js";
-import { initAgent } from "../src/init.js";
+import { initAgent, loadAgentKey } from "../src/init.js";
 
 let home: string;
 beforeEach(() => {
@@ -55,6 +55,27 @@ describe("initAgent", () => {
   it("takes the longest name that fits in a 64-character account id", () => {
     const name = "a".repeat(64 - ".intented.testnet".length);
     expect(initAgent({ name, home, webUrl }).walletId).toHaveLength(64);
+  });
+
+  it("loads the saved key for the wallet it was made for", () => {
+    const r = initAgent({ name: "my-agent", home, webUrl });
+    const k = loadAgentKey({ walletId: r.walletId, home });
+    expect(k.publicKey).toBe(r.publicKey);
+    expect(keysMatch(k.privateKey, r.publicKey)).toBe(true);
+  });
+
+  it("refuses to load a key that's missing, readable by others, or doesn't match its public key", () => {
+    expect(() => loadAgentKey({ walletId: "nobody.intented.testnet", home })).toThrow(/intented init nobody/);
+
+    const r = initAgent({ name: "my-agent", home, webUrl });
+    chmodSync(r.path, 0o644);
+    expect(() => loadAgentKey({ walletId: r.walletId, home })).toThrow(/readable by others/);
+    chmodSync(r.path, 0o600);
+
+    const other = initAgent({ name: "other", home, webUrl });
+    const saved = JSON.parse(readFileSync(r.path, "utf8"));
+    writeFileSync(r.path, JSON.stringify({ ...saved, public_key: other.publicKey }));
+    expect(() => loadAgentKey({ walletId: r.walletId, home })).toThrow(/doesn't match/);
   });
 
   it("keeps the key file readable by this user only", () => {
