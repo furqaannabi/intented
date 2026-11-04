@@ -43,21 +43,41 @@ export interface SignedVerdict {
   signature: string;
 }
 
+/**
+ * NEAR's errors for a wallet that can't pay its agent's gas, said plainly with what to do; null for anything else.
+ * Matched by name and by the outcome's text, since a transaction can be refused before it runs or fail while it runs.
+ */
+export function outOfGas(e: unknown, walletId: string): string | null {
+  if (!(e instanceof Error)) return null;
+  const said = `${e.name} ${e.message}`;
+  if (/NotEnoughBalance|LackBalanceForState/.test(said)) return `${walletId} has no NEAR left for gas. Ask its owner to send NEAR to ${walletId}.`;
+  if (/NotEnoughAllowance/.test(said)) return `This agent's key has used up its gas limit on ${walletId}. Ask its owner to add the key again with a new limit.`;
+  if (/AccessKeyDoesNotExist/.test(said)) return `This agent's key isn't on ${walletId}. Ask its owner to add it, or run pnpm intented init for a new one.`;
+  return null;
+}
+
 /** propose and execute on the agent's own wallet, signed with its saved key. The API holds no key for this wallet. */
 export function walletAgent({ key, rpcUrl }: { key: AgentKey; rpcUrl: string }) {
   const chain = createChainClient({ rpcUrl, walletId: key.walletId, agentId: key.walletId, agentPrivateKey: key.privateKey });
+  // Out of gas, out of limit, or no key: one plain sentence instead of NEAR's error, with the original kept as the cause.
+  const plain = (e: unknown): never => {
+    const said = outOfGas(e, key.walletId);
+    throw said ? new Error(said, { cause: e }) : e;
+  };
 
   return {
     /** Records the payment on the wallet as pending; nothing moves until execute carries an ALLOW. */
     async propose(p: Payment, now = Date.now()) {
       const { action, argsJson } = paymentAction(p, now);
-      const { proposal_id, near_tx_hash } = await chain.proposeOnChain(action, argsJson);
+      const { proposal_id, near_tx_hash } = await chain.proposeOnChain(action, argsJson).catch(plain);
       return { proposal_id, near_tx_hash, action, argsJson };
     },
 
     /** Hands the wallet the verdict. It pays only on a valid ALLOW within its caps; a DENY is refused on chain, as the record. */
-    execute(proposalId: number, v: SignedVerdict) {
-      return chain.executeOnChain(proposalId, Buffer.from(v.req_bytes, "base64"), Buffer.from(v.resp_bytes, "base64"), v.signature);
+    async execute(proposalId: number, v: SignedVerdict) {
+      const o = await chain.executeOnChain(proposalId, Buffer.from(v.req_bytes, "base64"), Buffer.from(v.resp_bytes, "base64"), v.signature).catch(plain);
+      const gas = o.error === undefined ? null : outOfGas(new Error(o.error), key.walletId);
+      return gas ? { ...o, error: gas } : o;
     },
   };
 }
