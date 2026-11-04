@@ -16,11 +16,23 @@ pnpm agent poisoned        # proposes 0.01 wNEAR to intented-attacker.testnet; D
 pnpm agent base            # 0.40 USDC to the vendor's Base address, through 1Click
 pnpm agent base-poisoned   # 4 USDC to 0xbad0…0bad, through 1Click
 pnpm oneclick-key          # once: the stand-in's signing key, into ../.env
+pnpm intented init <name>  # the agent's key for <name>.intented.testnet, and the link that creates the wallet
 pnpm oneclick              # the 1Click stand-in, testnet only: http://localhost:8403
 pnpm test
 ```
 
 `PAYWALL_PORT`, `PAYWALL_URL`, `API_URL` and `NEAR_RPC_URL` override the defaults. The Base routes need the API's cross-chain propose. On testnet it is on when the API has `ONECLICK_BASE_URL` (the stand-in) and `ONECLICK_STANDIN_PUBLIC_KEY`; without them it answers `501`.
+
+## The agent's key: `intented init`
+
+A wallet made by the factory has no agent account of its own: its owner adds the agent's public key to the wallet as a function-call key that can call only `propose` and `execute`. `pnpm intented init <name>` makes that key on the machine the agent runs on:
+
+- It makes an ed25519 key pair and saves it to `~/.intented/testnet/<name>.intented.testnet.json`, in the fields near-cli uses (`account_id`, `public_key`, `private_key`). The folder is `0700` and the file `0600`. It is outside every project folder, so no `git add` picks it up.
+- It prints the public key and a link to the Create page with the name and the key filled in. The owner opens it, writes the rules and signs. For a wallet that already exists, the owner pastes the public key into Add agent key instead.
+- It never prints the private key, and never replaces a saved one: run it again and it gives back the same key and link.
+- It refuses a name the factory can't create (lowercase letters and digits joined by `-` or `_`, at most 64 characters with `.intented.testnet`) before it writes anything.
+
+`INTENTED_HOME` and `INTENTED_WEB_URL` (default `http://localhost:3000`) change where keys are kept and which web app the link opens. Testnet only for now.
 
 ## The paywall
 
