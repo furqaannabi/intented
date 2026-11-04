@@ -114,3 +114,40 @@ fn only_the_factory_account_replaces_the_code_for_new_wallets() {
     let _ = f.create("next".into(), "m".into(), setup(), None, None);
     assert_eq!(actions_to("next.intented.testnet")[2]["DeployContract"]["code"], json!(new_code));
 }
+
+// get_wallets: the wallets an owner has created, recorded when a create succeeds.
+
+fn callback(result: PromiseResult) {
+    let me: AccountId = FACTORY.parse().unwrap();
+    testing_env!(VMContextBuilder::new().current_account_id(me.clone()).predecessor_account_id(me).build(), test_vm_config(), RuntimeFeesConfig::test(), HashMap::default(), vec![result]);
+}
+
+fn wallet_id(name: &str) -> AccountId {
+    format!("{name}.{FACTORY}").parse().unwrap()
+}
+
+#[test]
+fn a_successful_create_is_listed_under_its_owner_and_a_failed_one_is_not() {
+    let mut f = factory();
+    callback(PromiseResult::Successful(vec![]));
+    assert!(f.on_created(owner(), U128(1), wallet_id("shop")));
+    callback(PromiseResult::Failed);
+    assert!(!f.on_created(owner(), U128(1), wallet_id("gone")));
+    callback(PromiseResult::Successful(vec![]));
+    assert!(f.on_created(owner(), U128(1), wallet_id("cafe")));
+
+    assert_eq!(f.get_wallets(owner(), None, None), vec![wallet_id("shop"), wallet_id("cafe")]);
+    assert!(f.get_wallets("nobody.testnet".parse().unwrap(), None, None).is_empty());
+}
+
+#[test]
+fn get_wallets_pages() {
+    let mut f = factory();
+    for n in 0..5 {
+        callback(PromiseResult::Successful(vec![]));
+        f.on_created(owner(), U128(1), wallet_id(&format!("w{n}")));
+    }
+    assert_eq!(f.get_wallets(owner(), Some(1), Some(2)), vec![wallet_id("w1"), wallet_id("w2")]);
+    assert_eq!(f.get_wallets(owner(), Some(4), Some(50)), vec![wallet_id("w4")]);
+    assert!(f.get_wallets(owner(), Some(9), None).is_empty());
+}

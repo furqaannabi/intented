@@ -30,7 +30,7 @@ setup = { signer, prompt_hash, mandate_hash?, token_id, token: { symbol, decimal
 | `new(code)` | init, once; the code for new wallets changes only by `set_code` |
 | `create(name, model_id, setup, agent_key?, agent_allowance?) -> Promise` | anyone, with a deposit of at least `get_min_deposit()` |
 | `set_code(code)` | the factory account itself; wallets already made keep their code |
-| `get_code_hash()` · `get_min_deposit()` | anyone (views) |
+| `get_code_hash()` · `get_min_deposit()` · `get_wallets(owner_id, from_index?, limit?)` | anyone (views); `get_wallets` lists the wallets an owner created, oldest first, at most 100 per page |
 
 `create` makes `<name>.<factory>` in one batch: create the account, transfer the deposit, deploy the stored code, call `new_with` with the caller as owner and the wallet as its own agent, and, if `agent_key` is given, add it scoped to `propose` and `execute`. It adds no full-access key. If the batch fails, the deposit is refunded to the caller. `get_code_hash()` is base58(sha256(code)), the form NEAR shows as an account's `code_hash`.
 
