@@ -119,6 +119,12 @@ A paid run spends a little testnet wNEAR from the wallet, and every run a little
 - 1Click runs only on mainnet. On testnet a stand-in quotes, signs and reports delivery, and every delivery it reports is simulated and labelled so: nothing reaches Base.
 - Not done: the first real payment on mainnet, through 1Click itself.
 
+**New wallets: testnet through a factory, mainnet by script** ([record](./docs/decisions/2026-11-04-factory-as-built.md)).
+
+- The factory at `intented.testnet` makes a configured wallet in one call the owner signs: `<name>.intented.testnet`, with the caller as owner, their rules, signer and caps, and the agent's key limited to `propose` and `execute`. It adds no full-access key, so nobody can replace a factory wallet's contract; the owner gets funds out with `withdraw`.
+- Shown with `demo.intented.testnet`: its code hash equals the factory's published one, its only key is the agent's, an honest payment executed ([`HNRq1HiX…`](https://testnet.nearblocks.io/txns/HNRq1HiXRVgPyevDKBZgRsEZQM9xDjRKRmY4aF7fPqw9)) and the poisoned one was refused ([`9WAKGzuM…`](https://testnet.nearblocks.io/txns/9WAKGzuMq6EGoh3rdUJj9Z71SdYr91tJRiJ9C6YVa7A6)).
+- On mainnet, wallets are deployed with [`contract/wallet/scripts/deploy-wallet.sh`](./contract/wallet/scripts/deploy-wallet.sh); a mainnet factory is not built.
+
 ## Red team
 
 `make redteam` runs every case through the firewall core's `judge()`, the same call the API makes. That means the real NEAR AI request, the TEE signature fetched and checked against the exact request and response, and the parsed verdict. It judges with the wallet's model and counts any verdict whose signer isn't on the wallet's allowlist as an error. It doesn't write to the chain. The wallet's own checks are covered by the contract's tests.
