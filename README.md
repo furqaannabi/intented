@@ -15,11 +15,23 @@ Agents with wallets get prompt-injected. Spending caps and allowlists check rule
 1. The **agent** proposes an action with a function-call key scoped to the wallet.
 2. The **firewall core** sends the owner's mandate and the action to a model running in a TEE on NEAR AI Cloud, with untrusted data quoted.
 3. The model returns a **verdict**, `ALLOW` or `DENY` with a reason, and NEAR AI Cloud signs the request and response.
-4. The **wallet contract** recovers the signer, checks it is allowlisted, checks the signed action is byte for byte the proposed one, and checks the nonce, expiry, caps and freeze switch.
-5. On `ALLOW` it executes: a NEAR call, or, once it's finished, a cross-chain payment through 1Click (see Status).
+4. The **wallet contract** checks, on-chain, before paying:
+   - **the signature:** NEAR AI's TEE signature over `model:sha256(request):sha256(response)` recovers an allowlisted signer;
+   - **the request:** it is exactly what the firewall core sends, with no extra fields, under the owner's mandate (by hash) and our system prompt (by hash), for this exact action and arguments, and with the token amount the model was shown matching the contract's own conversion. A genuine `ALLOW` obtained with a different mandate, prompt or amount is refused;
+   - **the verdict:** it's `ALLOW`, for this action;
+   - **the wallet's own limits:** the nonce is unused, the action hasn't expired, the receiver is allowlisted, the per-transaction and daily caps hold, and the wallet isn't frozen.
+5. On `ALLOW` it executes: a NEAR call, or a cross-chain payment through 1Click. For the cross-chain payment, the wallet also verifies 1Click's signed quote, so the deposit address it pays is tied to the recipient, asset and amount 1Click quoted.
 6. The **web app** shows the verdict, the signature, the attestation and the transactions.
 
-**Trust assumptions:** the TEE attestation is verified off-chain and the signing address is then allowlisted on-chain; the contract does not verify the TDX quote. The contract's hard caps stay as the backstop, so the model can only tighten what the contract permits. See [the trust model](./docs/decisions/2026-11-01-signed-verdict-trust-model.md).
+**What is verified where, and what is trusted**
+
+- **Attestation is checked off-chain, not by the contract.** `pnpm attest` verifies the model TEE's Intel TDX quote against Intel's certificate chain, checks that the quote binds the signing address and a fresh nonce, and checks NVIDIA's signed GPU attestation. Only then does the owner allowlist the signer. It does not compare the attested app image with a known-good one (none is published), and it trusts NVIDIA's signing keys as served over TLS. Reports: [`docs/attestations/`](./docs/attestations/). Details: [the checker record](./docs/decisions/2026-11-01-attestation-checker.md).
+- **The model can be wrong.** Whatever the agent read, such as a paywall's response, is attacker-controlled. An attacker can keep rewording it until the model slips. The red-team numbers below are our own 83 cases, not an adaptive attacker. The contract's caps limit what one wrong `ALLOW` can cost; the model can only tighten what the contract permits, never loosen it.
+- **1Click is trusted to deliver.** The wallet verifies that 1Click signed the quote, but it can't prove that 1Click then delivers on Base. On testnet a stand-in plays 1Click, and every delivery it reports is labelled simulated.
+- **The wallet account's full-access key can replace the contract.** Whoever holds it can bypass every check. For the demo wallets, that's the team.
+- **The agent holds only a function-call key** limited to `propose` and `execute` on its wallet, so it can't transfer funds directly.
+
+See [the trust model](./docs/decisions/2026-11-01-signed-verdict-trust-model.md).
 
 **Privacy:** in this version the active mandate's text is public. The wallet stores only its sha256 hash on-chain, but anyone can read the text on the web app's rules page or from `GET /api/mandates/:text_hash`. See [the record](./docs/decisions/2026-11-03-accept-mandate-lookup.md).
 
@@ -134,7 +146,7 @@ How the run works and how a run is published: [`redteam/README.md`](./redteam/RE
 
 | Folder | Tests | Run |
 | --- | --- | --- |
-| `contract/wallet` | 40, including every `execute` refusal: unknown signer, a flipped byte, `DENY`, a different action, a reused nonce, expiry, caps, freeze | `cargo test` |
+| `contract/wallet` | 41, including every `execute` refusal: unknown signer, a flipped byte, `DENY`, a different action, a fake mandate or prompt, a false amount, a reused nonce, expiry, caps, freeze, each cross-chain and signed-quote condition, and oversized proposals | `cargo test` |
 | `firewall-core` | 141 | `pnpm test` |
 | `api` | 74 | `pnpm test` |
 | `agent` | 34 | `pnpm test` |
