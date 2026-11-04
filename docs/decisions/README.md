@@ -57,6 +57,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-04 | [A wallet factory on testnet: one signed create, no full-access key, the agent's key added by the wallet](./2026-11-04-wallet-factory-on-testnet.md) (proposed, awaiting William) | Furqaan |
 | 2026-11-04 | [The wallet factory as built on testnet: stored code, the wallet as its own agent](./2026-11-04-factory-as-built.md) (proposed, awaiting William) | Furqaan |
 | 2026-11-04 | [Proposals are bounded and prunable; the mainnet wallet's full-access key is deleted after setup](./2026-11-04-bounded-proposals-and-mainnet-key.md) (proposed, awaiting William) | Furqaan |
+| 2026-11-04 | [The API judges any factory wallet's proposals, and the agent sends its own transactions](./2026-11-04-verdict-for-any-wallet.md) (proposed, awaiting Furqaan) | William |
 
 ## Not decided yet
 
