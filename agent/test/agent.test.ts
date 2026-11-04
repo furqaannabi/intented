@@ -19,10 +19,11 @@ const oneclick = (status: string, over: Partial<OneClick> = {}): OneClick => ({
 /** A fake API whose proposal moves through the given 1Click statuses, and the real paywall, both behind a stubbed fetch. */
 function setup(statuses: OneClick[], base: Omit<BaseConfig, "vendor">) {
   const proposed: Record<string, unknown>[] = [];
+  const keys: (string | undefined)[] = [];
   const proofs: PaymentPayload["payload"][] = [];
   const api = new Hono()
     .get("/api/mandates/:hash", (c) => c.json({ mandate_id: "m_1", text: MANDATE, text_hash: HASH }))
-    .post("/api/propose", async (c) => (proposed.push(await c.req.json()), c.json({ proposal_id: "p_1" })))
+    .post("/api/propose", async (c) => (keys.push(c.req.header("idempotency-key")), proposed.push(await c.req.json()), c.json({ proposal_id: "p_1" })))
     .get("/api/proposals/:id", (c) => {
       const oc = statuses.length > 1 ? statuses.shift()! : statuses[0]!;
       return c.json({ status: "executed", verdict: "ALLOW", reason: "ok", near_tx_hash: DEPOSIT_TX, oneclick: oc });
@@ -38,7 +39,7 @@ function setup(statuses: OneClick[], base: Omit<BaseConfig, "vendor">) {
     runAgent("http://paywall/base/market-data", {
       apiUrl: "http://api", apiToken: "t", agentId: "intented-agent.testnet", mandateHash: HASH, log: () => {}, pollMs: 1,
     });
-  return { proposed, proofs, run };
+  return { proposed, keys, proofs, run };
 }
 
 // What the stand-in reports once it has confirmed DEPOSIT_TX and "delivered".
@@ -57,6 +58,16 @@ describe("agent: a 402 on Base, paid through 1Click", () => {
     expect(proposed).toHaveLength(1);
     expect(proposed[0]).not.toHaveProperty("action");
     expect(proposed[0]?.cross_chain).toEqual({ token: "wrap.testnet", amount: "400000", dest_chain: "base", dest_asset: BASE_USDC, recipient: VENDOR });
+  });
+
+  it("sends a fresh Idempotency-Key with each purchase, so a retry of one can't pay twice", async () => {
+    const { keys, run } = setup([oneclick("SUCCESS")], { lookupDelivery: delivered });
+    await run();
+    // The fake API reports the same deposit both times, so the paywall rightly refuses the second; only the keys matter here.
+    await run().catch(() => {});
+    expect(keys).toHaveLength(2);
+    for (const k of keys) expect(k).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
+    expect(keys[0]).not.toBe(keys[1]);
   });
 
   it("waits for delivery, then pays the paywall with the deposit and gets the data, marked simulated", async () => {

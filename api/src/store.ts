@@ -77,6 +77,9 @@ export function openStore(path: string) {
     );
     CREATE INDEX IF NOT EXISTS proposals_updated_at ON proposals(updated_at);
     CREATE INDEX IF NOT EXISTS proposals_nonce ON proposals(json_extract(action, '$.nonce'));
+    CREATE TABLE IF NOT EXISTS idempotency_keys (
+      key TEXT PRIMARY KEY, body_sha256 TEXT NOT NULL, proposal_id TEXT NOT NULL, created_at INTEGER NOT NULL
+    );
   `);
   // Added for the cross-chain payment; a database from before it gets the columns empty.
   const columns = (db.prepare("PRAGMA table_info(proposals)").all() as { name: string }[]).map((c) => c.name);
@@ -120,6 +123,17 @@ export function openStore(path: string) {
         "INSERT INTO proposals (id, created_at, updated_at, mandate_id, action, args, context, status, step, cross_chain, oneclick) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'judge', ?, ?)",
       ).run(pid, now, now, p.mandate_id, JSON.stringify(p.action), p.args, p.context, cc, oc);
       return this.getProposal(pid)!;
+    },
+
+    getIdempotencyKey(key: string): { body_sha256: string; proposal_id: string; created_at: number } | undefined {
+      return db.prepare("SELECT body_sha256, proposal_id, created_at FROM idempotency_keys WHERE key = ?").get(key) as
+        | { body_sha256: string; proposal_id: string; created_at: number }
+        | undefined;
+    },
+
+    /** Replaces an expired key's row; the caller checks it has expired. */
+    putIdempotencyKey(key: string, body_sha256: string, proposal_id: string, at: number): void {
+      db.prepare("INSERT OR REPLACE INTO idempotency_keys (key, body_sha256, proposal_id, created_at) VALUES (?, ?, ?, ?)").run(key, body_sha256, proposal_id, at);
     },
 
     /** The wallet takes each nonce once, so at most one proposal should hold it. */

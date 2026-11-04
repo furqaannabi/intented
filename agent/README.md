@@ -62,7 +62,7 @@ Each transaction unlocks the data once, even when two requests carrying it arriv
 
 1. `GET` the paywall; expect `402`.
 2. Find the rules. `pnpm agent` reads the wallet's `mandate_hash` from `get_config` before each run. The agent then fetches that text with `GET /api/mandates/:text_hash` and checks it hashes to `mandate_hash`. If the API has no text for it, it stores the known demo text, but only if that hashes to the wallet's.
-3. `POST /api/propose`. The 402 body goes in unparsed as `context`, so the judge sees it as quoted data.
+3. `POST /api/propose`. The 402 body goes in unparsed as `context`, so the judge sees it as quoted data. Each purchase sends a fresh `Idempotency-Key`, so a retry of the same purchase can't be paid twice.
    - **NEAR routes:** an `ft_transfer` on the 402's token, to its payee, for its amount.
    - **Base routes:** the second body, `cross_chain: { token, amount, dest_chain, dest_asset, recipient }`, paid in wNEAR. The API quotes it and builds the transfer to the 1Click deposit address; the agent never picks one.
 4. Poll `GET /api/proposals/:id` until the wallet has answered or the pipeline has given up.

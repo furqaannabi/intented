@@ -13,6 +13,9 @@ import { checkPropose } from "./validate.js";
 /** Long enough for a real mandate, short enough that the open endpoint can't be used as storage. */
 const MAX_MANDATE_CHARS = 2000;
 const CONTEXT_EXCERPT_CHARS = 500;
+/** How long a retry with the same Idempotency-Key gets the first proposal back. */
+const KEY_TTL_MS = 24 * 60 * 60_000;
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{1,64}$/;
 /** Stored mandates per client and in all, per window: the owner sets one now and then. */
 const MANDATE_LIMIT = { perClient: 5, total: 30, windowMs: 60_000 };
 
@@ -112,6 +115,8 @@ export function createApp({
 }: AppDeps) {
   const app = new Hono();
   const mandates = windowLimiter(mandateLimit);
+  // Idempotency keys whose first request is still running; a second request with one is refused, not run twice.
+  const keysInFlight = new Set<string>();
   // Before the routes: Hono runs middleware in registration order.
   if (corsOrigins.length) app.use("/api/*", cors({ origin: corsOrigins }));
 
@@ -147,22 +152,52 @@ export function createApp({
   app.post("/api/propose", async (c) => {
     if (!agentToken) return c.json({ error: "AGENT_API_TOKEN is not configured" }, 503);
     if (!tokenMatches(c.req.header("authorization"), agentToken)) return c.json({ error: "unauthorized" }, 401);
-    const body = await c.req.json().catch(() => null);
+    const key = c.req.header("idempotency-key");
+    if (key !== undefined && !IDEMPOTENCY_KEY.test(key)) return c.json({ error: "Idempotency-Key must be 1 to 64 characters of A-Z a-z 0-9 _ -" }, 400);
+    const raw = await c.req.text();
+    let body: unknown = null;
+    try {
+      body = JSON.parse(raw);
+    } catch {}
+    if (key === undefined) return propose(body);
+
+    // A retry with the key gets the first proposal back: no second quote, judge call or transaction.
+    const bodyHash = createHash("sha256").update(raw, "utf8").digest("hex");
+    const held = store.getIdempotencyKey(key);
+    if (held && now() - held.created_at < KEY_TTL_MS) {
+      return held.body_sha256 === bodyHash
+        ? c.json({ proposal_id: held.proposal_id })
+        : c.json({ error: "this Idempotency-Key was used with a different body" }, 409);
+    }
+    if (keysInFlight.has(key)) return c.json({ error: "a request with this Idempotency-Key is still running" }, 409);
+    keysInFlight.add(key);
+    try {
+      const res = await propose(body);
+      // Only a stored proposal keeps the key, so a request refused for its form can be retried with it.
+      if (res.ok) store.putIdempotencyKey(key, bodyHash, ((await res.clone().json()) as { proposal_id: string }).proposal_id, now());
+      return res;
+    } finally {
+      keysInFlight.delete(key);
+    }
+  });
+
+  async function propose(body: unknown): Promise<Response> {
+    const json = (data: object, status: 200 | 400 | 409 = 200) => Response.json(data, { status });
     if (typeof body === "object" && body !== null && "cross_chain" in body) return proposeCrossChain(body);
     const checked = checkPropose(body, { network, model, now: Date.now() });
-    if ("error" in checked) return c.json({ error: checked.error }, 400);
-    if (!store.getMandate(checked.mandate_id)) return c.json({ error: "unknown mandate_id" }, 400);
+    if ("error" in checked) return json({ error: checked.error }, 400);
+    if (!store.getMandate(checked.mandate_id)) return json({ error: "unknown mandate_id" }, 400);
     // A retry carries the agent's nonce again: it gets the first proposal back, so one payment is judged and sent once.
     // Lookup and insert run with no await between them, so two requests at once can't both store it.
     const held = store.getProposalByNonce(checked.action.nonce);
     if (held) {
       const same = held.mandate_id === checked.mandate_id && held.args === checked.args && JSON.stringify(held.action) === JSON.stringify(checked.action);
-      return same ? c.json({ proposal_id: held.id }) : c.json({ error: "action.nonce is already used by another proposal" }, 409);
+      return same ? json({ proposal_id: held.id }) : json({ error: "action.nonce is already used by another proposal" }, 409);
     }
     const p = store.createProposal(checked);
     startPipeline(p.id);
-    return c.json({ proposal_id: p.id });
-  });
+    return json({ proposal_id: p.id });
+  }
 
   // The second body: the agent states the payment, the API quotes it and builds the transfer.
   async function proposeCrossChain(body: object): Promise<Response> {

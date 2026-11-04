@@ -4,7 +4,7 @@
 // A 402 on Base is paid through 1Click: the agent states the payment, the API
 // quotes it, and the agent waits for delivery before retrying.
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { BASE_USDC_CONTRACT } from "./base.js";
 import { BASE_USDC } from "./oneclick-standin.js";
 import { encode, type PaymentPayload, type PaymentRequired, type Requirement } from "./x402.js";
@@ -112,10 +112,10 @@ export async function runAgent(url: string, cfg: AgentConfig): Promise<AgentResu
     if (!res.ok) throw new Error(`${path}: ${res.status} ${body.error ?? ""}`);
     return body;
   };
-  const post = <T>(path: string, body: unknown) =>
+  const post = <T>(path: string, body: unknown, extra: Record<string, string> = {}) =>
     api<T>(path, {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${cfg.apiToken}` },
+      headers: { "content-type": "application/json", authorization: `Bearer ${cfg.apiToken}`, ...extra },
       body: JSON.stringify(body),
     });
 
@@ -137,7 +137,8 @@ export async function runAgent(url: string, cfg: AgentConfig): Promise<AgentResu
     };
     body = { mandate_id, action, args, context: quoted };
   }
-  const { proposal_id } = await post<{ proposal_id: string }>("/api/propose", body);
+  // One key per purchase: if this request is retried, the API returns the same proposal instead of paying again.
+  const { proposal_id } = await post<{ proposal_id: string }>("/api/propose", body, { "Idempotency-Key": randomUUID() });
   log(`proposed ${proposal_id}; waiting for the verdict and the wallet`);
 
   // Done once the wallet has answered (a hash to link) or the pipeline gave up.
