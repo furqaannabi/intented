@@ -9,7 +9,7 @@ mod quote;
 
 use near_sdk::json_types::{Base64VecU8, U128, U64};
 use near_sdk::store::{IterableSet, LookupMap, LookupSet};
-use near_sdk::{env, near, require, AccountId, Gas, NearToken, PanicOnDefault, Promise};
+use near_sdk::{env, near, require, AccountId, Allowance, Gas, NearToken, PanicOnDefault, Promise, PublicKey};
 
 /// Gas for the proposed call and for the callback that records its outcome.
 const CALL_GAS: Gas = Gas::from_tgas(50);
@@ -263,6 +263,42 @@ impl Wallet {
         self.one_click_key = Some(public_key);
     }
 
+    /// Sends `amount` of a token the wallet holds (`token_id`), or of NEAR
+    /// (`None`, yoctoNEAR), to the owner. Unjudged: the owner's money is theirs.
+    /// Works while frozen. NEAR is limited to what the wallet's storage doesn't need.
+    pub fn withdraw(&mut self, token_id: Option<AccountId>, amount: U128) -> Promise {
+        self.assert_owner();
+        require!(amount.0 > 0, "amount must be positive");
+        match token_id {
+            Some(token) => Promise::new(token).function_call(
+                "ft_transfer",
+                near_sdk::serde_json::to_vec(&near_sdk::serde_json::json!({ "receiver_id": self.owner_id, "amount": amount })).unwrap(),
+                NearToken::from_yoctonear(1),
+                CALL_GAS,
+            ),
+            None => {
+                let locked = env::storage_byte_cost().saturating_mul(env::storage_usage() as u128);
+                let free = env::account_balance().saturating_sub(locked);
+                require!(NearToken::from_yoctonear(amount.0) <= free, "amount is more than the wallet's NEAR above its storage");
+                Promise::new(self.owner_id.clone()).transfer(NearToken::from_yoctonear(amount.0))
+            }
+        }
+    }
+
+    /// Adds the agent's key to the wallet's own account: a function-call key
+    /// scoped to `propose` and `execute` on this wallet, with `allowance`
+    /// yoctoNEAR for gas. For wallets whose `agent_id` is the wallet itself.
+    pub fn add_agent_key(&mut self, public_key: PublicKey, allowance: U128) -> Promise {
+        self.assert_owner();
+        let allowance = Allowance::limited(NearToken::from_yoctonear(allowance.0)).unwrap_or_else(|| env::panic_str("allowance must be positive"));
+        Promise::new(env::current_account_id()).add_access_key_allowance(public_key, allowance, env::current_account_id(), "propose,execute")
+    }
+
+    pub fn remove_agent_key(&mut self, public_key: PublicKey) -> Promise {
+        self.assert_owner();
+        Promise::new(env::current_account_id()).delete_key(public_key)
+    }
+
     pub fn freeze(&mut self) {
         self.assert_owner();
         self.frozen = true;
@@ -281,6 +317,7 @@ impl Wallet {
         require!(action.method.len() <= MAX_METHOD_LEN, "method is longer than 64 characters");
         require!(args_json.len() <= MAX_ARGS_JSON_BYTES, "args_json is longer than 2048 bytes");
         require!(is_identifier(&action.method), "method must be an identifier");
+        require!(action.receiver_id != env::current_account_id(), "an action may not call the wallet itself");
         require!(
             hex::encode(env::sha256(args_json.as_bytes())) == action.args_sha256,
             "args_json does not hash to args_sha256"

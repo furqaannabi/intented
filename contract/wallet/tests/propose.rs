@@ -62,3 +62,9 @@ fn oversized_args_or_method_are_rejected_so_an_agent_cannot_lock_the_wallets_nea
     rejects(agent(), Action { args_sha256: sha256_hex(over.as_bytes()), ..a.clone() }, over, "args_json");
     rejects(agent(), Action { method: "m".repeat(65), ..a.clone() }, "{}".into(), "method");
 }
+
+#[test]
+fn an_action_that_calls_the_wallet_itself_is_refused() {
+    let (a, args) = usdc_payment(1_000_000, 1);
+    rejects(agent(), Action { receiver_id: "alice.near".parse().unwrap(), ..a }, args, "the wallet itself");
+}
