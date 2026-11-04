@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Cross } from "../components/icons";
 import { Receipt } from "../components/Receipt";
 import { Tag } from "../components/Tag";
+import { nearblocksAccount, WALLET_ID, walletFromParam } from "../lib/near";
 import { amount, outcome, OUTCOME_LABEL, payee, shortAddress, splitReason, type Outcome, type Proposal } from "../lib/proposal";
 import "./activity.css";
 
@@ -83,7 +84,48 @@ function Row({ proposal: p, selected }: { proposal: Proposal; selected: boolean 
   );
 }
 
-export function Activity() {
+/**
+ * The heading and the payments of the wallet named by ?wallet=, our own by default. The API's proposals carry no wallet
+ * and are all intented-wallet.testnet's, so another wallet gets a plain "not served yet", never our wallet's list.
+ */
+export function ActivityView() {
+  const param = useSearchParams().get("wallet");
+  const walletId = walletFromParam(param);
+  return (
+    <>
+      <div className="pt-10 pb-4">
+        <h1 className="text-[clamp(34px,4vw,56px)] leading-none font-black tracking-[-0.035em]">Activity</h1>
+        <p className="mt-3 text-sm text-mute">
+          Wallet <span className="font-mono break-all text-text">{walletId ?? param}</span> on NEAR testnet
+          {walletId === WALLET_ID && " · every verdict signed in a TEE on NEAR AI Cloud"}
+        </p>
+      </div>
+      {walletId === WALLET_ID ? (
+        <Activity />
+      ) : (
+        <p className="my-6 max-w-[44em] rounded-[18px] border border-line bg-ink-2 p-5 text-sm text-mute">
+          {walletId ? (
+            <>
+              <b className="font-bold text-text">No payments shown for this wallet yet.</b> Intented&apos;s API judges and records payments for{" "}
+              <span className="font-mono">{WALLET_ID}</span> only today. Everything this wallet has done is on{" "}
+              <a href={nearblocksAccount(walletId)} className="text-text underline decoration-line underline-offset-4 hover:decoration-soft">
+                nearblocks
+              </a>
+              .
+            </>
+          ) : (
+            <>
+              That isn&apos;t an Intented wallet. Wallets are <span className="font-mono">{WALLET_ID}</span> or a name ending in{" "}
+              <span className="font-mono">.intented.testnet</span>.
+            </>
+          )}
+        </p>
+      )}
+    </>
+  );
+}
+
+function Activity() {
   const selectedId = useSearchParams().get("p");
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [online, setOnline] = useState(true);

@@ -1,7 +1,7 @@
 "use client";
 
-import type { NearConnector } from "@hot-labs/near-connect";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowUpRight, Check, Cross } from "../components/icons";
 import { REPO } from "../components/SiteHeader";
 import {
@@ -13,9 +13,11 @@ import {
   nearblocksTx,
   sha256Hex,
   WALLET_ID,
+  walletFromParam,
   type WalletConfig,
   type WalletToken,
 } from "../lib/near";
+import { useNearWallet } from "../lib/useNearWallet";
 
 const MAX_CHARS = 2000; // POST /api/mandate's limit
 const SET_MANDATE_GAS = "30000000000000";
@@ -45,25 +47,36 @@ const short = (s: string, head = 8, tail = 8) => (s.length > head + tail + 1 ? `
 /** NEAR deposits are yoctoNEAR; the wallet's caps are tiny, so show them as written. */
 const nearAmount = (raw: string) => (raw.length <= 6 ? `${raw} yoctoNEAR` : `${formatUnits(raw, 24)} NEAR`);
 
+/** The wallet named by ?wallet=, our own by default. */
 export function Rules() {
+  const param = useSearchParams().get("wallet");
+  const walletId = walletFromParam(param);
+  if (!walletId) {
+    return (
+      <p className="my-10 max-w-[40em] rounded-[18px] border border-line bg-ink-2 p-5 text-sm text-mute">
+        <span className="font-mono break-all text-text">{param}</span> isn&apos;t an Intented wallet. Wallets are{" "}
+        <span className="font-mono">{WALLET_ID}</span> or a name ending in <span className="font-mono">.intented.testnet</span>.
+      </p>
+    );
+  }
+  return <WalletRules key={walletId} walletId={walletId} />;
+}
+
+function WalletRules({ walletId }: { walletId: string }) {
   const [config, setConfig] = useState<WalletConfig | null>(null);
   const [tokens, setTokens] = useState<Record<string, WalletToken | null>>({});
   const [readError, setReadError] = useState(false);
   const [text, setText] = useState<Text>({ state: "loading" });
-  const [account, setAccount] = useState<string | null>(null);
   const [edit, setEdit] = useState<Edit>({ step: "view" });
   const [draft, setDraft] = useState("");
-  const connector = useRef<NearConnector | null>(null);
-  // The button is live only once the connector exists, and a failed connect says so instead of doing nothing.
-  const [wallets, setWallets] = useState<"loading" | "ready" | "failed">("loading");
-  const [connectError, setConnectError] = useState<string | null>(null);
+  const { account, status: wallets, connectError, connect, disconnect, wallet: connectedWallet } = useNearWallet();
 
   const load = useCallback(async () => {
     setReadError(false);
     try {
-      const c = await getConfig();
+      const c = await getConfig(walletId);
       setConfig(c);
-      const entries = await Promise.all(c.receivers.map(async (r) => [r, await getToken(r)] as const));
+      const entries = await Promise.all(c.receivers.map(async (r) => [r, await getToken(r, walletId)] as const));
       setTokens(Object.fromEntries(entries));
       if (!c.mandate_hash) return setText({ state: "none" });
       const res = await fetch(`/api/mandates/${c.mandate_hash}`).catch(() => null);
@@ -73,7 +86,7 @@ export function Rules() {
     } catch {
       setReadError(true);
     }
-  }, []);
+  }, [walletId]);
 
   useEffect(() => {
     // Reading from the chain on mount is a sync with an external system; the setState calls happen after awaits.
@@ -81,46 +94,11 @@ export function Rules() {
     load();
   }, [load]);
 
-  // The wallet connector loads only here, and restores a previous sign-in.
-  useEffect(() => {
-    let cancelled = false;
-    import("@hot-labs/near-connect")
-      .then(async ({ NearConnector }) => {
-        if (cancelled) return;
-        const c = new NearConnector({ network: NETWORK });
-        connector.current = c;
-        c.on("wallet:signIn", (e) => setAccount(e.accounts[0]?.accountId ?? null));
-        c.on("wallet:signOut", () => setAccount(null));
-        const signedIn = await c.getConnectedWallet().catch(() => null);
-        if (cancelled) return;
-        setAccount(signedIn?.accounts[0]?.accountId ?? null);
-        setWallets("ready");
-      })
-      .catch(() => !cancelled && setWallets("failed"));
-    return () => {
-      cancelled = true;
-      connector.current?.removeAllListeners();
-      connector.current = null;
-    };
-  }, []);
-
-  async function connect() {
-    if (!connector.current) return;
-    setConnectError(null);
-    try {
-      await connector.current.connect();
-    } catch (e) {
-      // Closing the picker rejects too; only a real failure is worth showing.
-      const message = e instanceof Error ? e.message : String(e);
-      if (!/reject|cancel|clos/i.test(message)) setConnectError(message || "The wallet didn't connect");
-    }
-  }
-
   const isOwner = !!account && account === config?.owner_id;
   const current = text.state === "live" ? text.text : "";
 
   async function save() {
-    if (!connector.current || !account) return;
+    if (!account) return;
     setEdit({ step: "saving" });
     try {
       const res = await fetch("/api/mandate", {
@@ -134,10 +112,10 @@ export function Rules() {
       const hash = await sha256Hex(draft);
       if (body?.text_hash !== hash) throw new Error("The API's hash for this text doesn't match the one computed here; nothing was signed");
       setEdit({ step: "signing", hash });
-      const wallet = await connector.current.wallet();
+      const wallet = await connectedWallet();
       const outcome = await wallet.signAndSendTransaction({
         signerId: account,
-        receiverId: WALLET_ID,
+        receiverId: walletId,
         actions: [{ type: "FunctionCall", params: { methodName: "set_mandate", args: { text_hash: hash }, gas: SET_MANDATE_GAS, deposit: "0" } }],
       });
       setEdit({ step: "done", tx: outcome.transaction.hash });
@@ -156,7 +134,10 @@ export function Rules() {
         <div>
           <h1 className="text-[clamp(34px,4.4vw,60px)] leading-none font-black tracking-[-0.035em]">The rules your agent pays by.</h1>
           <p className="mt-3 text-sm text-mute">
-            Wallet <a href={nearblocksAccount(WALLET_ID)} className="font-mono text-text hover:underline">{WALLET_ID}</a>
+            Wallet{" "}
+            <a href={nearblocksAccount(walletId)} className="font-mono break-all text-text hover:underline">
+              {walletId}
+            </a>
             {config && (
               <>
                 {" "}· owner <span className="font-mono text-text">{config.owner_id}</span>
@@ -168,7 +149,7 @@ export function Rules() {
           <span className="inline-flex items-center gap-2.5 text-sm text-mute">
             <span className="size-2 rounded-full bg-lime" aria-hidden="true" />
             <span className="font-mono text-[13px] text-text">{account}</span>
-            <button onClick={() => connector.current?.disconnect()} className="underline underline-offset-[3px] hover:text-text">
+            <button onClick={disconnect} className="underline underline-offset-[3px] hover:text-text">
               Sign out
             </button>
           </span>
@@ -268,6 +249,14 @@ export function Rules() {
                 <p className="mt-4 max-w-[52em] text-[13px] text-mute">
                   The wallet stores only this hash. Your browser read it from the contract and hashed the text itself. A verdict signed
                   under any other text is refused on-chain.
+                </p>
+              )}
+
+              {walletId !== WALLET_ID && (
+                <p className="mt-4 max-w-[52em] text-[13px] text-mute">
+                  <b className="font-bold text-text">Not judged yet.</b> Intented&apos;s API judges payments for{" "}
+                  <span className="font-mono">{WALLET_ID}</span> only today, so this wallet&apos;s agent can&apos;t get a signed ALLOW until
+                  the API serves every wallet.
                 </p>
               )}
 

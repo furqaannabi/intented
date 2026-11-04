@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SiteHeader } from "../components/SiteHeader";
 import { Rules } from "./Rules";
 
@@ -12,7 +13,9 @@ export default function RulesPage() {
     <div className="overflow-x-clip">
       <SiteHeader current="rules" />
       <main className="mx-auto max-w-[1440px] px-[clamp(16px,4.5vw,72px)]">
-        <Rules />
+        <Suspense fallback={<p className="py-10 text-mute">Reading the wallet…</p>}>
+          <Rules />
+        </Suspense>
       </main>
     </div>
   );
