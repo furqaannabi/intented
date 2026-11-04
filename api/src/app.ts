@@ -2,7 +2,7 @@
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Network } from "@intented/firewall-core";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { buildCrossChain, checkCrossChainPropose } from "./crosschain.js";
 import { verifySignedQuote, type CrossChainPayment, type Quote, type SignedQuote } from "./oneclick.js";
@@ -13,6 +13,33 @@ import { checkPropose } from "./validate.js";
 /** Long enough for a real mandate, short enough that the open endpoint can't be used as storage. */
 const MAX_MANDATE_CHARS = 2000;
 const CONTEXT_EXCERPT_CHARS = 500;
+/** Stored mandates per client and in all, per window: the owner sets one now and then. */
+const MANDATE_LIMIT = { perClient: 5, total: 30, windowMs: 60_000 };
+
+/**
+ * Accepted requests per key over a sliding window, plus one shared count for all keys.
+ * `retryAfter` is null when a request may go ahead, else the seconds until it may.
+ */
+function windowLimiter({ perClient, total, windowMs }: typeof MANDATE_LIMIT) {
+  const byClient = new Map<string, number[]>();
+  let all: number[] = [];
+  const wait = (times: number[], now: number) => Math.max(1, Math.ceil((times[0]! + windowMs - now) / 1000));
+  return {
+    retryAfter(client: string, now: number): number | null {
+      all = all.filter((t) => now - t < windowMs);
+      // Only clients with requests in the window are kept, and the shared cap bounds how many those are.
+      for (const [k, times] of byClient) if (times.every((t) => now - t >= windowMs)) byClient.delete(k);
+      const mine = (byClient.get(client) ?? []).filter((t) => now - t < windowMs);
+      if (mine.length >= perClient) return wait(mine, now);
+      if (all.length >= total) return wait(all, now);
+      return null;
+    },
+    record(client: string, now: number) {
+      all.push(now);
+      byClient.set(client, [...(byClient.get(client) ?? []).filter((t) => now - t < windowMs), now]);
+    },
+  };
+}
 
 /**
  * A stored proposal in the interface spec's Proposal shape, nothing more:
@@ -54,6 +81,10 @@ export interface AppDeps {
   redteam: () => RedteamLatest | null;
   /** Origins the web app is served from (WEB_ORIGINS). */
   corsOrigins?: string[];
+  /** Who sent a request, for the rate limit on POST /api/mandate. Unset, everyone shares one limit. */
+  clientOf?: (c: Context) => string;
+  mandateLimit?: typeof MANDATE_LIMIT;
+  now?: () => number;
   /**
    * Payments through 1Click. Unset, a cross-chain propose is refused: set it only
    * once the firewall core's judge() puts `cross_chain` in the request, so the
@@ -75,8 +106,12 @@ function tokenMatches(header: string | undefined, token: string): boolean {
   return given.length === want.length && timingSafeEqual(given, want);
 }
 
-export function createApp({ store, network, model, agentToken, startPipeline, attestationUrls, redteam, corsOrigins = [], crossChain }: AppDeps) {
+export function createApp({
+  store, network, model, agentToken, startPipeline, attestationUrls, redteam, corsOrigins = [], crossChain,
+  clientOf = () => "", mandateLimit = MANDATE_LIMIT, now = Date.now,
+}: AppDeps) {
   const app = new Hono();
+  const mandates = windowLimiter(mandateLimit);
   // Before the routes: Hono runs middleware in registration order.
   if (corsOrigins.length) app.use("/api/*", cors({ origin: corsOrigins }));
 
@@ -88,6 +123,14 @@ export function createApp({ store, network, model, agentToken, startPipeline, at
     if (text.length > MAX_MANDATE_CHARS) return c.json({ error: `text is over ${MAX_MANDATE_CHARS} characters` }, 400);
     // Hashed exactly as given, never trimmed: the wallet compares this hash byte for byte.
     const text_hash = createHash("sha256").update(text, "utf8").digest("hex");
+    // Posting the same text again changes nothing, so it gets the stored mandate back and isn't counted.
+    const stored = store.getMandateByHash(text_hash);
+    if (stored) return c.json({ mandate_id: stored.id, text_hash });
+    // Open to anyone, so limited: only stored mandates count, never refused requests.
+    const client = clientOf(c);
+    const retryAfter = mandates.retryAfter(client, now());
+    if (retryAfter !== null) return c.json({ error: "too many mandates stored; try again later" }, 429, { "Retry-After": String(retryAfter) });
+    mandates.record(client, now());
     const m = store.createMandate(text, text_hash);
     return c.json({ mandate_id: m.id, text_hash });
   });
@@ -109,6 +152,13 @@ export function createApp({ store, network, model, agentToken, startPipeline, at
     const checked = checkPropose(body, { network, model, now: Date.now() });
     if ("error" in checked) return c.json({ error: checked.error }, 400);
     if (!store.getMandate(checked.mandate_id)) return c.json({ error: "unknown mandate_id" }, 400);
+    // A retry carries the agent's nonce again: it gets the first proposal back, so one payment is judged and sent once.
+    // Lookup and insert run with no await between them, so two requests at once can't both store it.
+    const held = store.getProposalByNonce(checked.action.nonce);
+    if (held) {
+      const same = held.mandate_id === checked.mandate_id && held.args === checked.args && JSON.stringify(held.action) === JSON.stringify(checked.action);
+      return same ? c.json({ proposal_id: held.id }) : c.json({ error: "action.nonce is already used by another proposal" }, 409);
+    }
     const p = store.createProposal(checked);
     startPipeline(p.id);
     return c.json({ proposal_id: p.id });

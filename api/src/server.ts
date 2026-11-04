@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
+import { getConnInfo } from "@hono/node-server/conninfo";
 import { createChainClient, createJudge, systemPrompt, type Network } from "@intented/firewall-core";
 import { createApp } from "./app.js";
 import { loadAttestationUrls } from "./attestations.js";
@@ -58,6 +59,12 @@ const app = createApp({
   attestationUrls: loadAttestationUrls(join(root, "..", "docs", "attestations"), ATTESTATIONS_URL),
   redteam: createRedteamReader(join(root, "..", "redteam", "latest.json")),
   corsOrigins: (process.env.WEB_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean),
+  // Behind a host's proxy (TRUST_PROXY=1) the client is the address the proxy appended last; a client can't forge that one.
+  // If it's the proxy's own, everyone shares the per-client limit, and the cap on all clients still holds.
+  clientOf: (c) =>
+    process.env.TRUST_PROXY === "1"
+      ? (c.req.header("x-forwarded-for") ?? "").split(",").pop()!.trim()
+      : getConnInfo(c).remote.address ?? "",
   crossChain: quoteKey ? { pay: oneclick.payCrossChain, refundTo: walletId, quoteKey } : undefined,
 });
 

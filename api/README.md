@@ -12,7 +12,7 @@ pnpm start      # http://localhost:8787
 pnpm test
 ```
 
-It reads `NEAR_NETWORK`, `NEAR_RPC_URL`, `NEAR_AI_API_KEY`, `NEAR_AI_MODEL`, `CONTRACT_ACCOUNT_ID`, `AGENT_ACCOUNT_ID`, `AGENT_PRIVATE_KEY` (a function-call key scoped to the wallet), `AGENT_API_TOKEN`, `WEB_ORIGINS`, `DATABASE_PATH`, `PORT`, and for 1Click `ONECLICK_JWT`, `ONECLICK_BASE_URL` and, off mainnet, `ONECLICK_STANDIN_PUBLIC_KEY`. It logs proposal ids, statuses and transaction hashes, never keys, tokens or prompts.
+It reads `NEAR_NETWORK`, `NEAR_RPC_URL`, `NEAR_AI_API_KEY`, `NEAR_AI_MODEL`, `CONTRACT_ACCOUNT_ID`, `AGENT_ACCOUNT_ID`, `AGENT_PRIVATE_KEY` (a function-call key scoped to the wallet), `AGENT_API_TOKEN`, `WEB_ORIGINS`, `TRUST_PROXY`, `DATABASE_PATH`, `PORT`, and for 1Click `ONECLICK_JWT`, `ONECLICK_BASE_URL` and, off mainnet, `ONECLICK_STANDIN_PUBLIC_KEY`. It logs proposal ids, statuses and transaction hashes, never keys, tokens or prompts.
 
 ## Endpoints
 
@@ -20,9 +20,9 @@ The shapes are in [the interface spec](../docs/interface-spec.md).
 
 | Endpoint | Who | What |
 | --- | --- | --- |
-| `POST /api/mandate` | anyone | Stores a mandate text and returns its sha256. Nothing changes on-chain until the owner calls `set_mandate` |
+| `POST /api/mandate` | anyone | Stores a mandate text and returns its sha256. Nothing changes on-chain until the owner calls `set_mandate`. A text already stored gets its stored `mandate_id` back. New texts are limited to 5 a minute per client and 30 a minute in all; over that, `429` with `Retry-After` |
 | `GET /api/mandates/:text_hash` | anyone | The stored text with that hash |
-| `POST /api/propose` | the agent (`AGENT_API_TOKEN`) | Stores a proposal and starts the pipeline; returns at once |
+| `POST /api/propose` | the agent (`AGENT_API_TOKEN`) | Stores a proposal and starts the pipeline; returns at once. A retry with the same nonce gets the first `proposal_id` back; a different action reusing a nonce is a `409` |
 | `GET /api/proposals?since=` | anyone | Proposals changed after a time, oldest change first |
 | `GET /api/proposals/:id` | anyone | One proposal |
 | `GET /api/redteam/latest` | anyone | The published red-team run, [`redteam/latest.json`](../redteam/latest.json) |
@@ -62,5 +62,6 @@ Before proposing, the API checks 1Click's signature on the quote, the same check
 
 ## Limits
 
+- The mandate rate limit is kept in memory, so it resets when the API restarts. Behind a host's proxy, set `TRUST_PROXY=1` so the client is read from `X-Forwarded-For` (the address the proxy appended last). If that address is the proxy's own, every client shares the per-client limit, and the cap of 30 a minute still holds.
 - The contract checks the transfer to the deposit address. That 1Click delivers to the recipient is 1Click's word, checked afterwards through its status.
 - On testnet, every quote shares the stand-in's one deposit account, so one cross-chain payment at a time.

@@ -48,3 +48,17 @@ describe("GET /api/mandates/:text_hash: a stored mandate's text by its hash", ()
     expect((await (await a.request(`/api/mandates/${sha256("same rules")}`)).json()).mandate_id).toBe(newest);
   });
 });
+
+describe("POST /api/mandate: posting the same text again", () => {
+  it("returns the mandate already stored instead of storing a second", async () => {
+    const a = app();
+    const first = await post(a, "same rules");
+    expect(await post(a, "same rules")).toEqual(first);
+  });
+
+  it("still stores a text that differs by one character", async () => {
+    const a = app();
+    const first = await post(a, "same rules");
+    expect((await post(a, "same rules.")).mandate_id).not.toBe(first.mandate_id);
+  });
+});

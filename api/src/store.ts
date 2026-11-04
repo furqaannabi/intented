@@ -76,6 +76,7 @@ export function openStore(path: string) {
       chain_proposal_id INTEGER, propose_tx_hash TEXT, near_tx_hash TEXT
     );
     CREATE INDEX IF NOT EXISTS proposals_updated_at ON proposals(updated_at);
+    CREATE INDEX IF NOT EXISTS proposals_nonce ON proposals(json_extract(action, '$.nonce'));
   `);
   // Added for the cross-chain payment; a database from before it gets the columns empty.
   const columns = (db.prepare("PRAGMA table_info(proposals)").all() as { name: string }[]).map((c) => c.name);
@@ -119,6 +120,12 @@ export function openStore(path: string) {
         "INSERT INTO proposals (id, created_at, updated_at, mandate_id, action, args, context, status, step, cross_chain, oneclick) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'judge', ?, ?)",
       ).run(pid, now, now, p.mandate_id, JSON.stringify(p.action), p.args, p.context, cc, oc);
       return this.getProposal(pid)!;
+    },
+
+    /** The wallet takes each nonce once, so at most one proposal should hold it. */
+    getProposalByNonce(nonce: string): ProposalRow | undefined {
+      const r = db.prepare("SELECT * FROM proposals WHERE json_extract(action, '$.nonce') = ? ORDER BY created_at LIMIT 1").get(nonce);
+      return r ? toRow(r as Record<string, unknown>) : undefined;
     },
 
     getProposal(proposalId: string): ProposalRow | undefined {
