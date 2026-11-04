@@ -22,6 +22,16 @@
       "port": 8402
     },
     {
+      "name": "oneclick",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "agent",
+        "oneclick"
+      ],
+      "port": 8403
+    },
+    {
       "name": "web",
       "runtimeExecutable": "web/node_modules/.bin/next",
       "runtimeArgs": [
