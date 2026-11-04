@@ -36,11 +36,13 @@ function setup() {
   const crossBody = (amount = "400000") => ({
     mandate_id: m.id, cross_chain: { token: "wrap.testnet", amount, dest_chain: "base", dest_asset: BASE_USDC, recipient: VENDOR }, context: "402",
   });
+  // Fixed once, so a retry's body is byte for byte the first one's even when the clock ticks between them.
+  const nearExpiry = String(Date.now() + 10 * 60_000);
   const nearBody = (nonce: string) => {
     const args = JSON.stringify({ receiver_id: "intented-vendor.testnet", amount: "1000000000000000000000" });
     const action = {
       receiver_id: "wrap.testnet", method: "ft_transfer", args_sha256: createHash("sha256").update(args).digest("hex"),
-      deposit: "1", nonce, expiry_ms: String(Date.now() + 10 * 60_000),
+      deposit: "1", nonce, expiry_ms: nearExpiry,
     };
     return { mandate_id: m.id, action, args, context: "402" };
   };

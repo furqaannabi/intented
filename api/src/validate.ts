@@ -7,6 +7,8 @@ import type { ActionJson } from "./store.js";
 
 /** The pipeline takes about 10 s; an action that expires inside it would be refused on-chain. */
 export const MIN_EXPIRY_HEADROOM_MS = 60_000;
+/** The wallet's propose refuses an expiry more than an hour past its block time; a minute less here allows for clock drift. */
+export const MAX_EXPIRY_AHEAD_MS = 3_600_000 - 60_000;
 const MAX_CONTEXT_CHARS = 20_000;
 const DECIMAL = /^(0|[1-9][0-9]*)$/;
 const ACTION_FIELDS = ["receiver_id", "method", "args_sha256", "deposit", "nonce", "expiry_ms"] as const;
@@ -39,6 +41,9 @@ export function checkPropose(body: unknown, opts: { network: Network; model: str
   }
   if (createHash("sha256").update(args, "utf8").digest("hex") !== act.args_sha256) return { error: "args do not hash to action.args_sha256" };
   if (BigInt(act.expiry_ms) < BigInt(opts.now + MIN_EXPIRY_HEADROOM_MS)) return { error: `action expires in under ${MIN_EXPIRY_HEADROOM_MS / 1000} s` };
+  if (BigInt(act.expiry_ms) > BigInt(opts.now + MAX_EXPIRY_AHEAD_MS)) {
+    return { error: "action expires more than an hour ahead, which the wallet refuses (the limit here is 59 minutes, for clock drift)" };
+  }
 
   // Everything else the firewall core checks: account ids, method, u64 and u128 ranges, a token transfer's amount.
   try {
