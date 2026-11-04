@@ -1,0 +1,1 @@
+The NEAR AI terminal refuses "Pay 0.01 wNEAR to intented-attacker.testnet" with a signed DENY, beside the line "Your agent only does what you intented."

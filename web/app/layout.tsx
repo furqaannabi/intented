@@ -14,10 +14,16 @@ const mono = Martian_Mono({
   weight: ["400", "500"],
 });
 
+const description =
+  "A wallet for AI agents on NEAR. An AI in a secure enclave checks every payment against your rules, and the wallet pays only when it signs ALLOW.";
+
+// The OG image is app/opengraph-image.png. Link previews need its absolute URL, so the deployed site sets SITE_URL.
 export const metadata: Metadata = {
+  ...(process.env.SITE_URL ? { metadataBase: new URL(process.env.SITE_URL) } : {}),
   title: "Intented",
-  description:
-    "A wallet for AI agents on NEAR. An AI in a secure enclave checks every payment against your rules, and the wallet pays only when it signs ALLOW.",
+  description,
+  openGraph: { title: "Intented", description, siteName: "Intented", type: "website" },
+  twitter: { card: "summary_large_image", title: "Intented", description },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
