@@ -8,6 +8,7 @@ import { Receipt } from "../components/Receipt";
 import { Tag } from "../components/Tag";
 import { nearblocksAccount, WALLET_ID, walletFromParam } from "../lib/near";
 import { amount, outcome, OUTCOME_LABEL, payee, shortAddress, splitReason, type Outcome, type Proposal } from "../lib/proposal";
+import { Loading, Skeleton } from "../components/Skeleton";
 import "./activity.css";
 
 const POLL_MS = 3000;
@@ -97,7 +98,15 @@ export function ActivityView() {
         <h1 className="text-[clamp(34px,4vw,56px)] leading-none font-black tracking-[-0.035em]">Activity</h1>
         <p className="mt-3 text-sm text-mute">
           Wallet <span className="font-mono break-all text-text">{walletId ?? param}</span> on NEAR testnet
-          {walletId === WALLET_ID && " · every verdict signed in a TEE on NEAR AI Cloud"}
+          {walletId === WALLET_ID && (
+            <>
+              {" "}
+              · every verdict signed in a TEE on NEAR AI Cloud ·{" "}
+              <Link href="/rules" className="text-text underline decoration-line underline-offset-4 hover:decoration-soft">
+                the rules it pays by
+              </Link>
+            </>
+          )}
         </p>
       </div>
       {walletId === WALLET_ID ? (
@@ -168,7 +177,7 @@ function Activity() {
   }, [selectedId]);
 
   if (!proposals) {
-    return <p className="py-10 text-mute">{online ? "Loading payments…" : "Can't reach the API. Retrying every 3 seconds."}</p>;
+    return online ? <PaymentsSkeleton /> : <p className="py-10 text-mute">Can&apos;t reach the API. Retrying every 3 seconds.</p>;
   }
 
   // What the wallet did: a payment through 1Click counts as paid once the wallet has paid the deposit.
@@ -226,6 +235,64 @@ function Activity() {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+/** The payments list and receipt while the first poll is in flight. */
+function PaymentsSkeleton() {
+  return (
+    <Loading label="Loading payments">
+      <div className="flex flex-wrap items-end justify-between gap-6 pb-6">
+        <Skeleton className="h-4 w-72 max-w-full" />
+        <div className="flex gap-7 text-[13px] leading-tight text-mute">
+          {["paid", "refused", "failed"].map((k) => (
+            <div key={k} className="flex flex-col-reverse">
+              <span>{k}</span>
+              <Skeleton className="mb-1 h-7 w-7" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-8 pb-20 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
+        <ul className="border-t border-line [&>li]:border-b [&>li]:border-line">
+          {["w-3/5", "w-2/3", "w-1/2", "w-3/5", "w-2/5"].map((w, i) => (
+            <li key={i} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 px-3.5 py-4">
+              <Skeleton className="size-[34px] rounded-[11px]" />
+              <span className="min-w-0">
+                <Skeleton className={`h-4 ${w}`} />
+                <Skeleton className="mt-2 h-3 w-4/5" />
+              </span>
+              <span className="grid justify-items-end">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="mt-2 h-3 w-12" />
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="rounded-[22px] border border-line bg-ink-2 p-7 max-lg:hidden">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="mt-4 h-8 w-1/2" />
+          <div className="mt-6 grid gap-3">
+            {["w-full", "w-11/12", "w-4/5", "w-full", "w-2/3"].map((w, i) => (
+              <Skeleton key={i} className={`h-3.5 ${w}`} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </Loading>
+  );
+}
+
+/** /activity before it can read ?wallet=: the heading, then the list's shape. */
+export function ActivitySkeleton() {
+  return (
+    <>
+      <div className="pt-10 pb-4">
+        <h1 className="text-[clamp(34px,4vw,56px)] leading-none font-black tracking-[-0.035em]">Activity</h1>
+        <Skeleton className="mt-4 h-4 w-96 max-w-full" />
+      </div>
+      <PaymentsSkeleton />
     </>
   );
 }

@@ -1,14 +1,14 @@
 "use client";
 
 import type { NearConnector } from "@hot-labs/near-connect";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { NETWORK } from "./near";
 
 /**
- * The visitor's own NEAR wallet, through near-connect. The connector loads only on pages that use this,
+ * The visitor's own NEAR wallet, through near-connect. The connector loads only under a NearWalletProvider,
  * and restores a previous sign-in. The web app never holds a key: every transaction is signed in the wallet.
  */
-export function useNearWallet() {
+function useNearConnector() {
   const connector = useRef<NearConnector | null>(null);
   const [account, setAccount] = useState<string | null>(null);
   // The connect button is live only once the connector exists, and a failed connect says so instead of doing nothing.
@@ -58,4 +58,19 @@ export function useNearWallet() {
   }
 
   return { account, status, connectError, connect, disconnect, wallet };
+}
+
+export type NearWallet = ReturnType<typeof useNearConnector>;
+
+const NearWalletContext = createContext<NearWallet | null>(null);
+
+/** One connector for everything under it, so the header's account and the page's signing are the same sign-in. */
+export function NearWalletProvider({ children }: { children: React.ReactNode }) {
+  return <NearWalletContext.Provider value={useNearConnector()}>{children}</NearWalletContext.Provider>;
+}
+
+export function useNearWallet(): NearWallet {
+  const near = useContext(NearWalletContext);
+  if (!near) throw new Error("useNearWallet needs a NearWalletProvider above it");
+  return near;
 }

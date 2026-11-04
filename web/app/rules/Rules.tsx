@@ -18,9 +18,8 @@ import {
   type WalletToken,
 } from "../lib/near";
 import { useNearWallet } from "../lib/useNearWallet";
-
-const MAX_CHARS = 2000; // POST /api/mandate's limit
-const SET_MANDATE_GAS = "30000000000000";
+import { RulesEditor } from "../components/RulesEditor";
+import { Loading, Skeleton, Spinner } from "../components/Skeleton";
 
 const button = "inline-flex items-center gap-2 rounded-full px-5 py-3 text-[15px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-45";
 const primary = `${button} bg-lime text-lime-ink`;
@@ -34,13 +33,8 @@ type Text =
   | { state: "unavailable" } // the API couldn't give a text for this hash
   | { state: "mismatch" }; // the API gave a text whose hash isn't the wallet's
 
-type Edit =
-  | { step: "view" }
-  | { step: "edit" }
-  | { step: "saving" }
-  | { step: "signing"; hash: string }
-  | { step: "done"; tx: string }
-  | { step: "error"; message: string };
+/** Viewing, editing in RulesEditor, or the outcome of the last edit. */
+type Edit = { step: "view" } | { step: "edit" } | { step: "done"; tx: string } | { step: "error"; message: string };
 
 const short = (s: string, head = 8, tail = 8) => (s.length > head + tail + 1 ? `${s.slice(0, head)}…${s.slice(-tail)}` : s);
 
@@ -68,7 +62,6 @@ function WalletRules({ walletId }: { walletId: string }) {
   const [readError, setReadError] = useState(false);
   const [text, setText] = useState<Text>({ state: "loading" });
   const [edit, setEdit] = useState<Edit>({ step: "view" });
-  const [draft, setDraft] = useState("");
   const { account, status: wallets, connectError, connect, disconnect, wallet: connectedWallet } = useNearWallet();
 
   const load = useCallback(async () => {
@@ -96,37 +89,6 @@ function WalletRules({ walletId }: { walletId: string }) {
 
   const isOwner = !!account && account === config?.owner_id;
   const current = text.state === "live" ? text.text : "";
-
-  async function save() {
-    if (!account) return;
-    setEdit({ step: "saving" });
-    try {
-      const res = await fetch("/api/mandate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text: draft }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.error ?? `The API answered ${res.status}`);
-      // Never ask the owner to sign a hash we didn't compute ourselves.
-      const hash = await sha256Hex(draft);
-      if (body?.text_hash !== hash) throw new Error("The API's hash for this text doesn't match the one computed here; nothing was signed");
-      setEdit({ step: "signing", hash });
-      const wallet = await connectedWallet();
-      const outcome = await wallet.signAndSendTransaction({
-        signerId: account,
-        receiverId: walletId,
-        actions: [{ type: "FunctionCall", params: { methodName: "set_mandate", args: { text_hash: hash }, gas: SET_MANDATE_GAS, deposit: "0" } }],
-      });
-      setEdit({ step: "done", tx: outcome.transaction.hash });
-      await load();
-    } catch (e) {
-      setEdit({ step: "error", message: e instanceof Error ? e.message : "The wallet didn't sign" });
-    }
-  }
-
-  const editing = edit.step === "edit" || edit.step === "saving" || edit.step === "signing";
-  const draftHashMatchesCurrent = draft === current;
 
   return (
     <>
@@ -156,7 +118,8 @@ function WalletRules({ walletId }: { walletId: string }) {
         ) : (
           <div className="text-right">
             <button onClick={connect} disabled={wallets !== "ready"} className={secondary}>
-              {wallets === "loading" ? "Loading wallets…" : "Connect wallet"}
+              {wallets === "loading" && <Spinner />}
+              Connect wallet
             </button>
             {wallets === "failed" && <p className="mt-2 text-xs text-coral">The wallet list didn&apos;t load. Reload to try again.</p>}
             {connectError && <p className="mt-2 max-w-[28em] text-xs text-coral">{connectError}</p>}
@@ -175,51 +138,19 @@ function WalletRules({ walletId }: { walletId: string }) {
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-7 pb-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <section className="rounded-[22px] border border-line bg-ink-2 p-[clamp(20px,2.4vw,32px)]" aria-label="The rules">
-          {editing ? (
-            <>
-              <label htmlFor="rules-draft" className="mb-2 block text-xs text-mute">
-                Write the rules in plain English
-              </label>
-              <textarea
-                id="rules-draft"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                maxLength={MAX_CHARS}
-                disabled={edit.step !== "edit"}
-                className="min-h-[150px] w-full resize-y rounded-2xl border-[1.5px] border-line bg-ink p-[18px] text-xl leading-snug font-medium text-text outline-none focus:border-soft disabled:opacity-70"
-              />
-              <div className="mt-2 flex justify-between gap-4 text-xs text-mute">
-                <span>Saved exactly as typed; spaces and line breaks count.</span>
-                <span className="font-mono">
-                  {draft.length} / {MAX_CHARS}
-                </span>
-              </div>
-              <p className="mt-4 rounded-[14px] border border-line bg-ink px-4 py-3.5 text-[13px] text-mute">
-                <b className="font-bold text-text">The agent switches to these rules on its next payment.</b> The contract&apos;s
-                limits still apply: rules can only tighten them, never loosen them.
-              </p>
-              {edit.step === "edit" ? (
-                <div className="mt-6 flex flex-wrap gap-2.5">
-                  <button onClick={save} disabled={!draft || draftHashMatchesCurrent} className={primary}>
-                    Save and sign
-                  </button>
-                  <button onClick={() => setEdit({ step: "view" })} className={secondary}>
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <ol className="mt-6 grid gap-2.5 text-sm">
-                  <Step n={1} state={edit.step === "saving" ? "now" : "done"} title="Save the text" />
-                  <Step
-                    n={2}
-                    state={edit.step === "signing" ? "now" : "todo"}
-                    title="Approve set_mandate in your wallet"
-                    note={edit.step === "signing" ? `sha256 ${short(edit.hash)} · waiting for your wallet` : undefined}
-                  />
-                  <Step n={3} state="todo" title="Confirmed on-chain" />
-                </ol>
-              )}
-            </>
+          {edit.step === "edit" && account ? (
+            <RulesEditor
+              walletId={walletId}
+              current={current}
+              signerId={account}
+              wallet={connectedWallet}
+              onDone={(tx) => {
+                setEdit({ step: "done", tx });
+                load();
+              }}
+              onError={(message) => setEdit({ step: "error", message })}
+              onCancel={() => setEdit({ step: "view" })}
+            />
           ) : (
             <>
               <LiveLabel text={text} />
@@ -234,7 +165,13 @@ function WalletRules({ walletId }: { walletId: string }) {
                 <p className="text-lg text-mute">The API returned a text whose hash isn&apos;t the wallet&apos;s, so it isn&apos;t shown.</p>
               )}
               {text.state === "none" && <p className="text-lg text-mute">No rules are set on this wallet, so every payment is refused.</p>}
-              {text.state === "loading" && <p className="text-lg text-mute">Reading the wallet…</p>}
+              {text.state === "loading" && (
+                <Loading label="Reading the wallet">
+                  <Skeleton className="h-[clamp(26px,2.6vw,36px)] w-full" />
+                  <Skeleton className="mt-3 h-[clamp(26px,2.6vw,36px)] w-4/5" />
+                  <Skeleton className="mt-3 h-[clamp(26px,2.6vw,36px)] w-1/2" />
+                </Loading>
+              )}
 
               {config?.mandate_hash && (
                 <dl className="mt-6 grid gap-2.5 border-t border-line pt-5 text-[13px]">
@@ -277,10 +214,7 @@ function WalletRules({ walletId }: { walletId: string }) {
               {isOwner && (
                 <div className="mt-6">
                   <button
-                    onClick={() => {
-                      setDraft(current);
-                      setEdit({ step: "edit" });
-                    }}
+                    onClick={() => setEdit({ step: "edit" })}
                     className={primary}
                   >
                     Edit the rules
@@ -325,7 +259,15 @@ function WalletRules({ walletId }: { walletId: string }) {
               <Limit label="Frozen" value={config.frozen ? "Yes: nothing executes" : "No"} />
             </dl>
           ) : (
-            !readError && <p className="mt-4 text-sm text-mute">Reading the contract…</p>
+            !readError && (
+              <Loading label="Reading the contract">
+                <div className="mt-4 grid gap-4">
+                  {["w-full", "w-11/12", "w-full", "w-4/5", "w-full", "w-3/5", "w-2/3"].map((w, i) => (
+                    <Skeleton key={i} className={`h-3.5 ${w}`} />
+                  ))}
+                </div>
+              </Loading>
+            )
           )}
         </aside>
       </div>
@@ -355,20 +297,5 @@ function Limit({ label, value, mono }: { label: string; value: React.ReactNode; 
       <dt className="text-mute">{label}</dt>
       <dd className={`text-right font-medium ${mono ? "font-mono text-xs" : ""}`}>{value}</dd>
     </div>
-  );
-}
-
-function Step({ n, state, title, note }: { n: number; state: "done" | "now" | "todo"; title: string; note?: string }) {
-  const badge = { done: "bg-lime text-lime-ink", now: "bg-soft text-ink", todo: "bg-line text-mute" }[state];
-  return (
-    <li className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-3">
-      <span className={`grid size-7 place-items-center rounded-[9px] font-mono text-xs ${badge}`} aria-hidden="true">
-        {state === "done" ? <Check className="size-3.5" /> : n}
-      </span>
-      <span>
-        {title}
-        {note && <small className="block font-mono text-xs text-mute">{note}</small>}
-      </span>
-    </li>
   );
 }

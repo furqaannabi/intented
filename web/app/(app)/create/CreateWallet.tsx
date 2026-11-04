@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, Check, Cross } from "../components/icons";
-import { REPO } from "../components/SiteHeader";
+import { ArrowUpRight, Check, Cross } from "../../components/icons";
+import { REPO } from "../../components/SiteHeader";
+import { Loading, Skeleton, Spinner } from "../../components/Skeleton";
 import {
   FACTORY_ID,
   formatUnits,
@@ -18,19 +19,16 @@ import {
   viewAccount,
   viewOn,
   type WalletConfig,
-} from "../lib/near";
-import { useNearWallet } from "../lib/useNearWallet";
+} from "../../lib/near";
+import { rememberWallet, walletHref } from "../../lib/myWallets";
+import { useNearWallet } from "../../lib/useNearWallet";
+import { call, ED25519_KEY, fundActions } from "../../lib/walletActions";
 
 const MAX_RULES = 2000; // POST /api/mandate's limit
-const TGAS = "000000000000";
-const CREATE_GAS = `300${TGAS}`;
-const CALL_GAS = `30${TGAS}`;
-const ONE_YOCTO = "1";
-const STORAGE_DEPOSIT = "1250000000000000000000"; // 0.00125 NEAR, a token's registration
+const CREATE_GAS = "300000000000000"; // 300 Tgas
 // The NEAR the wallet may attach to a call: ft_transfer's 1 yocto security deposit. Fixed, as in Furqaan's example.
 const NEAR_CAPS = { per_tx: "1", daily: "100" };
 
-const ED25519_KEY = /^ed25519:[1-9A-HJ-NP-Za-km-z]{43,44}$/;
 
 const button = "inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-[15px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-45";
 const primary = `${button} bg-lime text-lime-ink`;
@@ -189,6 +187,7 @@ export function CreateWallet() {
         if (!made) await new Promise((r) => setTimeout(r, 1500));
       }
       if (!made) throw new Error(`The transaction went through, but ${walletId} wasn't created; the factory refunds the deposit. Transaction ${outcome.transaction.hash}.`);
+      rememberWallet(walletId);
       setFlow({ step: "created", walletId, tx: outcome.transaction.hash, mandateHash: hash, agentKey: key || null });
     } catch (e) {
       setFlow({ step: "error", message: errorText(e, "The wallet didn't sign") });
@@ -201,13 +200,7 @@ export function CreateWallet() {
 
   return (
     <>
-      <div className="max-w-[46em] pt-10 pb-2">
-        <h1 className="text-[clamp(34px,4.2vw,60px)] leading-none font-black tracking-[-0.035em]">Create your wallet.</h1>
-        <p className="mt-3 text-[17px] text-mute">
-          A NEAR wallet your AI agent can spend from, but only on payments an AI in a secure enclave signs as matching your rules. You sign
-          once in your own NEAR wallet; nothing to install. NEAR testnet.
-        </p>
-      </div>
+      <Intro />
 
       {loadError && (
         <p className="mt-6 rounded-[18px] border border-line bg-ink-2 p-5 text-sm text-mute">
@@ -341,7 +334,12 @@ export function CreateWallet() {
                 </a>
               </div>
             ) : (
-              <p className="text-sm text-mute">Reading the judge from NEAR testnet…</p>
+              <Loading label="Reading the judge from NEAR testnet">
+                <div className="rounded-[14px] border border-line bg-ink-2 p-3.5">
+                  <Skeleton className="h-3.5 w-2/3" />
+                  <Skeleton className="mt-2.5 h-3.5 w-11/12" />
+                </div>
+              </Loading>
             )}
             {factory && (
               <p className="mt-3 text-[13px] text-mute">
@@ -376,12 +374,16 @@ export function CreateWallet() {
             <dt>Rules hash</dt>
             <dd>{rulesTrimmed ? `${rulesHash.slice(0, 12)}…` : "—"}</dd>
             <dt>Judge</dt>
-            <dd>{judge ? `${judge.signer.slice(0, 6)}…${judge.signer.slice(-4)}` : "…"}</dd>
+            <dd>{judge ? `${judge.signer.slice(0, 6)}…${judge.signer.slice(-4)}` : <Skeleton className="ml-auto h-3.5 w-24" />}</dd>
           </dl>
           {rulesTrimmed && <p className="mt-4 max-h-36 overflow-auto rounded-[14px] bg-ink-2 p-3.5 text-sm break-words text-soft">{rules}</p>}
           <div className="mt-5 flex items-baseline justify-between border-t border-dashed border-line pt-4">
             <span className="text-mute">Deposit</span>
-            <b className="text-[28px] font-black tracking-[-0.02em]">{factory ? `${Number(formatUnits(factory.minDeposit, 24)).toFixed(2)} NEAR` : "…"}</b>
+            {factory ? (
+              <b className="text-[28px] font-black tracking-[-0.02em]">{`${Number(formatUnits(factory.minDeposit, 24)).toFixed(2)} NEAR`}</b>
+            ) : (
+              <Skeleton className="h-8 w-28" />
+            )}
           </div>
           <p className="mt-2 text-[12.5px] text-mute">It stays in the wallet: it pays for the contract&apos;s storage and the agent&apos;s gas. If creating fails, it&apos;s refunded.</p>
 
@@ -391,7 +393,8 @@ export function CreateWallet() {
             </button>
           ) : (
             <button onClick={near.connect} disabled={near.status !== "ready"} className={`${primary} mt-5 w-full py-4`}>
-              {near.status === "loading" ? "Loading wallets…" : "Connect your NEAR wallet"}
+              {near.status === "loading" && <Spinner tone="dark" />}
+              Connect your NEAR wallet
             </button>
           )}
           {near.status === "failed" && <p className="mt-2 text-xs text-coral">The wallet list didn&apos;t load. Reload to try again.</p>}
@@ -402,10 +405,7 @@ export function CreateWallet() {
             {near.account && (
               <>
                 {" "}
-                Signed in as <span className="font-mono text-text">{near.account}</span> ·{" "}
-                <button onClick={near.disconnect} className="underline underline-offset-[3px] hover:text-text">
-                  sign out
-                </button>
+                Signed in as <span className="font-mono text-text">{near.account}</span>.
               </>
             )}
           </p>
@@ -498,15 +498,7 @@ function Created({
     if (!raw || raw === "0" || !near.account) return;
     setFundState({ step: "signing" });
     try {
-      const call = (methodName: string, args: object, deposit: string) => ({ type: "FunctionCall" as const, params: { methodName, args, gas: CALL_GAS, deposit } });
-      // registration_only refunds what isn't needed, so registering an account that already is costs nothing.
-      const actions = [
-        call("storage_deposit", { account_id: walletId, registration_only: true }, STORAGE_DEPOSIT),
-        ...(token.symbol === "wNEAR"
-          ? [call("storage_deposit", { account_id: near.account, registration_only: true }, STORAGE_DEPOSIT), call("near_deposit", {}, raw)]
-          : []),
-        call("ft_transfer", { receiver_id: walletId, amount: raw }, ONE_YOCTO),
-      ];
+      const actions = fundActions(token, near.account, walletId, raw);
       const outcome = await (await near.wallet()).signAndSendTransaction({ signerId: near.account, receiverId: token.contract, actions });
       setFundState({ step: "done", tx: outcome.transaction.hash });
     } catch (e) {
@@ -523,7 +515,7 @@ function Created({
       const outcome = await (await near.wallet()).signAndSendTransaction({
         signerId: near.account,
         receiverId: walletId,
-        actions: [{ type: "FunctionCall", params: { methodName: "add_agent_key", args: { public_key: k, allowance: raw }, gas: CALL_GAS, deposit: "0" } }],
+        actions: [call("add_agent_key", { public_key: k, allowance: raw })],
       });
       setKeyState({ step: "done", key: k, tx: outcome.transaction.hash });
     } catch (e) {
@@ -548,7 +540,13 @@ function Created({
         <Card step="On the chain" title="Check it">
           <p>Read back from the wallet contract just now:</p>
           {checks === null ? (
-            <p>Reading…</p>
+            <Loading label="Reading the wallet back from the chain">
+              <div className="grid gap-2.5 pt-1">
+                {["w-4/5", "w-3/5", "w-5/6", "w-2/3"].map((w) => (
+                  <Skeleton key={w} className={`h-3.5 ${w}`} />
+                ))}
+              </div>
+            </Loading>
           ) : checks.length === 0 ? (
             <p className="text-coral">Couldn&apos;t read the wallet yet. Reload in a moment.</p>
           ) : (
@@ -562,8 +560,8 @@ function Created({
             </ul>
           )}
           <div className="mt-auto flex flex-wrap gap-2">
-            <Link href={`/rules?wallet=${walletId}`} className={secondary}>
-              Its rules
+            <Link href={walletHref(walletId)} className={secondary}>
+              Open the wallet
             </Link>
             <a href={nearblocksAccount(walletId)} className={secondary}>
               nearblocks <ArrowUpRight className="size-4" />
@@ -637,5 +635,46 @@ function Card({ step, title, children }: { step: string; title: string; children
       <h2 className="text-[19px] font-black text-text">{title}</h2>
       {children}
     </section>
+  );
+}
+
+function Intro() {
+  return (
+    <div className="max-w-[46em] pt-10 pb-2">
+      <h1 className="text-[clamp(34px,4.2vw,60px)] leading-none font-black tracking-[-0.035em]">Create your wallet.</h1>
+      <p className="mt-3 text-[17px] text-mute">
+        A NEAR wallet your AI agent can spend from, but only on payments an AI in a secure enclave signs as matching your rules. You sign once
+        in your own NEAR wallet; nothing to install. NEAR testnet.
+      </p>
+    </div>
+  );
+}
+
+/** The Create page's shape for the moment before it can read ?name= and ?key= from the URL. */
+export function CreateSkeleton() {
+  return (
+    <Loading label="Loading the create form">
+      <Intro />
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-8 pt-7 pb-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+        <div className="grid gap-6">
+          {[0, 1, 2].map((i) => (
+            <div key={i}>
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="mt-3 h-12 w-full rounded-[14px]" />
+            </div>
+          ))}
+        </div>
+        <div className="rounded-[24px] bg-card p-[clamp(20px,2.4vw,28px)]">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="mt-3 h-6 w-3/4" />
+          <div className="mt-5 grid gap-3">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-3.5 w-full" />
+            ))}
+          </div>
+          <Skeleton className="mt-6 h-14 w-full rounded-full" />
+        </div>
+      </div>
+    </Loading>
   );
 }

@@ -1,5 +1,5 @@
 // Reads from the wallet contract over public RPC, straight from the browser,
-// so what the page shows as "on the wallet" doesn't depend on our API.
+// so what the page shows as "on the wallet" doesn't depend on our API. Also imported on the server, for walletFromParam.
 
 export const NETWORK = "testnet" as const;
 export const WALLET_ID = "intented-wallet.testnet";
@@ -66,23 +66,59 @@ export function walletFromParam(param: string | null): string | null {
   return LABEL.test(param.slice(0, -suffix.length)) ? param : null;
 }
 
-/** An account's code hash and balance from view_account, or null if it doesn't exist; any other RPC error is thrown. */
-export async function viewAccount(accountId: string): Promise<{ code_hash: string; amount: string } | null> {
+/** A query of another kind than a view call, e.g. view_account; the raw result. */
+async function query(requestType: string, accountId: string) {
   const res = await fetch(RPC_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       jsonrpc: "2.0",
-      id: "view_account",
+      id: requestType,
       method: "query",
-      params: { request_type: "view_account", finality: "final", account_id: accountId },
+      params: { request_type: requestType, finality: "final", account_id: accountId },
     }),
   });
-  const body = await res.json();
+  return res.json();
+}
+
+/** NEAR's storage price: yoctoNEAR per byte. */
+const STORAGE_BYTE_COST = BigInt("10000000000000000000");
+
+export type AccountView = { code_hash: string; amount: string; storage_usage: number };
+
+/** An account's code hash, balance and storage from view_account, or null if it doesn't exist; any other RPC error is thrown. */
+export async function viewAccount(accountId: string): Promise<AccountView | null> {
+  const body = await query("view_account", accountId);
   if (body.error?.cause?.name === "UNKNOWN_ACCOUNT") return null;
   if (body.error) throw new Error(`view_account: ${JSON.stringify(body.error)}`);
-  return { code_hash: body.result.code_hash, amount: body.result.amount };
+  return { code_hash: body.result.code_hash, amount: body.result.amount, storage_usage: body.result.storage_usage };
 }
+
+/** The NEAR the account holds above what its storage locks: what the wallet's withdraw(None, …) can send. */
+export function freeNear(a: AccountView): string {
+  const free = BigInt(a.amount) - STORAGE_BYTE_COST * BigInt(a.storage_usage);
+  return free > BigInt(0) ? free.toString() : "0";
+}
+
+/** A function-call key on an account: who it may call, which methods, and the gas allowance left (null: unlimited). */
+export type FunctionCallKey = { public_key: string; receiver_id: string; method_names: string[]; allowance: string | null };
+
+/** The account's function-call keys. Full-access keys are counted, not listed: a factory wallet has none. */
+export async function viewKeys(accountId: string): Promise<{ functionCall: FunctionCallKey[]; fullAccess: number }> {
+  const body = await query("view_access_key_list", accountId);
+  if (body.error) throw new Error(`view_access_key_list: ${JSON.stringify(body.error)}`);
+  const functionCall: FunctionCallKey[] = [];
+  let fullAccess = 0;
+  for (const k of body.result.keys as { public_key: string; access_key: { permission: unknown } }[]) {
+    const perm = k.access_key.permission as "FullAccess" | { FunctionCall: { receiver_id: string; method_names: string[]; allowance: string | null } };
+    if (perm === "FullAccess") fullAccess++;
+    else functionCall.push({ public_key: k.public_key, ...perm.FunctionCall });
+  }
+  return { functionCall, fullAccess };
+}
+
+/** A NEP-141 token balance, in base units. */
+export const ftBalance = (token: string, accountId: string) => viewOn<string>(token, "ft_balance_of", { account_id: accountId });
 
 /** Tokens a wallet can pay in on testnet. Symbol and decimals must equal firewall-core's KNOWN_TOKENS, or the wallet refuses every transfer of it. */
 export const TESTNET_TOKENS = [

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { SiteHeader } from "../components/SiteHeader";
-import { ActivityView } from "./Activity";
+import { ActivitySkeleton, ActivityView } from "./Activity";
 
 export const metadata: Metadata = {
   title: "Activity · Intented",
@@ -11,9 +11,9 @@ export const metadata: Metadata = {
 export default function ActivityPage() {
   return (
     <div className="overflow-x-clip">
-      <SiteHeader current="activity" />
+      <SiteHeader current="demo" />
       <main className="mx-auto max-w-[1440px] px-[clamp(16px,4.5vw,72px)]">
-        <Suspense fallback={<p className="py-10 text-mute">Loading payments…</p>}>
+        <Suspense fallback={<ActivitySkeleton />}>
           <ActivityView />
         </Suspense>
       </main>
