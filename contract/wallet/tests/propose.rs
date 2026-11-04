@@ -48,3 +48,17 @@ fn fields_that_would_make_the_canonical_bytes_ambiguous_are_rejected() {
         rejects(agent(), Action { method: method.into(), ..a.clone() }, args.clone(), "method");
     }
 }
+
+#[test]
+fn oversized_args_or_method_are_rejected_so_an_agent_cannot_lock_the_wallets_near_in_storage() {
+    let (a, _) = usdc_payment(1_000_000, 1);
+    let at_limit = format!(r#"{{"receiver_id":"vendor.testnet","amount":"1","memo":"{}"}}"#, "m".repeat(2048 - 55));
+    assert_eq!(at_limit.len(), 2048);
+    let mut w = wallet();
+    as_caller(agent());
+    w.propose(Action { args_sha256: sha256_hex(at_limit.as_bytes()), ..a.clone() }, at_limit.clone());
+
+    let over = format!("{at_limit} ");
+    rejects(agent(), Action { args_sha256: sha256_hex(over.as_bytes()), ..a.clone() }, over, "args_json");
+    rejects(agent(), Action { method: "m".repeat(65), ..a.clone() }, "{}".into(), "method");
+}

@@ -17,6 +17,11 @@ const CALLBACK_GAS: Gas = Gas::from_tgas(10);
 
 const DAY_MS: u64 = 86_400_000;
 
+/// Upper bounds on what `propose` stores, so an agent cannot lock the wallet's
+/// NEAR in storage with oversized proposals.
+const MAX_ARGS_JSON_BYTES: usize = 2048;
+const MAX_METHOD_LEN: usize = 64;
+
 /// Token methods whose `amount` argument counts against that token's caps.
 const TOKEN_TRANSFER_METHODS: [&str; 2] = ["ft_transfer", "ft_transfer_call"];
 
@@ -273,6 +278,8 @@ impl Wallet {
     /// Store an action for judging. Returns its proposal id.
     pub fn propose(&mut self, action: Action, args_json: String) -> u64 {
         require!(env::predecessor_account_id() == self.agent_id, "agent only");
+        require!(action.method.len() <= MAX_METHOD_LEN, "method is longer than 64 characters");
+        require!(args_json.len() <= MAX_ARGS_JSON_BYTES, "args_json is longer than 2048 bytes");
         require!(is_identifier(&action.method), "method must be an identifier");
         require!(
             hex::encode(env::sha256(args_json.as_bytes())) == action.args_sha256,
