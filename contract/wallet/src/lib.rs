@@ -21,6 +21,12 @@ const DAY_MS: u64 = 86_400_000;
 /// NEAR in storage with oversized proposals.
 const MAX_ARGS_JSON_BYTES: usize = 2048;
 const MAX_METHOD_LEN: usize = 64;
+/// At most this many proposals wait at once; prune frees expired ones.
+const MAX_PENDING: u32 = 32;
+/// An action may expire at most this far ahead, so a stuck proposal is
+/// prunable by anyone within the hour.
+const MAX_EXPIRY_AHEAD_MS: u64 = 3_600_000;
+const MAX_PRUNE: usize = 64;
 
 /// Token methods whose `amount` argument counts against that token's caps.
 const TOKEN_TRANSFER_METHODS: [&str; 2] = ["ft_transfer", "ft_transfer_call"];
@@ -167,6 +173,8 @@ pub struct Wallet {
     cross_chain_recipients: IterableSet<String>,
     /// 1Click's quote-signing key, "ed25519:<base58>"; no cross-chain payment until set.
     one_click_key: Option<String>,
+    /// Proposals waiting for execute; capped at MAX_PENDING.
+    pending_count: u32,
 }
 
 #[near]
@@ -191,6 +199,7 @@ impl Wallet {
             cross_chain_enabled: false,
             cross_chain_recipients: IterableSet::new(b"x"),
             one_click_key: None,
+            pending_count: 0,
         }
     }
 
@@ -349,6 +358,12 @@ impl Wallet {
         require!(is_identifier(&action.method), "method must be an identifier");
         require!(action.receiver_id != env::current_account_id(), "an action may not call the wallet itself");
         require!(
+            action.expiry_ms.0 <= env::block_timestamp_ms().saturating_add(MAX_EXPIRY_AHEAD_MS),
+            "expiry_ms is more than an hour ahead"
+        );
+        require!(self.pending_count < MAX_PENDING, "32 proposals are pending; prune expired ones first");
+        self.pending_count += 1;
+        require!(
             hex::encode(env::sha256(args_json.as_bytes())) == action.args_sha256,
             "args_json does not hash to args_sha256"
         );
@@ -410,6 +425,7 @@ impl Wallet {
 
         self.used_nonces.insert(action.nonce.0);
         proposal.status = ProposalStatus::Allowed;
+        self.pending_count = self.pending_count.saturating_sub(1);
         let args = proposal.args_json.clone().into_bytes();
         self.proposals.insert(proposal_id, proposal);
 
@@ -429,6 +445,34 @@ impl Wallet {
         if let Some(p) = self.proposals.get_mut(&proposal_id) {
             p.status = if near_sdk::is_promise_success() { ProposalStatus::Executed } else { ProposalStatus::Failed };
         }
+    }
+
+    /// Deletes proposals to free their storage: anyone may delete one that is
+    /// finished (executed or failed) or pending and expired; the owner may also
+    /// delete a pending one before it expires. Others are skipped. Returns how
+    /// many were deleted.
+    pub fn prune(&mut self, proposal_ids: Vec<u64>) -> u32 {
+        require!(proposal_ids.len() <= MAX_PRUNE, "prune at most 64 proposals per call");
+        let is_owner = env::predecessor_account_id() == self.owner_id;
+        let now = env::block_timestamp_ms();
+        let mut deleted = 0;
+        for id in proposal_ids {
+            let Some(p) = self.proposals.get(&id) else { continue };
+            let pending = p.status == ProposalStatus::Pending;
+            let removable = match p.status {
+                ProposalStatus::Executed | ProposalStatus::Failed => true,
+                ProposalStatus::Pending => is_owner || now > p.action.expiry_ms.0,
+                ProposalStatus::Allowed => false,
+            };
+            if removable {
+                if pending {
+                    self.pending_count = self.pending_count.saturating_sub(1);
+                }
+                self.proposals.remove(&id);
+                deleted += 1;
+            }
+        }
+        deleted
     }
 
     // Views
@@ -463,11 +507,10 @@ impl Wallet {
     }
 }
 
-/// The stored state before the 1Click key (deployed 3 November, with the
-/// cross-chain switch and list), so `migrate` can upgrade a live wallet in
-/// place. Field order is the storage layout.
+/// The stored state before pending_count (deployed 3–4 November), so `migrate`
+/// can upgrade a live wallet in place. Field order is the storage layout.
 #[near(serializers = [borsh])]
-struct WalletV2 {
+struct WalletV3 {
     owner_id: AccountId,
     agent_id: AccountId,
     model_id: String,
@@ -484,17 +527,19 @@ struct WalletV2 {
     spent: LookupMap<Asset, DaySpend>,
     cross_chain_enabled: bool,
     cross_chain_recipients: IterableSet<String>,
+    one_click_key: Option<String>,
 }
 
 #[near]
 impl Wallet {
-    /// One-time upgrade of a wallet deployed before the 1Click key: keeps
-    /// everything, with no key set.
+    /// One-time upgrade of a wallet deployed before pending_count: keeps
+    /// everything. Proposals already pending aren't counted (the map can't be
+    /// iterated); they still expire and can be pruned.
     /// Callable only by the wallet account itself, i.e. in its own deploy.
     #[private]
     #[init(ignore_state)]
     pub fn migrate() -> Self {
-        let old: WalletV2 = env::state_read().unwrap_or_else(|| env::panic_str("no state to migrate"));
+        let old: WalletV3 = env::state_read().unwrap_or_else(|| env::panic_str("no state to migrate"));
         Self {
             owner_id: old.owner_id,
             agent_id: old.agent_id,
@@ -512,7 +557,8 @@ impl Wallet {
             spent: old.spent,
             cross_chain_enabled: old.cross_chain_enabled,
             cross_chain_recipients: old.cross_chain_recipients,
-            one_click_key: None,
+            one_click_key: old.one_click_key,
+            pending_count: 0,
         }
     }
 }
@@ -524,7 +570,7 @@ mod migrate_tests {
     use near_sdk::testing_env;
 
     #[test]
-    fn migrate_keeps_a_v2_wallets_state_and_adds_no_1click_key() {
+    fn migrate_keeps_a_v3_wallets_state() {
         let me: AccountId = "wallet.testnet".parse().unwrap();
         testing_env!(VMContextBuilder::new().current_account_id(me.clone()).predecessor_account_id(me).build());
         let mut signers = IterableSet::new(b"s");
@@ -537,7 +583,7 @@ mod migrate_tests {
         });
         let mut recipients = IterableSet::new(b"x");
         recipients.insert("0x".to_string() + &"cd".repeat(20));
-        let mut v1 = WalletV2 {
+        let mut v1 = WalletV3 {
             owner_id: "owner.testnet".parse().unwrap(),
             agent_id: "agent.testnet".parse().unwrap(),
             model_id: "Qwen/Qwen3.8-27B".into(),
@@ -554,6 +600,7 @@ mod migrate_tests {
             spent: LookupMap::new(b"d"),
             cross_chain_enabled: true,
             cross_chain_recipients: recipients,
+            one_click_key: Some("ed25519:k".into()),
         };
         v1.signers.flush();
         v1.cross_chain_recipients.flush();
@@ -564,7 +611,8 @@ mod migrate_tests {
         let c = w.get_config();
         assert_eq!((c.model_id.as_str(), c.frozen, c.signers.len()), ("Qwen/Qwen3.8-27B", true, 1));
         assert_eq!(c.mandate_hash, Some("c".repeat(64)));
-        assert!(c.cross_chain_enabled && c.cross_chain_recipients.len() == 1 && c.one_click_key.is_none());
+        assert!(c.cross_chain_enabled && c.cross_chain_recipients.len() == 1);
+        assert_eq!(c.one_click_key.as_deref(), Some("ed25519:k"));
         assert_eq!(w.get_proposal(4).unwrap().status, ProposalStatus::Executed);
         assert_eq!(w.next_proposal_id, 5);
     }

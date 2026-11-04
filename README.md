@@ -28,7 +28,7 @@ Agents with wallets get prompt-injected. Spending caps and allowlists check rule
 - **Attestation is checked off-chain, not by the contract.** `pnpm attest` verifies the model TEE's Intel TDX quote against Intel's certificate chain, checks that the quote binds the signing address and a fresh nonce, and checks NVIDIA's signed GPU attestation. Only then does the owner allowlist the signer. It does not compare the attested app image with a known-good one (none is published), and it trusts NVIDIA's signing keys as served over TLS. Reports: [`docs/attestations/`](./docs/attestations/). Details: [the checker record](./docs/decisions/2026-11-01-attestation-checker.md).
 - **The model can be wrong.** Whatever the agent read, such as a paywall's response, is attacker-controlled. An attacker can keep rewording it until the model slips. The red-team numbers below are our own 83 cases, not an adaptive attacker. The contract's caps limit what one wrong `ALLOW` can cost; the model can only tighten what the contract permits, never loosen it.
 - **1Click is trusted to deliver.** The wallet verifies that 1Click signed the quote, but it can't prove that 1Click then delivers on Base. On testnet a stand-in plays 1Click, and every delivery it reports is labelled simulated.
-- **The wallet account's full-access key can replace the contract.** Whoever holds it can bypass every check. For the demo wallets, that's the team.
+- **The wallet account's full-access key can replace the contract.** Whoever holds it can bypass every check. For `intented-wallet.testnet`, that's the team. Wallets made by the factory have no full-access key, so nobody can replace their contract; their owner gets funds out with `withdraw`.
 - **The agent holds only a function-call key** limited to `propose` and `execute` on its wallet, so it can't transfer funds directly.
 
 See [the trust model](./docs/decisions/2026-11-01-signed-verdict-trust-model.md).
@@ -152,7 +152,8 @@ How the run works and how a run is published: [`redteam/README.md`](./redteam/RE
 
 | Folder | Tests | Run |
 | --- | --- | --- |
-| `contract/wallet` | 41, including every `execute` refusal: unknown signer, a flipped byte, `DENY`, a different action, a fake mandate or prompt, a false amount, a reused nonce, expiry, caps, freeze, each cross-chain and signed-quote condition, and oversized proposals | `cargo test` |
+| `contract/wallet` | 57, including every `execute` refusal: unknown signer, a flipped byte, `DENY`, a different action, a fake mandate or prompt, a false amount, a reused nonce, expiry, caps, freeze, each cross-chain and signed-quote condition, oversized or too many proposals, and `prune` | `cargo test` |
+| `contract/factory` | 6: what `create` sends, the deposit and name checks, the refund, the code hash, `set_code` | `cargo test` |
 | `firewall-core` | 141 | `pnpm test` |
 | `api` | 74 | `pnpm test` |
 | `agent` | 34 | `pnpm test` |

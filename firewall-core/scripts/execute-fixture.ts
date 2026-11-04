@@ -22,10 +22,13 @@ const MODEL = "z-ai/glm-5.3-flash";
 const NETWORK = "testnet" as const;
 const MANDATE = "Buy market data from vendor.testnet only. At most 5 USDC per call.";
 const USDC = "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af";
-const U64_MAX = (1n << 64n) - 1n;
+const DAY_MS = 86_400_000n;
+/** The contract tests' clock (tests/common.rs NOW_MS); actions expire 30 minutes after it. */
+const NOW_MS = 20_000n * DAY_MS + 1_000n;
+const EXPIRY = NOW_MS + 1_800_000n;
 
 /** Must match usdc_payment() in contract/wallet/tests/common.rs byte for byte. */
-function usdcPayment(amount: bigint, nonce: bigint, expiry_ms = U64_MAX, deposit = "1", args?: string) {
+function usdcPayment(amount: bigint, nonce: bigint, expiry_ms = EXPIRY, deposit = "1", args?: string) {
   const argsJson = args ?? `{"receiver_id":"vendor.testnet","amount":"${amount}"}`;
   const action: Action = { receiver_id: USDC, method: "ft_transfer", args_sha256: sha(argsJson), deposit, nonce, expiry_ms };
   return { action, argsJson };
@@ -59,7 +62,7 @@ const userEdit = (f: (u: Record<string, string>) => void) => (b: Body) => {
 const specs: Spec[] = [
   { name: "allow" },
   { name: "allow_nonce_2", nonce: 2n },
-  { name: "allow_nonce_3", nonce: 3n },
+  { name: "allow_nonce_3", nonce: 3n, expiry_ms: 20_001n * DAY_MS + 1_800_000n },
   { name: "deny", verdict: "DENY" },
   { name: "unknown_signer", by: stranger },
   { name: "verdict_for_other_action", verdictAction: (c) => c.replace("|1|", "|9|") },
@@ -125,7 +128,7 @@ for (const s of specs) {
 const DEPOSIT = "5f8c3a1e9b2d4f6a8c0e1b3d5f7a9c2e4b6d8f0a1c3e5b7d9f2a4c6e8b0d1f3a";
 const VENDOR_BASE = "0x2ef2fed3f9b3d5385499008051031320b1fb49ef";
 const BASE_USDC = "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near";
-const CC_EXPIRY = 2_000_000_000_000n;
+const CC_EXPIRY = EXPIRY;
 const AMOUNT_IN = "410000";
 const oneClick = testQuoteSigner("intented-wallet-test-1click");
 const otherKey = testQuoteSigner("intented-wallet-test-not-1click");

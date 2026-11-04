@@ -168,7 +168,7 @@ fn a_reused_nonce_is_rejected() {
     let first = propose_case(&mut w, &c);
     let second = propose_case(&mut w, &c);
     execute_case(&mut w, first, &c);
-    agent_at(0);
+    agent_at(NOW_MS);
     let err = try_execute(&mut w, second, &c).expect_err("second use of nonce 1");
     assert!(err.contains("nonce already used"), "{err}");
 }
@@ -179,7 +179,7 @@ fn a_proposal_cannot_be_executed_twice() {
     let c = case("allow");
     let id = propose_case(&mut w, &c);
     execute_case(&mut w, id, &c);
-    agent_at(0);
+    agent_at(NOW_MS);
     let err = try_execute(&mut w, id, &c).expect_err("executed twice");
     assert!(err.contains("not pending"), "{err}");
 }
@@ -252,15 +252,17 @@ fn the_daily_cap_holds_within_a_utc_day_and_resets_at_midnight() {
     let mut w = configured();
     as_caller(owner());
     w.set_token(USDC.parse().unwrap(), usdc(1_000_000, 2_000_000));
-    let day = 20_000 * DAY_MS;
+    let day = NOW_MS - 1_000;
     for name in ["allow", "allow_nonce_2"] {
         let c = case(name);
         let id = propose_case(&mut w, &c);
         agent_at(day + 1_000);
         try_execute(&mut w, id, &c).unwrap_or_else(|e| panic!("{name}: {e}"));
     }
+    // Proposed just before midnight, so its expiry (30 minutes after) is within the hour.
     let c = case("allow_nonce_3");
-    let id = propose_case(&mut w, &c);
+    agent_at(day + DAY_MS - 1);
+    let id = w.propose(serde_json::from_value(c["action"].clone()).unwrap(), c["args_json"].as_str().unwrap().into());
     agent_at(day + DAY_MS - 1);
     let err = try_execute(&mut w, id, &c).expect_err("third USDC on the same day");
     assert!(err.contains("over the daily cap"), "{err}");
@@ -360,7 +362,7 @@ fn a_non_empty_recipient_list_refuses_any_other_recipient_even_on_an_allow() {
     w.allow_cross_chain_recipient(vendor);
     let c = case("cc_ok");
     let id = propose_case(&mut w, &c);
-    agent_at(0);
+    agent_at(NOW_MS);
     try_execute(&mut w, id, &c).expect("the listed recipient is paid");
 }
 
@@ -399,7 +401,7 @@ fn each_signed_quote_condition_is_enforced() {
 
 /// Calls run as `who`, on the wallet deployed at `me`.
 fn at(me: &near_sdk::AccountId, who: near_sdk::AccountId) {
-    testing_env!(VMContextBuilder::new().current_account_id(me.clone()).predecessor_account_id(who).build());
+    testing_env!(VMContextBuilder::new().current_account_id(me.clone()).predecessor_account_id(who).block_timestamp(NOW_MS * 1_000_000).build());
 }
 
 #[test]
@@ -429,3 +431,21 @@ fn a_real_mainnet_1click_quote_verifies_and_pays_its_deposit_address() {
     assert!(get_created_receipts().iter().any(|r| r.receiver_id == token));
 }
 
+
+#[test]
+fn an_executed_proposal_frees_its_pending_slot() {
+    let mut w = configured();
+    let c = case("allow");
+    let id = propose_case(&mut w, &c);
+    for n in 0..31u64 {
+        let (a, args) = usdc_payment(1, 1_000 + n);
+        as_caller(agent());
+        w.propose(a, args);
+    }
+    let (a, args) = usdc_payment(1, 2_000);
+    as_caller(agent());
+    assert!(catch_unwind(AssertUnwindSafe(|| w.propose(a.clone(), args.clone()))).is_err(), "33rd pending accepted");
+    execute_case(&mut w, id, &c);
+    as_caller(agent());
+    w.propose(a, args);
+}

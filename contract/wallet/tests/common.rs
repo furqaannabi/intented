@@ -8,8 +8,13 @@ pub fn agent() -> AccountId { "agent.testnet".parse().unwrap() }
 pub fn stranger() -> AccountId { "stranger.testnet".parse().unwrap() }
 
 /// Make `who` the caller of the next contract call.
+/// The tests' clock: day 20 000 after the epoch, plus a second. The fixtures'
+/// actions expire 30 minutes after it (propose refuses more than an hour ahead).
+pub const NOW_MS: u64 = 20_000 * 86_400_000 + 1_000;
+
+/// Make `who` the caller of the next contract call, at NOW_MS.
 pub fn as_caller(who: AccountId) {
-    testing_env!(VMContextBuilder::new().predecessor_account_id(who).build());
+    testing_env!(VMContextBuilder::new().predecessor_account_id(who).block_timestamp(NOW_MS * 1_000_000).build());
 }
 
 pub const MODEL: &str = "z-ai/glm-5.3-flash";
@@ -37,7 +42,7 @@ pub fn usdc_payment(amount: u128, nonce: u64) -> (Action, String) {
         args_sha256: sha256_hex(args.as_bytes()),
         deposit: U128(1),
         nonce: U64(nonce),
-        expiry_ms: U64(u64::MAX),
+        expiry_ms: U64(NOW_MS + 30 * 60_000),
     };
     (action, args)
 }

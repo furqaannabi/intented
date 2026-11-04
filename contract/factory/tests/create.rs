@@ -100,3 +100,17 @@ fn a_failed_create_refunds_the_owner() {
     assert_eq!(refund.len(), 1);
     assert_eq!(refund[0]["Transfer"]["deposit"], json!("7"));
 }
+
+#[test]
+fn only_the_factory_account_replaces_the_code_for_new_wallets() {
+    let mut f = factory();
+    let new_code = b"\0asm the next wallet version".to_vec();
+    ctx(owner(), NearToken::from_yoctonear(0));
+    assert!(catch_unwind(AssertUnwindSafe(|| f.set_code(Base64VecU8(new_code.clone())))).is_err(), "a stranger replaced the code");
+    ctx(FACTORY.parse().unwrap(), NearToken::from_yoctonear(0));
+    f.set_code(Base64VecU8(new_code.clone()));
+    assert_eq!(f.get_code_hash(), near_sdk::bs58::encode(near_sdk::env::sha256(&new_code)).into_string());
+    ctx(owner(), enough(&f));
+    let _ = f.create("next".into(), "m".into(), setup(), None, None);
+    assert_eq!(actions_to("next.intented.testnet")[2]["DeployContract"]["code"], json!(new_code));
+}

@@ -38,6 +38,17 @@ impl Factory {
         Self { code: LazyOption::new(b"c", Some(code.0)), code_hash, code_len }
     }
 
+    /// Replaces the code for wallets created from now on; wallets already made
+    /// keep theirs (they have no full-access key). Only the factory account
+    /// itself may call it; the new hash shows in get_code_hash.
+    pub fn set_code(&mut self, code: Base64VecU8) {
+        require!(env::predecessor_account_id() == env::current_account_id(), "only the factory account may replace the code");
+        require!(!code.0.is_empty(), "code must not be empty");
+        self.code_hash = near_sdk::bs58::encode(env::sha256(&code.0)).into_string();
+        self.code_len = code.0.len() as u64;
+        self.code.set(Some(code.0));
+    }
+
     /// The code every wallet from this factory runs; compare with the wallet
     /// account's code_hash.
     pub fn get_code_hash(&self) -> String {
