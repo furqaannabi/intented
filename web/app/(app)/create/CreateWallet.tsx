@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Check, Cross } from "../../components/icons";
+import { InitCommand } from "../../components/InitCommand";
 import { REPO } from "../../components/SiteHeader";
 import { Loading, Skeleton, Spinner } from "../../components/Skeleton";
 import {
@@ -303,6 +304,7 @@ export function CreateWallet() {
             <p className={`mt-2 text-[13px] ${keyError ? "text-coral" : "text-mute"}`}>
               {keyError ?? "Only the public key. Generate the key pair where your agent runs; Intented never sees the private key."}
             </p>
+            {!agentKey && <InitCommand name={name} then="prints a link back to this page with the key filled in." />}
             {/* A link can carry anyone's key, and this key will be able to propose and execute on the wallet. */}
             {linkKey && key === linkKey && (
               <p className="mt-2 rounded-[12px] border border-line bg-ink px-3.5 py-2.5 text-[13px] text-mute">
@@ -610,6 +612,7 @@ function Created({
                 <input aria-label="Gas allowance" value={keyAllowance} onChange={(e) => setKeyAllowance(e.target.value)} inputMode="decimal" className={input} disabled={keyState.step === "signing"} />
                 <span className={suffix}>NEAR gas</span>
               </div>
+              {!newKey && <InitCommand name={walletId.slice(0, -FACTORY_ID.length - 1)} then="prints the public key to paste here." />}
               {keyState.step === "error" && <p className="break-words text-coral">{keyState.message}</p>}
               <button onClick={addKey} disabled={keyState.step === "signing" || !ED25519_KEY.test(newKey.trim()) || !parseUnits(keyAllowance, 24)} className={`${primary} mt-auto`}>
                 {keyState.step === "signing" ? "Approve in your wallet…" : "Add the key"}
