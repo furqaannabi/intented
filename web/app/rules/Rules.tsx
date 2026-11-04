@@ -242,7 +242,10 @@ export function Rules() {
           ) : (
             <>
               <LiveLabel text={text} />
-              {text.state === "live" && <p className="text-[clamp(24px,2.4vw,34px)] leading-tight font-bold tracking-[-0.02em]">{text.text}</p>}
+              {/* overflow-wrap: anywhere, so a 42-character 0x address in the rules breaks instead of running off a phone screen. */}
+              {text.state === "live" && (
+                <p className="text-[clamp(24px,2.4vw,34px)] leading-tight font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{text.text}</p>
+              )}
               {text.state === "unavailable" && (
                 <p className="text-lg text-mute">The text of these rules isn&apos;t available from the API right now. The hash below is what the wallet enforces.</p>
               )}

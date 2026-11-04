@@ -70,8 +70,12 @@ function Row({ proposal: p, selected }: { proposal: Proposal; selected: boolean 
           <span className={`block font-mono text-sm whitespace-nowrap ${kind === "refused" ? "text-mute line-through" : ""}`}>
             −{amount(p)}
           </span>
-          <span className={`mt-0.5 block text-[11px] font-black tracking-[0.12em] whitespace-nowrap uppercase ${STATUS[kind]}`}>
-            {OUTCOME_LABEL[kind]} {p.oneclick?.simulated && kind === "delivered" && <Tag dashed>simulated</Tag>}
+          {/* On a phone the "simulated" tag goes under the status, so the recipient keeps its width. */}
+          <span
+            className={`mt-0.5 flex items-center justify-end gap-x-1.5 gap-y-1 text-[11px] font-black tracking-[0.12em] whitespace-nowrap uppercase max-sm:flex-col max-sm:items-end ${STATUS[kind]}`}
+          >
+            <span>{OUTCOME_LABEL[kind]}</span>
+            {p.oneclick?.simulated && kind === "delivered" && <Tag dashed>simulated</Tag>}
           </span>
         </span>
       </Link>

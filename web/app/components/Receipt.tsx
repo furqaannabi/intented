@@ -144,7 +144,8 @@ export function Receipt({ proposal: p }: { proposal: Proposal }) {
       {signed && (
         <section className="rcpt-section">
           <Label>The model’s reason, as signed</Label>
-          <p className="text-[17px] leading-normal">&ldquo;{signed}&rdquo;</p>
+          {/* A reason can quote a 42-character 0x address; let it break rather than run off a phone screen. */}
+          <p className="text-[17px] leading-normal [overflow-wrap:anywhere]">&ldquo;{signed}&rdquo;</p>
         </section>
       )}
 

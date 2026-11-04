@@ -15,11 +15,12 @@ export function SiteHeader({ current }: { current?: "home" | "activity" | "rules
   return (
     <header className="site-header sticky top-0 z-50">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-[clamp(18px,4.5vw,72px)] py-4">
-        <Link href="/" className="flex items-center gap-2.5 text-xl font-black">
+        <Link href="/" className="flex items-center gap-2.5 text-xl font-black max-[379px]:gap-2 max-[379px]:text-lg">
           <span className="site-logo" aria-hidden="true" />
           Intented
         </Link>
-        <nav className="flex gap-6 text-[15px] text-mute">
+        {/* Below 380px (a 320px phone) the nav tightens so GitHub stays on screen. Links get taller tap areas without moving the layout. */}
+        <nav className="flex gap-6 text-[15px] text-mute max-[379px]:gap-3.5 max-[379px]:text-sm">
           {LINKS.map((link) => {
             const active = current !== "home" && link.page === current;
             return (
@@ -27,14 +28,14 @@ export function SiteHeader({ current }: { current?: "home" | "activity" | "rules
                 key={link.href}
                 href={link.href}
                 aria-current={active ? "page" : undefined}
-                className={`hover:text-text ${active ? "text-text" : ""} ${link.page === "home" ? "hidden md:inline" : ""}`}
+                className={`-my-2 py-2 hover:text-text ${active ? "text-text" : ""} ${link.page === "home" ? "hidden md:inline" : ""}`}
               >
                 {link.label}
               </Link>
             );
           })}
-          <a href={REPO} className="inline-flex items-center gap-1 hover:text-text">
-            GitHub <ArrowUpRight className="size-3.5" />
+          <a href={REPO} className="-my-2 inline-flex items-center gap-1 py-2 hover:text-text">
+            GitHub <ArrowUpRight className="size-3.5 max-[379px]:hidden" />
           </a>
         </nav>
       </div>

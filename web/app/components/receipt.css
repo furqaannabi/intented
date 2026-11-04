@@ -29,6 +29,16 @@
 .rcpt-steps.rcpt-steps-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
+/* Four steps don't fit across a phone: two rows of two, each row's line ending at its second step. */
+@media (max-width: 639px) {
+  .rcpt-steps.rcpt-steps-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 18px;
+  }
+  .rcpt-steps.rcpt-steps-4 > li:nth-child(2n)::before {
+    display: none;
+  }
+}
 .rcpt-steps > li {
   position: relative;
   padding: 18px 8px 0 0;
