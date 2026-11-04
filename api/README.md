@@ -12,7 +12,7 @@ pnpm start      # http://localhost:8787
 pnpm test
 ```
 
-It reads `NEAR_NETWORK`, `NEAR_RPC_URL`, `NEAR_AI_API_KEY`, `NEAR_AI_MODEL`, `CONTRACT_ACCOUNT_ID`, `AGENT_ACCOUNT_ID`, `AGENT_PRIVATE_KEY` (a function-call key scoped to the wallet), `AGENT_API_TOKEN`, `WEB_ORIGINS`, `DATABASE_PATH`, `PORT`, and for 1Click `ONECLICK_JWT` and `ONECLICK_BASE_URL`. It logs proposal ids, statuses and transaction hashes, never keys, tokens or prompts.
+It reads `NEAR_NETWORK`, `NEAR_RPC_URL`, `NEAR_AI_API_KEY`, `NEAR_AI_MODEL`, `CONTRACT_ACCOUNT_ID`, `AGENT_ACCOUNT_ID`, `AGENT_PRIVATE_KEY` (a function-call key scoped to the wallet), `AGENT_API_TOKEN`, `WEB_ORIGINS`, `DATABASE_PATH`, `PORT`, and for 1Click `ONECLICK_JWT`, `ONECLICK_BASE_URL` and, off mainnet, `ONECLICK_STANDIN_PUBLIC_KEY`. It logs proposal ids, statuses and transaction hashes, never keys, tokens or prompts.
 
 ## Endpoints
 
@@ -52,9 +52,9 @@ A payment through 1Click, to **USDC on Base only**. The agent sends the second b
 4. Stores `oneclick` on the proposal. It is marked `simulated` on any network but mainnet.
 5. After execute, tells 1Click the deposit's transaction and follows the deposit until `SUCCESS`, `REFUNDED` or `FAILED`, after a restart too.
 
-**It is off.** Until the firewall core's `judge()` puts `cross_chain` in the request, a cross-chain propose gets a `501`. The line that turns it on is in [`src/server.ts`](./src/server.ts).
+Before proposing, the API checks 1Click's signature on the quote, the same check the wallet makes, and answers `502` if it fails, so a bad quote never reaches the judge.
 
-On testnet, `ONECLICK_BASE_URL` points at the stand-in in [`agent/`](../agent/README.md), since 1Click runs on mainnet only.
+1Click runs on mainnet only. On mainnet, quotes come from 1Click and are checked with its key. On any other network the route is on only when `ONECLICK_BASE_URL` points at the stand-in in [`agent/`](../agent/README.md) and `ONECLICK_STANDIN_PUBLIC_KEY` is set (`pnpm oneclick-key` writes both keys); otherwise a cross-chain propose gets a `501`, so a testnet API never quotes against the real 1Click. The server's startup log says which.
 
 ## KT4
 

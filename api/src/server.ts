@@ -11,7 +11,7 @@ import { serve } from "@hono/node-server";
 import { createChainClient, createJudge, systemPrompt, type Network } from "@intented/firewall-core";
 import { createApp } from "./app.js";
 import { loadAttestationUrls } from "./attestations.js";
-import { createOneClick } from "./oneclick.js";
+import { createOneClick, ONE_CLICK_MANAGER_KEY } from "./oneclick.js";
 import { createPipeline } from "./pipeline.js";
 import { createRedteamReader } from "./redteam.js";
 import { openStore } from "./store.js";
@@ -32,6 +32,11 @@ const log = (line: string) => console.log(`${new Date().toISOString()} ${line}`)
 const agentId = env("AGENT_ACCOUNT_ID");
 // On testnet ONECLICK_BASE_URL points at the stand-in (agent/: pnpm oneclick); unset, it is the real 1Click.
 const oneclick = createOneClick({ jwt: process.env.ONECLICK_JWT || undefined, baseUrl: process.env.ONECLICK_BASE_URL || undefined });
+// Whose key signs quotes: 1Click's on mainnet; on any other network the stand-in's, and only with the stand-in's URL,
+// so a testnet API never quotes against the real 1Click. Without both, cross-chain proposals get a 501.
+const quoteKey = network === "mainnet"
+  ? ONE_CLICK_MANAGER_KEY
+  : process.env.ONECLICK_BASE_URL && process.env.ONECLICK_STANDIN_PUBLIC_KEY ? process.env.ONECLICK_STANDIN_PUBLIC_KEY : undefined;
 
 const store = openStore(process.env.DATABASE_PATH || join(root, "intented.db"));
 const pipeline = createPipeline({
@@ -53,10 +58,12 @@ const app = createApp({
   attestationUrls: loadAttestationUrls(join(root, "..", "docs", "attestations"), ATTESTATIONS_URL),
   redteam: createRedteamReader(join(root, "..", "redteam", "latest.json")),
   corsOrigins: (process.env.WEB_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean),
-  // Off until the firewall core's judge() puts cross_chain in the request; then:
-  // crossChain: { pay: oneclick.payCrossChain, refundTo: walletId, quoteKey: network === "mainnet" ? ONE_CLICK_MANAGER_KEY : env("ONECLICK_STANDIN_PUBLIC_KEY") },
+  crossChain: quoteKey ? { pay: oneclick.payCrossChain, refundTo: walletId, quoteKey } : undefined,
 });
 
 pipeline.recover();
 const port = Number(process.env.PORT || 8787);
-serve({ fetch: app.fetch, port }, () => log(`api on :${port}, ${network}, wallet ${walletId}, model ${model}`));
+serve({ fetch: app.fetch, port }, () => {
+  log(`api on :${port}, ${network}, wallet ${walletId}, model ${model}`);
+  log(quoteKey ? `cross-chain on: quotes from ${process.env.ONECLICK_BASE_URL || "1Click"}, signed by ${quoteKey}` : "cross-chain off: set ONECLICK_BASE_URL and ONECLICK_STANDIN_PUBLIC_KEY (testnet stand-in)");
+});

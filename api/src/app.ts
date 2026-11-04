@@ -117,7 +117,7 @@ export function createApp({ store, network, model, agentToken, startPipeline, at
   // The second body: the agent states the payment, the API quotes it and builds the transfer.
   async function proposeCrossChain(body: object): Promise<Response> {
     const json = (data: object, status: 400 | 501 | 502 | 200 = 200) => Response.json(data, { status });
-    if (!crossChain) return json({ error: "cross-chain payments are off: the firewall core's judge() does not take cross_chain yet" }, 501);
+    if (!crossChain) return json({ error: "cross-chain payments are off on this API: no 1Click quote key is configured" }, 501);
     const checked = checkCrossChainPropose(body, { network });
     if ("error" in checked) return json({ error: checked.error }, 400);
     if (!store.getMandate(checked.mandate_id)) return json({ error: "unknown mandate_id" }, 400);
