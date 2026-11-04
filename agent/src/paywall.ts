@@ -99,7 +99,8 @@ export function checkDelivery(d: Delivery, asked: Requirement, depositTx: string
 }
 
 export function createPaywall({ lookupTx, base }: { lookupTx: LookupTx; base?: BaseConfig }) {
-  const used = new Set<string>(); // tx hashes already redeemed; in memory, so a restart forgets them
+  // Tx hashes redeemed or being checked; in memory, so a restart forgets them.
+  const used = new Set<string>();
   const app = new Hono();
 
   app.get("/:route/market-data", async (c) => {
@@ -127,6 +128,8 @@ export function createPaywall({ lookupTx, base }: { lookupTx: LookupTx; base?: B
     const hash = paid?.payload?.transaction;
     if (typeof hash !== "string") return required("malformed PAYMENT-SIGNATURE");
     if (used.has(hash)) return required("this transaction was already redeemed");
+    // Claimed before the lookup, so a second request with the same hash during it can't pass too. Freed if the check fails.
+    used.add(hash);
 
     const verify = async (): Promise<Verified> => {
       if (!onBase) {
@@ -146,9 +149,11 @@ export function createPaywall({ lookupTx, base }: { lookupTx: LookupTx; base?: B
     };
     // An RPC or the stand-in being unreachable is a refusal that says so, never a pass.
     const found = await verify().catch((e: Error): Verified => ({ ok: false, error: `could not check the payment: ${e.message}` }));
-    if (!found.ok) return required(found.error);
+    if (!found.ok) {
+      used.delete(hash);
+      return required(found.error);
+    }
 
-    used.add(hash);
     const network = onBase ? BASE_NETWORK : NETWORK;
     const simulated = found.simulated ? { simulated: true } : {};
     c.header("PAYMENT-RESPONSE", encode({ success: true, transaction: hash, network, payer: found.payer, ...simulated }));

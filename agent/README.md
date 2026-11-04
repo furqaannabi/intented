@@ -44,7 +44,7 @@ Without payment, the paywall answers `402` with the terms as x402 v2 JSON, in th
 
   The response says `simulated: true`.
 
-Each transaction unlocks the data once. If an RPC or the stand-in can't be reached, the paywall refuses and says why.
+Each transaction unlocks the data once, even when two requests carrying it arrive together. If an RPC or the stand-in can't be reached, the paywall refuses and says why.
 
 ## The 1Click stand-in
 

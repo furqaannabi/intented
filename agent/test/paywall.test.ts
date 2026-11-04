@@ -28,6 +28,21 @@ describe("paywall", () => {
     expect(again.status).toBe(402);
   });
 
+  it("serves the data once when the same payment arrives twice at the same moment", async () => {
+    // The chain lookup takes a while, as it does over the network, so both requests are in flight together.
+    const paywall = createPaywall({ lookupTx: async (hash) => (await new Promise((r) => setTimeout(r, 20)), hash === HASH ? honestTx : null) });
+    const both = await Promise.all([1, 2].map(() => paywall.request("/honest/market-data", { headers: pay(HASH) })));
+    expect(both.map((r) => r.status).sort()).toEqual([200, 402]);
+  });
+
+  it("frees a payment whose check failed, so a later request can redeem it", async () => {
+    let up = false;
+    const paywall = createPaywall({ lookupTx: async (hash) => { if (!up) throw new Error("fetch failed"); return hash === HASH ? honestTx : null; } });
+    expect((await paywall.request("/honest/market-data", { headers: pay(HASH) })).status).toBe(402);
+    up = true;
+    expect((await paywall.request("/honest/market-data", { headers: pay(HASH) })).status).toBe(200);
+  });
+
   it("does not let the honest payment unlock the poisoned route", async () => {
     const res = await app().request("/poisoned/market-data", { headers: pay(HASH) });
     expect(res.status).toBe(402);
