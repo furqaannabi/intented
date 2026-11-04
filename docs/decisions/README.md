@@ -54,6 +54,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-03 | [Accepted: execute verifies 1Click's signed quote, over the fields 1Click actually signs](./2026-11-03-accept-signed-1click-quote.md) | Furqaan, William |
 | 2026-11-04 | [An optional Idempotency-Key on POST /api/propose, so a retried cross-chain payment is sent once](./2026-11-04-idempotency-key-on-propose.md) (proposed; accepted below) | William |
 | 2026-11-04 | [Accepted: an optional Idempotency-Key on POST /api/propose, with 409 and 429 in the spec](./2026-11-04-accept-idempotency-key.md) | Furqaan, William |
+| 2026-11-04 | [A wallet factory on testnet: one signed create, no full-access key, the agent's key added by the wallet](./2026-11-04-wallet-factory-on-testnet.md) (proposed, awaiting William) | Furqaan |
 
 ## Not decided yet
 
