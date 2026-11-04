@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SiteHeader } from "../components/SiteHeader";
 import { CreateWallet } from "./CreateWallet";
 
@@ -12,7 +13,9 @@ export default function CreatePage() {
     <div className="overflow-x-clip">
       <SiteHeader current="create" />
       <main className="mx-auto max-w-[1440px] px-[clamp(16px,4.5vw,72px)]">
-        <CreateWallet />
+        <Suspense fallback={<p className="py-10 text-mute">Loading…</p>}>
+          <CreateWallet />
+        </Suspense>
       </main>
     </div>
   );

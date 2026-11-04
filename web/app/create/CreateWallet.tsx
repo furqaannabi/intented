@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Check, Cross } from "../components/icons";
 import { REPO } from "../components/SiteHeader";
@@ -57,13 +58,19 @@ export function CreateWallet() {
   const [factory, setFactory] = useState<{ minDeposit: string; codeHash: string } | null>(null);
   const [loadError, setLoadError] = useState(false);
 
-  const [name, setName] = useState("");
+  // A link from the agent's machine (intented init) can fill in the name and the agent's public key; anything malformed is ignored.
+  const params = useSearchParams();
+  const [linkKey] = useState(() => {
+    const k = params.get("key")?.trim() ?? "";
+    return ED25519_KEY.test(k) ? k : "";
+  });
+  const [name, setName] = useState(() => params.get("name")?.toLowerCase().slice(0, 64 - FACTORY_ID.length - 1) ?? "");
   const [nameStatus, setNameStatus] = useState<NameStatus>("invalid");
   const [rules, setRules] = useState("");
   const [tokenIndex, setTokenIndex] = useState(0);
   const [perTx, setPerTx] = useState("0.01");
   const [daily, setDaily] = useState("0.05");
-  const [agentKey, setAgentKey] = useState("");
+  const [agentKey, setAgentKey] = useState(linkKey);
   const [allowance, setAllowance] = useState("0.5");
   const [rulesHash, setRulesHash] = useState("");
   const [flow, setFlow] = useState<Flow>({ step: "form" });
@@ -303,6 +310,13 @@ export function CreateWallet() {
             <p className={`mt-2 text-[13px] ${keyError ? "text-coral" : "text-mute"}`}>
               {keyError ?? "Only the public key. Generate the key pair where your agent runs; Intented never sees the private key."}
             </p>
+            {/* A link can carry anyone's key, and this key will be able to propose and execute on the wallet. */}
+            {linkKey && key === linkKey && (
+              <p className="mt-2 rounded-[12px] border border-line bg-ink px-3.5 py-2.5 text-[13px] text-mute">
+                <b className="font-bold text-text">Filled in from the link you opened.</b> Use it only if it&apos;s the key your own agent printed: whoever
+                holds its private key can propose and execute payments on this wallet, within your rules and limits.
+              </p>
+            )}
             {key && (
               <div className="mt-4 max-w-[260px]">
                 <Amount id="cw-allow" label="Gas allowance" value={allowance} onChange={setAllowance} unit="NEAR" disabled={busy} />
