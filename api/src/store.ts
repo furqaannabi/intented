@@ -28,6 +28,8 @@ export interface ActionJson {
 
 export interface ProposalRow {
   id: string;
+  /** The wallet the proposal is on. */
+  wallet_id: string;
   created_at: number;
   updated_at: number;
   mandate_id: string;
@@ -52,14 +54,15 @@ export interface ProposalRow {
   oneclick: OneClickState | null;
 }
 
-export type ProposalPatch = Partial<Omit<ProposalRow, "id" | "created_at" | "updated_at" | "mandate_id" | "action" | "args" | "context" | "cross_chain">>;
+export type ProposalPatch = Partial<Omit<ProposalRow, "id" | "wallet_id" | "created_at" | "updated_at" | "mandate_id" | "action" | "args" | "context" | "cross_chain">>;
 
 /** 1Click deposit statuses after which nothing changes. */
 export const ONECLICK_FINAL = ["SUCCESS", "REFUNDED", "FAILED"];
 
 const id = (prefix: string) => `${prefix}_${randomBytes(8).toString("hex")}`;
 
-export function openStore(path: string) {
+/** `ownWallet`: the API's own wallet, which every proposal from before wallet_id was stored is on. */
+export function openStore(path: string, ownWallet = "intented-wallet.testnet") {
   const db = new DatabaseSync(path);
   db.exec(`
     PRAGMA journal_mode = WAL;
@@ -83,7 +86,11 @@ export function openStore(path: string) {
   `);
   // Added for the cross-chain payment; a database from before it gets the columns empty.
   const columns = (db.prepare("PRAGMA table_info(proposals)").all() as { name: string }[]).map((c) => c.name);
-  for (const col of ["cross_chain", "oneclick"]) if (!columns.includes(col)) db.exec(`ALTER TABLE proposals ADD COLUMN ${col} TEXT`);
+  for (const col of ["cross_chain", "oneclick", "wallet_id"]) if (!columns.includes(col)) db.exec(`ALTER TABLE proposals ADD COLUMN ${col} TEXT`);
+  // Added when the API began judging other wallets' proposals: every earlier proposal was on its own wallet.
+  db.prepare("UPDATE proposals SET wallet_id = ? WHERE wallet_id IS NULL").run(ownWallet);
+  // Not unique: older rows on the API's own wallet repeat ids from before it was redeployed. POST /api/verdict judges each id once in code.
+  db.exec("CREATE INDEX IF NOT EXISTS proposals_on_chain ON proposals(wallet_id, chain_proposal_id)");
 
   const json = (v: unknown) => (typeof v === "string" ? JSON.parse(v) : null);
   const toRow = (r: Record<string, unknown>): ProposalRow =>
@@ -114,15 +121,25 @@ export function openStore(path: string) {
         | undefined;
     },
 
-    createProposal(p: { mandate_id: string; action: ActionJson; args: string; context: string; cross_chain?: CrossChainField; oneclick?: OneClickState }): ProposalRow {
+    /** On the API's own wallet unless `wallet_id` says otherwise; `chain_proposal_id` when the agent already proposed it. */
+    createProposal(p: {
+      mandate_id: string; action: ActionJson; args: string; context: string; cross_chain?: CrossChainField; oneclick?: OneClickState;
+      wallet_id?: string; chain_proposal_id?: number;
+    }): ProposalRow {
       const now = stamp();
       const pid = id("p");
       const cc = p.cross_chain ? JSON.stringify(p.cross_chain) : null;
       const oc = p.oneclick ? JSON.stringify(p.oneclick) : null;
       db.prepare(
-        "INSERT INTO proposals (id, created_at, updated_at, mandate_id, action, args, context, status, step, cross_chain, oneclick) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'judge', ?, ?)",
-      ).run(pid, now, now, p.mandate_id, JSON.stringify(p.action), p.args, p.context, cc, oc);
+        "INSERT INTO proposals (id, wallet_id, created_at, updated_at, mandate_id, action, args, context, status, step, cross_chain, oneclick, chain_proposal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'judge', ?, ?, ?)",
+      ).run(pid, p.wallet_id ?? ownWallet, now, now, p.mandate_id, JSON.stringify(p.action), p.args, p.context, cc, oc, p.chain_proposal_id ?? null);
       return this.getProposal(pid)!;
+    },
+
+    /** The stored proposal for a wallet's on-chain proposal id, if one was judged. */
+    getProposalOnChain(walletId: string, chainProposalId: number): ProposalRow | undefined {
+      const r = db.prepare("SELECT * FROM proposals WHERE wallet_id = ? AND chain_proposal_id = ? ORDER BY created_at DESC LIMIT 1").get(walletId, chainProposalId);
+      return r ? toRow(r as Record<string, unknown>) : undefined;
     },
 
     getIdempotencyKey(key: string): { body_sha256: string; proposal_id: string; created_at: number } | undefined {
@@ -136,9 +153,9 @@ export function openStore(path: string) {
       db.prepare("INSERT OR REPLACE INTO idempotency_keys (key, body_sha256, proposal_id, created_at) VALUES (?, ?, ?, ?)").run(key, body_sha256, proposal_id, at);
     },
 
-    /** The wallet takes each nonce once, so at most one proposal should hold it. */
+    /** The API's own wallet takes each nonce once, so at most one of its proposals should hold it. Other wallets' nonces are theirs. */
     getProposalByNonce(nonce: string): ProposalRow | undefined {
-      const r = db.prepare("SELECT * FROM proposals WHERE json_extract(action, '$.nonce') = ? ORDER BY created_at LIMIT 1").get(nonce);
+      const r = db.prepare("SELECT * FROM proposals WHERE wallet_id = ? AND json_extract(action, '$.nonce') = ? ORDER BY created_at LIMIT 1").get(ownWallet, nonce);
       return r ? toRow(r as Record<string, unknown>) : undefined;
     },
 
@@ -154,9 +171,12 @@ export function openStore(path: string) {
       db.prepare(`UPDATE proposals SET ${sets} WHERE id = ?`).run(...values, stamp(), proposalId);
     },
 
-    /** Proposals created or changed after `since` (ms), oldest change first. */
-    proposalsSince(since: number, limit = 100): ProposalRow[] {
-      return (db.prepare("SELECT * FROM proposals WHERE updated_at > ? ORDER BY updated_at ASC LIMIT ?").all(since, limit) as Record<string, unknown>[]).map(toRow);
+    /** Proposals created or changed after `since` (ms), oldest change first; only `walletId`'s when given. */
+    proposalsSince(since: number, limit = 100, walletId?: string): ProposalRow[] {
+      const rows = walletId === undefined
+        ? db.prepare("SELECT * FROM proposals WHERE updated_at > ? ORDER BY updated_at ASC LIMIT ?").all(since, limit)
+        : db.prepare("SELECT * FROM proposals WHERE updated_at > ? AND wallet_id = ? ORDER BY updated_at ASC LIMIT ?").all(since, walletId, limit);
+      return (rows as Record<string, unknown>[]).map(toRow);
     },
 
     /** Proposals the pipeline has not settled, for the startup check. */

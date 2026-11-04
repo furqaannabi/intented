@@ -90,6 +90,29 @@ describe("pipeline", () => {
     expect([r.status, t.calls]).toEqual(["failed", []]);
   });
 
+  it("settles another wallet's judged proposal from that wallet's own record, without sending anything", async () => {
+    const store = openStore(":memory:");
+    const m = store.createMandate("Buy market data", HASH);
+    const calls: string[] = [];
+    const pipeline = createPipeline({
+      store,
+      judge: async () => verdict("ALLOW"),
+      chain: { proposeOnChain: async () => { throw new Error("not this wallet's agent"); }, executeOnChain: async () => { throw new Error("not this wallet's agent"); } },
+      wallet: { config: async () => wallet(), proposalStatus: async () => null },
+      walletFor: (id) => ({ proposalStatus: async (pid) => (calls.push(`${id} ${pid}`), "executed") }),
+      expected: { model: "m", promptHash: PROMPT },
+      log: () => {},
+      recheckMs: 5,
+    });
+    const action = { receiver_id: "wrap.testnet", method: "ft_transfer", args_sha256: "b".repeat(64), deposit: "1", nonce: "1", expiry_ms: String(Date.now() + 60_000) };
+    const p = store.createProposal({ mandate_id: m.id, action, args: "{}", context: "", wallet_id: "shop-bot.intented.testnet", chain_proposal_id: 3 });
+    store.updateProposal(p.id, { ...verdict("ALLOW"), status: "allowed", step: "execute" });
+    pipeline.settle(p.id);
+    for (let i = 0; i < 200 && store.getProposal(p.id)!.step !== "done"; i++) await new Promise((r) => setTimeout(r, 5));
+    const r = store.getProposal(p.id)!;
+    expect([r.status, r.reason, calls[0]]).toEqual(["executed", "model says ALLOW", "shop-bot.intented.testnet 3"]);
+  });
+
   it("sends one proposal's transactions at a time, so they never race for the agent key's nonce", async () => {
     const store = openStore(":memory:");
     const m = store.createMandate("Buy market data", HASH);

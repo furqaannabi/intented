@@ -143,19 +143,22 @@ The quote is exact-output: `amount` is what `recipient` receives, and the wallet
 | `POST /api/mandate` | `{ text }` | `{ mandate_id, text_hash }`. A text already stored gets its stored `mandate_id`. Over the rate limit, `429` with `Retry-After` |
 | `GET /api/mandates/:text_hash` | | `{ mandate_id, text, text_hash }`: the stored text whose sha256 is `text_hash`, byte for byte. 400 unless `text_hash` is 64 lowercase hex characters, 404 if none; when several share it, the newest. Public |
 | `POST /api/propose` | `{ mandate_id, action, args, context }`, or for a payment through 1Click `{ mandate_id, cross_chain: { token, amount, dest_chain, dest_asset, recipient }, context }`, where `amount` is what the recipient receives; the API quotes and builds the action. Optional header `Idempotency-Key`, 1 to 64 characters of `A–Z a–z 0–9 _ -`, kept 24 hours | `{ proposal_id }`. The same key with the same body gets the first `proposal_id`, and so does a retry with the same nonce. `409` for the same key with a different body, or a different action reusing a nonce. `400` for a malformed key |
-| `GET /api/proposals` | `?since=ts` (changed after `ts`) | `[ Proposal ]` |
+| `POST /api/verdict` | `{ wallet_id, proposal_id, context }`. For a proposal the wallet's own agent made with `propose`; the API reads its action and args from the chain. `wallet_id` is `intented-wallet.testnet` or `<label>.intented.testnet` | `{ id, verdict, reason, model, chat_id, signer, signature, req_bytes, resp_bytes }`, `req_bytes` and `resp_bytes` base64, ready for `execute(proposal_id, req_bytes, resp_bytes, signature)`. Judged once per proposal: a repeat gets the stored answer. `400` for another `wallet_id` or a malformed body; `409` if the wallet is frozen, its model or prompt hash isn't this API's, its mandate text isn't stored, or the proposal isn't pending with at least 60 seconds left; `429` with `Retry-After` past 30 verdicts per wallet per hour |
+| `GET /api/proposals` | `?since=ts` (changed after `ts`), `?wallet=` (one wallet's) | `[ Proposal ]` |
 | `GET /api/proposals/:id` | | `Proposal` |
 | `GET /api/redteam/latest` | | `{ attacks_blocked, attacks_total, benign_denied, benign_total, cases[] }` |
 
 ```
 Proposal = {
-  id, created_at, updated_at, action, args, context_excerpt,
+  id, wallet_id, created_at, updated_at, action, args, context_excerpt,
   status: "pending" | "allowed" | "denied" | "executed" | "failed",
   verdict, reason, model, chat_id, signature, signer, attestation_url,
   near_tx_hash?,
   oneclick?: { deposit_address, dest_chain, recipient, amount_out, status, dest_tx_hash?, simulated },
 }
 ```
+
+`wallet_id` is the wallet the proposal is on; proposals from `POST /api/propose` are on `intented-wallet.testnet`. On a `POST /api/verdict` proposal the agent sent the transactions, so `near_tx_hash` is empty and the status is read from the wallet's `get_proposal`.
 
 `attestation_url` links the signer's published report in `docs/attestations/<signer>.json`, or is `null`.
 
@@ -170,3 +173,4 @@ Proposal = {
 | 2026-11-03 | Furqaan, William | The cross-chain payment through 1Click: the `cross_chain` judge request field and its `execute` checks, the owner's cross-chain switch and recipient list, `judge()`'s fifth argument, the second `POST /api/propose` body, exact-output quotes, and the wider `oneclick` on `Proposal`. Settles the open question on the cross-chain recipient. Record: [accepted](./decisions/2026-11-03-cross-chain-through-1click.md) |
 | 2026-11-03 | Furqaan, William | `cross_chain.signed_quote` and `set_one_click_key`: `execute` verifies 1Click's signed quote, so the deposit address is tied to the recipient. The payload is built from 1Click's signed fields, checked against a live mainnet quote. Records: [proposed](./decisions/2026-11-03-execute-verifies-the-1click-quote.md), [accepted](./decisions/2026-11-03-accept-signed-1click-quote.md) |
 | 2026-11-04 | Furqaan, William | `POST /api/propose` takes an optional `Idempotency-Key`, so a retried cross-chain payment is sent once; the spec lists the `409` for a reused key or nonce, and `POST /api/mandate`'s stored-text answer and `429`. Records: [proposed](./decisions/2026-11-04-idempotency-key-on-propose.md), [accepted](./decisions/2026-11-04-accept-idempotency-key.md) |
+| 2026-11-04 | Furqaan, William | `POST /api/verdict` judges a proposal any factory wallet's own agent made, and the agent sends its own `execute`; `wallet_id` on `Proposal`; `?wallet=` on `GET /api/proposals`. Records: [proposed](./decisions/2026-11-04-verdict-for-any-wallet.md), [accepted](./decisions/2026-11-04-accept-verdict-for-any-wallet.md) |

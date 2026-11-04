@@ -24,6 +24,8 @@ export interface PipelineDeps {
     executeOnChain(proposalId: number, req: Uint8Array, resp: Uint8Array, sig: string): Promise<{ near_tx_hash: string; ok: boolean; error?: string }>;
   };
   wallet: Pick<WalletReader, "config" | "proposalStatus">;
+  /** Any wallet's record, for settling proposals judged by POST /api/verdict. Unset, every proposal settles from `wallet`. */
+  walletFor?: (walletId: string) => Pick<WalletReader, "proposalStatus">;
   /** What this API judges with; the wallet refuses a verdict from any other model or prompt. */
   expected: { model: string; promptHash: string };
   /** Proposal ids, statuses and transaction hashes only: never context, prompts or keys. */
@@ -98,7 +100,7 @@ export function createPipeline(d: PipelineDeps) {
       const p = d.store.getProposal(id)!;
       let wallet = null;
       try {
-        if (p.chain_proposal_id !== null) wallet = await d.wallet.proposalStatus(p.chain_proposal_id);
+        if (p.chain_proposal_id !== null) wallet = await (d.walletFor?.(p.wallet_id) ?? d.wallet).proposalStatus(p.chain_proposal_id);
       } catch (e) {
         d.log(`proposal ${id}: wallet read failed, retrying (${errorText(e)})`);
         await new Promise((r) => setTimeout(r, recheckMs));
@@ -172,6 +174,10 @@ export function createPipeline(d: PipelineDeps) {
         d.log(`proposal ${id}: pipeline error (${errorText(e)}); settling from the wallet's record`);
         void settleLoop(id);
       });
+    },
+    /** A proposal judged by POST /api/verdict, whose agent sends execute itself: settle it from its wallet's record. */
+    settle(id: string) {
+      void settleLoop(id);
     },
     /** On startup: settle every proposal a previous run left unfinished. Never resumes the pipeline. */
     recover() {

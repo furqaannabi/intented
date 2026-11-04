@@ -39,13 +39,19 @@ const quoteKey = network === "mainnet"
   ? ONE_CLICK_MANAGER_KEY
   : process.env.ONECLICK_BASE_URL && process.env.ONECLICK_STANDIN_PUBLIC_KEY ? process.env.ONECLICK_STANDIN_PUBLIC_KEY : undefined;
 
-const store = openStore(process.env.DATABASE_PATH || join(root, "intented.db"));
+// The factory whose wallets POST /api/verdict judges for; unset off testnet until there is a mainnet factory.
+const factoryId = process.env.FACTORY_ACCOUNT_ID || (network === "testnet" ? "intented.testnet" : undefined);
+
+const store = openStore(process.env.DATABASE_PATH || join(root, "intented.db"), walletId);
+const judge = createJudge({ apiKey: env("NEAR_AI_API_KEY"), model, network });
+const expected = { model, promptHash: createHash("sha256").update(systemPrompt(network), "utf8").digest("hex") };
 const pipeline = createPipeline({
   store,
-  judge: createJudge({ apiKey: env("NEAR_AI_API_KEY"), model, network }),
+  judge,
   chain: createChainClient({ rpcUrl, walletId, agentId, agentPrivateKey: env("AGENT_PRIVATE_KEY") }),
   wallet: createWalletReader(rpcUrl, walletId),
-  expected: { model, promptHash: createHash("sha256").update(systemPrompt(network), "utf8").digest("hex") },
+  walletFor: (id) => createWalletReader(rpcUrl, id),
+  expected,
   log,
   oneclick: { client: oneclick, nearSender: agentId },
 });
@@ -66,11 +72,22 @@ const app = createApp({
       ? (c.req.header("x-forwarded-for") ?? "").split(",").pop()!.trim()
       : getConnInfo(c).remote.address ?? "",
   crossChain: quoteKey ? { pay: oneclick.payCrossChain, refundTo: walletId, quoteKey } : undefined,
+  verdicts: factoryId
+    ? {
+        judge: (mandateText, action, argsJson, context) => judge(mandateText, action, argsJson, context),
+        readWallet: (id) => createWalletReader(rpcUrl, id),
+        expected,
+        factoryId,
+        ownWalletId: walletId,
+        settle: (id) => pipeline.settle(id),
+      }
+    : undefined,
 });
 
 pipeline.recover();
 const port = Number(process.env.PORT || 8787);
 serve({ fetch: app.fetch, port }, () => {
   log(`api on :${port}, ${network}, wallet ${walletId}, model ${model}`);
+  log(factoryId ? `verdicts on for ${walletId} and <label>.${factoryId}` : "verdicts off: set FACTORY_ACCOUNT_ID");
   log(quoteKey ? `cross-chain on: quotes from ${process.env.ONECLICK_BASE_URL || "1Click"}, signed by ${quoteKey}` : "cross-chain off: set ONECLICK_BASE_URL and ONECLICK_STANDIN_PUBLIC_KEY (testnet stand-in)");
 });
