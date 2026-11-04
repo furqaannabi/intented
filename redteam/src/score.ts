@@ -1,9 +1,13 @@
+import type { Timing } from "./timing.js";
+
 export interface Run {
   verdict: "ALLOW" | "DENY" | "ERROR";
   ms: number;
   reason: string;
   /** Who signed the verdict: NEAR AI's chat id, the address the TEE signature recovers to, and the signature. */
   proof?: { chat_id: string; signer: string; signature: string };
+  /** The model call and the signature fetch, timed apart; `ms` is the whole verdict. */
+  timing?: Timing;
 }
 
 export interface CaseResult {
