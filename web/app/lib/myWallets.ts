@@ -1,7 +1,20 @@
-// The wallets this browser created or opened, until the factory can list wallets by owner.
+// An owner's wallets come from the factory on chain (get_wallets). Wallets opened by name are
+// remembered on this browser too, so someone else's wallet can be found again.
 // Browser storage can be missing or blocked, so every read and write is allowed to fail.
 
-import { FACTORY_ID, WALLET_ID, walletFromParam } from "./near";
+import { FACTORY_ID, viewOn, WALLET_ID, walletFromParam } from "./near";
+
+const PAGE = 100; // the factory's most per call
+
+/** Every wallet the factory created for this owner, oldest first. */
+export async function ownedWallets(ownerId: string): Promise<string[]> {
+  const all: string[] = [];
+  for (;;) {
+    const page = await viewOn<string[]>(FACTORY_ID, "get_wallets", { owner_id: ownerId, from_index: all.length, limit: PAGE });
+    all.push(...page);
+    if (page.length < PAGE) return all;
+  }
+}
 
 const KEY = "intented.wallets";
 

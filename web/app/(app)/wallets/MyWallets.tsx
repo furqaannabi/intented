@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FACTORY_ID, formatUnits, LABEL } from "../../lib/near";
-import { rememberedWallets, rememberWallet, walletFromPath, walletHref } from "../../lib/myWallets";
+import { ownedWallets, rememberedWallets, rememberWallet, walletFromPath, walletHref } from "../../lib/myWallets";
 import { useNearWallet } from "../../lib/useNearWallet";
 import { loadWallet, type WalletState } from "../../lib/walletState";
 import { Loading, Skeleton } from "../../components/Skeleton";
@@ -24,20 +24,38 @@ export function MyWallets() {
   const [open, setOpen] = useState("");
   const openId = walletFromPath(open.trim());
 
-  // Until the factory lists wallets by owner, the list is what this browser created or opened, each read from the chain.
+  // Waits for the connector, so a connected owner's list doesn't first show as signed out.
+  const [listError, setListError] = useState(false);
+  const account = near.status === "loading" ? undefined : near.account;
+
+  // The owner's wallets from the factory, then the ones opened by name on this browser; each read from the chain.
   useEffect(() => {
+    if (account === undefined) return;
     let cancelled = false;
-    const ids = rememberedWallets();
+    const remembered = rememberedWallets();
     // localStorage is only readable after hydration; the rows arrive after the awaits below.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setReading(ids);
-    Promise.all(ids.map(async (id): Promise<Row> => ({ id, state: await loadWallet(id).catch(() => "error" as const) }))).then(
-      (r) => !cancelled && setRows(r),
-    );
+    setReading(remembered);
+    setRows(null);
+    setListError(false);
+    (async () => {
+      const owned = account
+        ? await ownedWallets(account).catch(() => {
+            if (!cancelled) setListError(true);
+            return [];
+          })
+        : [];
+      if (cancelled) return;
+      // Newest first, each once: a wallet you own and also opened by name is listed as yours.
+      const ids = [...new Set([...[...owned].reverse(), ...remembered])];
+      setReading(ids);
+      const r = await Promise.all(ids.map(async (id): Promise<Row> => ({ id, state: await loadWallet(id).catch(() => "error" as const) })));
+      if (!cancelled) setRows(r);
+    })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [account]);
 
   const found = (rows ?? []).filter((r) => r.state !== null);
   const mine = near.account ? found.filter((r) => typeof r.state === "object" && r.state?.config.owner_id === near.account) : [];
@@ -82,7 +100,22 @@ export function MyWallets() {
         <>
           {near.account && (
             <div className="grid gap-3 pb-7">
-              {mine.length ? mine.map((r) => <WalletRow key={r.id} row={r} />) : <p className="text-sm text-mute">None found on this browser yet.</p>}
+              {listError && (
+                <p className="text-sm text-coral">Couldn&apos;t list your wallets from the factory on NEAR testnet. Reload to try again.</p>
+              )}
+              {mine.length ? (
+                mine.map((r) => <WalletRow key={r.id} row={r} />)
+              ) : (
+                !listError && (
+                  <p className="text-sm text-mute">
+                    No wallets yet.{" "}
+                    <Link href="/create" className="text-text underline decoration-line underline-offset-2 hover:decoration-soft">
+                      Create one
+                    </Link>
+                    .
+                  </p>
+                )
+              )}
             </div>
           )}
           {others.length > 0 && (
@@ -124,7 +157,7 @@ export function MyWallets() {
             {LABEL.test(open) ? "That name is too long." : "A wallet name: lowercase letters and digits, with - or _ between them."}
           </p>
         )}
-        <p className="mt-3 text-[12.5px]">Until the factory lists wallets by owner, this list holds the wallets this browser created or opened.</p>
+        <p className="mt-3 text-[12.5px]">Your own wallets are listed from the factory on chain, on any device. Wallets you open by name are remembered on this browser only.</p>
       </form>
     </>
   );
