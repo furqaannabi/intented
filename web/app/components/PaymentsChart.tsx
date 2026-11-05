@@ -7,8 +7,7 @@ import { Loading, Skeleton } from "./Skeleton";
 
 const DAYS = 14;
 const HEIGHT = 220;
-const PAD = { left: 52, right: 8, top: 22, bottom: 28 };
-const BAR_MAX = 24;
+const PAD = { left: 52, right: 10, top: 22, bottom: 28 };
 
 /** The app's own outcome colours: lime only for paid, coral only for refused. Checked for colourblind separation. */
 const FILL: Record<ChartOutcome, string> = { paid: "var(--lime)", refused: "var(--coral)", failed: "#6b6b6b" };
@@ -69,14 +68,10 @@ export function PaymentsChart({ walletId, tokenId, token }: { walletId: string; 
       <ul className="mt-4 flex flex-wrap gap-4 text-[12.5px] text-soft">
         {OUTCOMES.map((o) => (
           <li key={o} className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-[3px]" style={{ background: FILL[o] }} aria-hidden="true" />
+            <span className="h-0.5 w-3.5 rounded-full" style={{ background: FILL[o] }} aria-hidden="true" />
             {NAME[o]}
           </li>
         ))}
-        <li className="inline-flex items-center gap-1.5">
-          <span className="h-0 w-3.5 border-t border-soft" aria-hidden="true" />
-          Daily cap
-        </li>
       </ul>
       <Plot days={days} token={token} empty={empty} />
       {!empty && (
@@ -112,6 +107,45 @@ export function PaymentsChart({ walletId, tokenId, token }: { walletId: string; 
   );
 }
 
+/** A smooth line through the points that never overshoots them, so a day with nothing never dips below zero (monotone cubic). */
+function monotonePath(pts: [number, number][]): string {
+  const n = pts.length;
+  if (n < 2) return n ? `M${pts[0][0]},${pts[0][1]}` : "";
+  const dx = pts.slice(1).map((p, i) => p[0] - pts[i][0]);
+  const slope = pts.slice(1).map((p, i) => (p[1] - pts[i][1]) / dx[i]);
+  const tangent = pts.map((_, i) => {
+    if (i === 0) return slope[0];
+    if (i === n - 1) return slope[n - 2];
+    const a = slope[i - 1];
+    const b = slope[i];
+    return a * b <= 0 ? 0 : (3 * (dx[i - 1] + dx[i])) / ((2 * dx[i] + dx[i - 1]) / a + (dx[i] + 2 * dx[i - 1]) / b);
+  });
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    d += ` C${pts[i][0] + h},${pts[i][1] + h * tangent[i]} ${pts[i + 1][0] - h},${pts[i + 1][1] - h * tangent[i + 1]} ${pts[i + 1][0]},${pts[i + 1][1]}`;
+  }
+  return d;
+}
+
+/** The smallest of 1, 2, 2.5, 5 × 10^k at or above v, so the axis reads in round numbers. */
+function niceCeil(v: number): number {
+  const k = 10 ** Math.floor(Math.log10(v));
+  return ([1, 2, 2.5, 5, 10].find((m) => m * k >= v * (1 - 1e-9)) ?? 10) * k;
+}
+
+/**
+ * The top of the axis: the daily cap when the payments come near it, so the reader sees the headroom; otherwise the
+ * payments' own scale, so small ones aren't flattened against zero, with the cap stated in text instead of drawn.
+ */
+function axisTop(dataMax: number, cap: number): { top: number; showCap: boolean } {
+  if (cap > 0 && dataMax * 2.5 >= cap) return { top: niceCeil(Math.max(cap, dataMax)), showCap: true };
+  return { top: dataMax > 0 ? niceCeil(dataMax * 1.15) : cap || 1, showCap: dataMax === 0 && cap > 0 };
+}
+
+/** Drawn back to front, so paid, the line the cap is about, sits on top. */
+const DRAW_ORDER: ChartOutcome[] = ["failed", "refused", "paid"];
+
 function Plot({ days, token, empty }: { days: Day[]; token: WalletToken; empty: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -130,17 +164,39 @@ function Plot({ days, token, empty }: { days: Day[]; token: WalletToken; empty: 
 
   const units = (raw: bigint) => Number(formatUnits(raw.toString(), token.decimals));
   const cap = units(BigInt(token.caps.daily));
-  const top = Math.max(cap, ...days.map((d) => OUTCOMES.reduce((s, o) => s + units(d.raw[o]), 0))) || 1;
+  const { top, showCap } = axisTop(Math.max(0, ...days.flatMap((d) => OUTCOMES.map((o) => units(d.raw[o])))), cap);
   const plotW = Math.max(0, width - PAD.left - PAD.right);
   const plotH = HEIGHT - PAD.top - PAD.bottom;
   const y = (v: number) => PAD.top + plotH - (v / top) * plotH;
-  const band = plotW / days.length;
-  const bar = Math.min(BAR_MAX, band * 0.55);
-  const every = width < 560 ? 4 : 2;
-  const ticks = [0, cap / 2, cap];
+  const x = (i: number) => PAD.left + (days.length > 1 ? (plotW * i) / (days.length - 1) : plotW / 2);
+  // The last label ends at the plot's edge, so on a phone they need six days between them to stay apart.
+  const every = width < 560 ? 6 : 2;
+  const ticks = [0, top / 2, top];
+  const points = (o: ChartOutcome) => days.map((d, i): [number, number] => [x(i), y(units(d.raw[o]))]);
+
+  // The crosshair finds the nearest day, so the pointer never has to land on a 2px line.
+  const nearest = (clientX: number) => {
+    const left = box.current?.getBoundingClientRect().left ?? 0;
+    const i = Math.round(((clientX - left - PAD.left) / (plotW || 1)) * (days.length - 1));
+    return Math.min(days.length - 1, Math.max(0, i));
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    setHover((h) => Math.min(days.length - 1, Math.max(0, (h ?? days.length - 1) + (e.key === "ArrowLeft" ? -1 : 1))));
+  };
 
   return (
-    <div ref={box} className="relative mt-2" onMouseLeave={() => setHover(null)}>
+    <div
+      ref={box}
+      className="relative mt-2 rounded-[10px] outline-none focus-visible:ring-1 focus-visible:ring-soft"
+      tabIndex={empty ? undefined : 0}
+      aria-label={empty ? undefined : "Payments per day; use the arrow keys to read each day"}
+      onKeyDown={empty ? undefined : onKey}
+      onFocus={() => !empty && setHover((h) => h ?? days.length - 1)}
+      onBlur={() => setHover(null)}
+      onPointerLeave={() => setHover(null)}
+    >
       {width > 0 && (
         <svg
           width={width}
@@ -149,64 +205,81 @@ function Plot({ days, token, empty }: { days: Day[]; token: WalletToken; empty: 
           role="img"
           aria-label={`${token.symbol} paid, refused and failed per day for the last ${days.length} days, against a daily cap of ${formatUnits(token.caps.daily, token.decimals)}`}
         >
+          <defs>
+            {OUTCOMES.map((o) => (
+              <linearGradient key={o} id={`wash-${o}`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor={FILL[o]} stopOpacity={0.16} />
+                <stop offset="100%" stopColor={FILL[o]} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke={t === cap ? "var(--soft)" : "#2b2b2b"} strokeWidth={1} />
+              <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="#2b2b2b" strokeWidth={1} />
               <text x={PAD.left - 8} y={y(t) + 4} textAnchor="end" className="fill-mute font-mono text-[11px] tabular-nums">
                 {Number(t.toPrecision(3))}
               </text>
             </g>
           ))}
-          <text x={width - PAD.right} y={y(cap) - 7} textAnchor="end" className="fill-soft font-mono text-[11px]">
-            daily cap {formatUnits(token.caps.daily, token.decimals)} {token.symbol}
-          </text>
-          {days.map((d, i) => {
-            const cx = PAD.left + band * i + band / 2;
-            const shown = OUTCOMES.filter((o) => d.raw[o] > BigInt(0));
-            let base = y(0);
-            return (
-              <g key={d.day}>
-                {hover === i && <rect x={PAD.left + band * i} y={PAD.top} width={band} height={plotH} fill="rgb(255 255 255 / 0.04)" />}
-                {shown.map((o, j) => {
-                  // Stacked from the baseline: a 2px surface gap between segments, 4px rounding on the top one only.
-                  const h = Math.max(3, (units(d.raw[o]) / top) * plotH);
-                  const gap = j ? 2 : 0;
-                  const r = j === shown.length - 1 ? Math.min(4, h / 2) : 0;
-                  const y0 = base - gap;
-                  const y1 = base - h;
-                  base = y1;
-                  const x0 = cx - bar / 2;
-                  const x1 = cx + bar / 2;
-                  const path = r
-                    ? `M${x0},${y0} V${y1 + r} Q${x0},${y1} ${x0 + r},${y1} H${x1 - r} Q${x1},${y1} ${x1},${y1 + r} V${y0} Z`
-                    : `M${x0},${y0} V${y1} H${x1} V${y0} Z`;
-                  return <path key={o} d={path} fill={FILL[o]} />;
-                })}
-                {(days.length - 1 - i) % every === 0 && (
-                  // The last day's label ends at the plot's edge, so it isn't cut off on a phone.
-                  <text
-                    x={i === days.length - 1 ? width - PAD.right : cx}
-                    y={HEIGHT - 8}
-                    textAnchor={i === days.length - 1 ? "end" : "middle"}
-                    className="fill-mute font-mono text-[11px]"
-                  >
-                    {dayLabel(d.day)}
-                  </text>
-                )}
-                {!empty && (
-                  <rect
-                    x={PAD.left + band * i}
-                    y={PAD.top}
-                    width={band}
-                    height={plotH}
-                    fill="transparent"
-                    onMouseEnter={() => setHover(i)}
-                    onClick={() => setHover(i)}
-                  />
-                )}
-              </g>
-            );
-          })}
+          {showCap ? (
+            <>
+              <line x1={PAD.left} x2={width - PAD.right} y1={y(cap)} y2={y(cap)} stroke="var(--soft)" strokeWidth={1} />
+              <text x={width - PAD.right} y={y(cap) - 7} textAnchor="end" className="fill-soft font-mono text-[11px]">
+                daily cap {formatUnits(token.caps.daily, token.decimals)} {token.symbol}
+              </text>
+            </>
+          ) : (
+            <text x={width - PAD.right} y={PAD.top - 8} textAnchor="end" className="fill-mute font-mono text-[11px]">
+              daily cap {formatUnits(token.caps.daily, token.decimals)} {token.symbol}, above this scale
+            </text>
+          )}
+          {days.map(
+            (d, i) =>
+              (days.length - 1 - i) % every === 0 && (
+                // The first and last labels sit inside the plot's edges, so they aren't cut off on a phone.
+                <text
+                  key={d.day}
+                  x={x(i)}
+                  y={HEIGHT - 8}
+                  textAnchor={i === days.length - 1 ? "end" : i === 0 ? "start" : "middle"}
+                  className="fill-mute font-mono text-[11px]"
+                >
+                  {dayLabel(d.day)}
+                </text>
+              ),
+          )}
+          {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--soft)" strokeOpacity={0.35} strokeWidth={1} />}
+          {!empty &&
+            DRAW_ORDER.map((o) => {
+              const pts = points(o);
+              const line = monotonePath(pts);
+              return (
+                <g key={o}>
+                  <path d={`${line} L${pts[pts.length - 1][0]},${y(0)} L${pts[0][0]},${y(0)} Z`} fill={`url(#wash-${o})`} />
+                  <path d={line} fill="none" stroke={FILL[o]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                </g>
+              );
+            })}
+          {!empty &&
+            DRAW_ORDER.flatMap((o) =>
+              days.map((d, i) =>
+                // A dot marks each day with a payment; at the crosshair every series gets one. Ringed in the card's surface.
+                d.raw[o] > BigInt(0) || hover === i ? (
+                  <circle key={`${o}-${i}`} cx={x(i)} cy={y(units(d.raw[o]))} r={hover === i ? 5 : 4} fill={FILL[o]} stroke="var(--ink-2)" strokeWidth={2} />
+                ) : null,
+              ),
+            )}
+          {!empty && (
+            <rect
+              x={PAD.left - 12}
+              y={PAD.top}
+              width={plotW + 24}
+              height={plotH}
+              fill="transparent"
+              onPointerMove={(e) => setHover(nearest(e.clientX))}
+              onPointerDown={(e) => setHover(nearest(e.clientX))}
+            />
+          )}
         </svg>
       )}
       {empty && width > 0 && (
@@ -216,7 +289,7 @@ function Plot({ days, token, empty }: { days: Day[]; token: WalletToken; empty: 
           They appear here as the agent proposes them.
         </p>
       )}
-      {hover !== null && <Tip day={days[hover]} token={token} left={Math.min(PAD.left + band * hover + band / 2 + 12, width - 196)} />}
+      {hover !== null && <Tip day={days[hover]} token={token} left={x(hover) + 14 > width - 200 ? x(hover) - 202 : x(hover) + 14} />}
     </div>
   );
 }
@@ -226,12 +299,12 @@ function Tip({ day, token, left }: { day: Day; token: WalletToken; left: number 
     <div className="pointer-events-none absolute top-8 z-10 w-[188px] rounded-[12px] border border-line bg-[#0d0d0d] px-3 py-2.5 text-[12.5px] shadow-[0_8px_24px_#0008]" style={{ left: Math.max(0, left) }}>
       <p className="mb-1 font-bold">{dayLabel(day.day)}</p>
       {OUTCOMES.map((o) => (
-        <p key={o} className="flex justify-between gap-3 text-soft">
+        <p key={o} className="flex justify-between gap-3 text-mute">
           <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-[2px]" style={{ background: FILL[o] }} aria-hidden="true" />
+            <span className="h-0.5 w-3 rounded-full" style={{ background: FILL[o] }} aria-hidden="true" />
             {NAME[o]} · {day.count[o]}
           </span>
-          <span className="font-mono text-xs tabular-nums">{formatUnits(day.raw[o].toString(), token.decimals)}</span>
+          <span className="font-mono text-xs font-bold text-text tabular-nums">{formatUnits(day.raw[o].toString(), token.decimals)}</span>
         </p>
       ))}
       <p className="mt-1 text-right font-mono text-[11px] text-mute">{token.symbol}</p>
