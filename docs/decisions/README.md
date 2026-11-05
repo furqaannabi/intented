@@ -59,6 +59,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-04 | [Proposals are bounded and prunable; the mainnet wallet's full-access key is deleted after setup](./2026-11-04-bounded-proposals-and-mainnet-key.md) (proposed, awaiting William) | Furqaan |
 | 2026-11-04 | [The API judges any factory wallet's proposals, and the agent sends its own transactions](./2026-11-04-verdict-for-any-wallet.md) (proposed; accepted below) | William |
 | 2026-11-04 | [Accepted: POST /api/verdict judges any factory wallet's proposals, and the agent sends its own transactions](./2026-11-04-accept-verdict-for-any-wallet.md) | Furqaan, William |
+| 2026-11-05 | [The demo agent holds its own key, and the API holds none: a quote step for 1Click, POST /api/propose removed](./2026-11-05-demo-agent-holds-its-own-key.md) (proposed, awaiting Furqaan) | William |
 
 ## Not decided yet
 
