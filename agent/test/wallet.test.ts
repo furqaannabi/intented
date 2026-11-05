@@ -21,6 +21,11 @@ describe("paymentAction", () => {
     });
     expect(() => canonicalBytes(action)).not.toThrow();
   });
+
+  it("expires when told, so a payment through 1Click ends before its quote does", () => {
+    const deadline = now + 30 * 60_000;
+    expect(paymentAction({ ...payment, expiresAt: deadline - 5 * 60_000 }, now).action.expiry_ms).toBe(BigInt(deadline - 5 * 60_000));
+  });
 });
 
 describe("outOfGas", () => {

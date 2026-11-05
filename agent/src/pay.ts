@@ -18,15 +18,18 @@ export function toYocto(amount: string): string {
 export type PayStep =
   | { step: "proposed"; proposal_id: number; near_tx_hash: string }
   | { step: "verdict"; verdict: "ALLOW" | "DENY"; reason: string; signer: string }
-  | { step: "executed"; near_tx_hash: string; ok: boolean; error?: string };
+  | { step: "executed"; near_tx_hash: string; ok: boolean; error?: string }
+  | { step: "reported"; ok: boolean; error?: string };
 
+/** `id` is the API's id for the judged proposal, for GET /api/proposals/:id. */
 export type PayResult =
-  | { outcome: "paid"; proposal_id: number; execute_tx: string; reason: string }
-  | { outcome: "denied"; proposal_id: number; execute_tx: string; reason: string }
-  | { outcome: "failed"; proposal_id: number; execute_tx: string; reason: string; error: string }
+  | { outcome: "paid"; proposal_id: number; id: string; execute_tx: string; reason: string }
+  | { outcome: "denied"; proposal_id: number; id: string; execute_tx: string; reason: string }
+  | { outcome: "failed"; proposal_id: number; id: string; execute_tx: string; reason: string; error: string }
   | { outcome: "no verdict"; proposal_id: number; error: string };
 
 interface Verdict extends SignedVerdict {
+  id: string;
   verdict: "ALLOW" | "DENY";
   reason: string;
   signer: string;
@@ -42,6 +45,8 @@ export interface PayDeps {
     execute(proposalId: number, v: SignedVerdict): Promise<{ near_tx_hash: string; ok: boolean; error?: string }>;
   };
   apiUrl: string;
+  /** For a payment through 1Click: the quote from POST /api/quote that this payment was built from. */
+  quoteId?: string;
   fetch?: typeof fetch;
   onStep?: (s: PayStep) => void;
 }
@@ -50,7 +55,7 @@ export interface PayDeps {
  * Proposes the payment, gets the verdict on exactly that proposal, and hands it to the wallet. A DENY is handed over
  * too: the wallet refuses it on chain, which is the record. Without a verdict the proposal just expires; nothing moves.
  */
-export async function pay({ walletId, payment, context, agent, apiUrl, fetch: f = fetch, onStep = () => {} }: PayDeps): Promise<PayResult> {
+export async function pay({ walletId, payment, context, agent, apiUrl, quoteId, fetch: f = fetch, onStep = () => {} }: PayDeps): Promise<PayResult> {
   const { proposal_id, near_tx_hash } = await agent.propose(payment);
   onStep({ step: "proposed", proposal_id, near_tx_hash });
 
@@ -59,7 +64,7 @@ export async function pay({ walletId, payment, context, agent, apiUrl, fetch: f 
     res = await f(`${apiUrl}/api/verdict`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ wallet_id: walletId, proposal_id, context }),
+      body: JSON.stringify({ wallet_id: walletId, proposal_id, context, ...(quoteId ? { quote_id: quoteId } : {}) }),
     });
   } catch (e) {
     return { outcome: "no verdict", proposal_id, error: `could not reach the API at ${apiUrl} (${e instanceof Error ? e.message : String(e)})` };
@@ -73,7 +78,20 @@ export async function pay({ walletId, payment, context, agent, apiUrl, fetch: f 
 
   const e = await agent.execute(proposal_id, v);
   onStep({ step: "executed", ...e });
-  if (v.verdict === "DENY") return { outcome: "denied", proposal_id, execute_tx: e.near_tx_hash, reason: v.reason };
-  if (!e.ok) return { outcome: "failed", proposal_id, execute_tx: e.near_tx_hash, reason: v.reason, error: e.error ?? "the wallet refused it" };
-  return { outcome: "paid", proposal_id, execute_tx: e.near_tx_hash, reason: v.reason };
+  if (v.verdict === "DENY") return { outcome: "denied", proposal_id, id: v.id, execute_tx: e.near_tx_hash, reason: v.reason };
+  if (!e.ok) return { outcome: "failed", proposal_id, id: v.id, execute_tx: e.near_tx_hash, reason: v.reason, error: e.error ?? "the wallet refused it" };
+
+  // Tells the API which transaction paid, so the receipt links it and a 1Click deposit is submitted. The payment
+  // stands either way: the API settles it from the wallet's own record, so a failed report isn't a failed payment.
+  try {
+    const r = await f(`${apiUrl}/api/executed`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ wallet_id: walletId, proposal_id, near_tx_hash: e.near_tx_hash }),
+    });
+    onStep(r.ok ? { step: "reported", ok: true } : { step: "reported", ok: false, error: `API ${r.status}: ${((await r.json().catch(() => ({}))) as { error?: string }).error ?? ""}` });
+  } catch (err) {
+    onStep({ step: "reported", ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+  return { outcome: "paid", proposal_id, id: v.id, execute_tx: e.near_tx_hash, reason: v.reason };
 }

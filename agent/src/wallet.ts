@@ -18,6 +18,8 @@ export interface Payment {
   /** In the token's smallest unit, as a decimal string. */
   amount: string;
   memo?: string;
+  /** When the proposal stops being payable, in ms; default 15 minutes from now. A payment through 1Click must expire before its quote. */
+  expiresAt?: number;
 }
 
 /** The ft_transfer the wallet will make, with args_sha256 over the exact args string it sends. */
@@ -31,7 +33,7 @@ export function paymentAction(p: Payment, now: number): { action: Action; argsJs
       args_sha256: createHash("sha256").update(argsJson, "utf8").digest("hex"),
       deposit: "1", // ft_transfer needs exactly one yoctoNEAR
       nonce: BigInt(now),
-      expiry_ms: BigInt(now + EXPIRY_MS),
+      expiry_ms: BigInt(p.expiresAt ?? now + EXPIRY_MS),
     },
   };
 }
@@ -57,8 +59,9 @@ export function outOfGas(e: unknown, walletId: string): string | null {
 }
 
 /** propose and execute on the agent's own wallet, signed with its saved key. The API holds no key for this wallet. */
-export function walletAgent({ key, rpcUrl }: { key: AgentKey; rpcUrl: string }) {
-  const chain = createChainClient({ rpcUrl, walletId: key.walletId, agentId: key.walletId, agentPrivateKey: key.privateKey });
+/** `agentId`: the account the key belongs to, when it isn't the wallet itself (the demo wallet's `intented-agent.testnet`). */
+export function walletAgent({ key, rpcUrl, agentId = key.walletId }: { key: Pick<AgentKey, "walletId" | "privateKey">; rpcUrl: string; agentId?: string }) {
+  const chain = createChainClient({ rpcUrl, walletId: key.walletId, agentId, agentPrivateKey: key.privateKey });
   // Out of gas, out of limit, or no key: one plain sentence instead of NEAR's error, with the original kept as the cause.
   const plain = (e: unknown): never => {
     const said = outOfGas(e, key.walletId);

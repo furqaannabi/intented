@@ -54,6 +54,22 @@ export interface ProposalRow {
   oneclick: OneClickState | null;
 }
 
+/** A 1Click quote POST /api/quote got for a wallet, before its agent proposes the transfer. */
+export interface QuoteRow {
+  id: string;
+  wallet_id: string;
+  created_at: number;
+  token: string;
+  amount_in: string;
+  deposit_address: string;
+  deadline_ms: string;
+  /** The judge request's field and the web app's deposit state, built from the quote by the API. */
+  cross_chain: CrossChainField;
+  oneclick: OneClickState;
+  /** The proposal it was used for; a quote serves one. */
+  proposal_id: string | null;
+}
+
 export type ProposalPatch = Partial<Omit<ProposalRow, "id" | "wallet_id" | "created_at" | "updated_at" | "mandate_id" | "action" | "args" | "context" | "cross_chain">>;
 
 /** 1Click deposit statuses after which nothing changes. */
@@ -80,6 +96,11 @@ export function openStore(path: string, ownWallet = "intented-wallet.testnet") {
     );
     CREATE INDEX IF NOT EXISTS proposals_updated_at ON proposals(updated_at);
     CREATE INDEX IF NOT EXISTS proposals_nonce ON proposals(json_extract(action, '$.nonce'));
+    CREATE TABLE IF NOT EXISTS quotes (
+      id TEXT PRIMARY KEY, wallet_id TEXT NOT NULL, created_at INTEGER NOT NULL,
+      token TEXT NOT NULL, amount_in TEXT NOT NULL, deposit_address TEXT NOT NULL, deadline_ms TEXT NOT NULL,
+      cross_chain TEXT NOT NULL, oneclick TEXT NOT NULL, proposal_id TEXT
+    );
     CREATE TABLE IF NOT EXISTS idempotency_keys (
       key TEXT PRIMARY KEY, body_sha256 TEXT NOT NULL, proposal_id TEXT NOT NULL, created_at INTEGER NOT NULL
     );
@@ -140,6 +161,29 @@ export function openStore(path: string, ownWallet = "intented-wallet.testnet") {
     getProposalOnChain(walletId: string, chainProposalId: number): ProposalRow | undefined {
       const r = db.prepare("SELECT * FROM proposals WHERE wallet_id = ? AND chain_proposal_id = ? ORDER BY created_at DESC LIMIT 1").get(walletId, chainProposalId);
       return r ? toRow(r as Record<string, unknown>) : undefined;
+    },
+
+    createQuote(q: Omit<QuoteRow, "id" | "created_at" | "proposal_id">, at: number): QuoteRow {
+      const qid = id("q");
+      db.prepare(
+        "INSERT INTO quotes (id, wallet_id, created_at, token, amount_in, deposit_address, deadline_ms, cross_chain, oneclick) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(qid, q.wallet_id, at, q.token, q.amount_in, q.deposit_address, q.deadline_ms, JSON.stringify(q.cross_chain), JSON.stringify(q.oneclick));
+      return this.getQuote(qid)!;
+    },
+
+    getQuote(quoteId: string): QuoteRow | undefined {
+      const r = db.prepare("SELECT * FROM quotes WHERE id = ?").get(quoteId) as Record<string, unknown> | undefined;
+      return r ? ({ ...r, cross_chain: JSON.parse(r.cross_chain as string), oneclick: JSON.parse(r.oneclick as string) } as QuoteRow) : undefined;
+    },
+
+    /** Marks the quote used by this proposal; false if another proposal already has it. */
+    useQuote(quoteId: string, proposalId: string): boolean {
+      return db.prepare("UPDATE quotes SET proposal_id = ? WHERE id = ? AND proposal_id IS NULL").run(proposalId, quoteId).changes === 1;
+    },
+
+    /** Frees a quote whose proposal got no verdict, so the agent can ask again with it. */
+    releaseQuote(quoteId: string, proposalId: string): void {
+      db.prepare("UPDATE quotes SET proposal_id = NULL WHERE id = ? AND proposal_id = ?").run(quoteId, proposalId);
     },
 
     getIdempotencyKey(key: string): { body_sha256: string; proposal_id: string; created_at: number } | undefined {

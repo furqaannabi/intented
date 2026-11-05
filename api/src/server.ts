@@ -16,7 +16,7 @@ import { createOneClick, ONE_CLICK_MANAGER_KEY } from "./oneclick.js";
 import { createPipeline } from "./pipeline.js";
 import { createRedteamReader } from "./redteam.js";
 import { openStore } from "./store.js";
-import { createWalletReader } from "./wallet.js";
+import { createTxReader, createWalletReader } from "./wallet.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = join(root, "..", ".env");
@@ -53,7 +53,7 @@ const pipeline = createPipeline({
   walletFor: (id) => createWalletReader(rpcUrl, id),
   expected,
   log,
-  oneclick: { client: oneclick, nearSender: agentId },
+  oneclick: { client: oneclick, nearSender: async (id) => (await createWalletReader(rpcUrl, id).config()).agent_id ?? undefined },
 });
 
 const app = createApp({
@@ -74,12 +74,13 @@ const app = createApp({
   crossChain: quoteKey ? { pay: oneclick.payCrossChain, refundTo: walletId, quoteKey } : undefined,
   verdicts: factoryId
     ? {
-        judge: (mandateText, action, argsJson, context) => judge(mandateText, action, argsJson, context),
+        judge: (mandateText, action, argsJson, context, crossChain) => judge(mandateText, action, argsJson, context, crossChain),
         readWallet: (id) => createWalletReader(rpcUrl, id),
         expected,
         factoryId,
         ownWalletId: walletId,
         settle: (id) => pipeline.settle(id),
+        readTx: createTxReader(rpcUrl),
       }
     : undefined,
 });

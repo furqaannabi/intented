@@ -34,7 +34,8 @@ describe("pay", () => {
       sent.push(JSON.parse(init.body));
       return new Response(JSON.stringify(answer.body), { status: answer.status });
     };
-    const run = () => pay({ walletId: WALLET, payment, context: "402: pay 0.001 wNEAR", agent, apiUrl: "http://api", fetch: fetch as never, onStep: (s) => steps.push(s) });
+    const run = (over: { quoteId?: string } = {}) =>
+      pay({ walletId: WALLET, payment, context: "402: pay 0.001 wNEAR", agent, apiUrl: "http://api", fetch: fetch as never, onStep: (s) => steps.push(s), ...over });
     return { calls, sent, steps, run };
   }
   const verdict = (v: "ALLOW" | "DENY") => ({
@@ -42,17 +43,27 @@ describe("pay", () => {
     body: { id: "p_1", verdict: v, reason: `says ${v}`, signer: "0xs", signature: "0xsig", req_bytes: "AQ==", resp_bytes: "Ag==" },
   });
 
-  it("proposes, asks the API about that proposal with the context, and executes the ALLOW", async () => {
+  it("proposes, asks the API about that proposal with the context, executes the ALLOW, and reports the execute", async () => {
     const t = setup(verdict("ALLOW"));
-    expect(await t.run()).toMatchObject({ outcome: "paid", proposal_id: 4, execute_tx: "etx" });
-    expect(t.calls).toEqual(["propose", "POST http://api/api/verdict", "execute 4 0xsig"]);
-    expect(t.sent).toEqual([{ wallet_id: WALLET, proposal_id: 4, context: "402: pay 0.001 wNEAR" }]);
-    expect(t.steps.map((s) => s.step)).toEqual(["proposed", "verdict", "executed"]);
+    expect(await t.run()).toMatchObject({ outcome: "paid", proposal_id: 4, execute_tx: "etx", id: "p_1" });
+    expect(t.calls).toEqual(["propose", "POST http://api/api/verdict", "execute 4 0xsig", "POST http://api/api/executed"]);
+    expect(t.sent).toEqual([
+      { wallet_id: WALLET, proposal_id: 4, context: "402: pay 0.001 wNEAR" },
+      { wallet_id: WALLET, proposal_id: 4, near_tx_hash: "etx" },
+    ]);
+    expect(t.steps.map((s) => s.step)).toEqual(["proposed", "verdict", "executed", "reported"]);
+  });
+
+  it("asks for the verdict with the quote, for a payment through 1Click", async () => {
+    const t = setup(verdict("ALLOW"));
+    await t.run({ quoteId: "q_0123456789abcdef" });
+    expect(t.sent[0]).toEqual({ wallet_id: WALLET, proposal_id: 4, context: "402: pay 0.001 wNEAR", quote_id: "q_0123456789abcdef" });
   });
 
   it("still hands a DENY to the wallet, which refuses it on chain as the record", async () => {
     const t = setup(verdict("DENY"));
     expect(await t.run()).toMatchObject({ outcome: "denied", reason: "says DENY" });
+    // A refused execute is no deposit and gets no receipt link, so it isn't reported.
     expect(t.calls.at(-1)).toBe("execute 4 0xsig");
   });
 

@@ -40,20 +40,29 @@ export function checkCrossChainPropose(body: unknown, opts: { network: Network }
   if (context.length > MAX_CONTEXT_CHARS) return { error: `context is over ${MAX_CONTEXT_CHARS} characters` };
   if (typeof cross_chain !== "object" || cross_chain === null) return { error: "cross_chain must be an object" };
 
-  const { token, amount, dest_chain, dest_asset, recipient } = cross_chain as Record<string, unknown>;
+  const intent = checkIntent(cross_chain, opts.network, "cross_chain");
+  if ("error" in intent) return intent;
+  return { mandate_id, intent, context };
+}
+
+/** A payment through 1Click as the agent states it, or why it is refused. `field` names it in the error. */
+export function checkIntent(value: unknown, network: Network, field: string): CrossChainIntent | { error: string } {
+  if (typeof value !== "object" || value === null) return { error: `${field} must be an object` };
+  const opts = { network };
+  const { token, amount, dest_chain, dest_asset, recipient } = value as Record<string, unknown>;
   if (typeof token !== "string" || !KNOWN_TOKENS[opts.network].some((t) => t.contract === token)) {
-    return { error: `cross_chain.token must be a known token contract on ${opts.network}` };
+    return { error: `${field}.token must be a known token contract on ${opts.network}` };
   }
   if (typeof amount !== "string" || !POSITIVE.test(amount) || BigInt(amount) > U128_MAX) {
-    return { error: "cross_chain.amount must be a positive decimal string, in the destination asset's smallest unit" };
+    return { error: `${field}.amount must be a positive decimal string, in the destination asset's smallest unit` };
   }
   const dest = typeof dest_asset === "string" ? DEST_ASSETS[dest_asset] : undefined;
-  if (!dest) return { error: `cross_chain.dest_asset must be one of: ${Object.keys(DEST_ASSETS).join(", ")}` };
-  if (dest_chain !== dest.chain) return { error: `cross_chain.dest_chain must be "${dest.chain}" for that asset` };
+  if (!dest) return { error: `${field}.dest_asset must be one of: ${Object.keys(DEST_ASSETS).join(", ")}` };
+  if (dest_chain !== dest.chain) return { error: `${field}.dest_chain must be "${dest.chain}" for that asset` };
   // Letter case in an EVM address is only a checksum, so lowercasing loses nothing; the wallet requires lowercase.
-  if (typeof recipient !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(recipient)) return { error: "cross_chain.recipient must be 0x plus 40 hex characters" };
+  if (typeof recipient !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(recipient)) return { error: `${field}.recipient must be 0x plus 40 hex characters` };
 
-  return { mandate_id, intent: { token, amount, dest_chain: dest.chain, dest_asset: dest_asset as string, recipient: recipient.toLowerCase() }, context };
+  return { token, amount, dest_chain: dest.chain, dest_asset: dest_asset as string, recipient: recipient.toLowerCase() };
 }
 
 /** The action's expiry: well inside the quote, so 1Click is still taking deposits when the transfer lands. */

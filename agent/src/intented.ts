@@ -59,6 +59,7 @@ async function payCommand(name: string, args: string[]) {
       console.log(`  ${label("")}${s.reason}`);
     }
     if (s.step === "executed") console.log(`  ${label("execute")}${s.ok ? paint("green", "ok") : paint("yellow", "refused")}  ${txLink(s.near_tx_hash)}`);
+    if (s.step === "reported" && !s.ok) console.log(`  ${label("")}${paint("yellow", `the receipt won't link this transaction: ${s.error}`)}`);
   };
 
   const r = await pay({ walletId: key.walletId, payment, context, agent, apiUrl: (process.env.INTENTED_API_URL || "http://localhost:8787").replace(/\/+$/, ""), onStep });

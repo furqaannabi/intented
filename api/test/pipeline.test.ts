@@ -166,7 +166,7 @@ describe("pipeline: a payment through 1Click", () => {
       recheckMs: 5,
       trackMs: 5,
       oneclick: {
-        nearSender: "intented-agent.testnet",
+        nearSender: async (walletId) => (walletId === "intented-wallet.testnet" ? "intented-agent.testnet" : walletId),
         client: {
           submitDeposit: async (...a) => void submitted.push(a),
           trackDeposit: async () => statuses.shift() ?? { status: "SUCCESS", dest_tx_hash: "0xbase" },
@@ -196,6 +196,24 @@ describe("pipeline: a payment through 1Click", () => {
     expect(done.status).toBe("executed");
     expect(submitted).toEqual([[crossChain.deposit_address, "etx", "intented-agent.testnet"]]);
     expect(done.oneclick).toEqual({ ...oneclick, status: "SUCCESS", dest_tx_hash: "0xbase" });
+  });
+
+  it("on a verdict-path wallet, tells 1Click once the agent reports its execute, signed by that wallet's agent", async () => {
+    // 1Click sees nothing until the deposit is sent, so it stays PROCESSING here.
+    const { deps, store, submitted, until } = setupCrossChain({ statuses: Array.from({ length: 1000 }, () => ({ status: "PROCESSING" as const })) });
+    const m = store.createMandate("Buy market data", HASH);
+    const action = { receiver_id: "wrap.testnet", method: "ft_transfer", args_sha256: "b".repeat(64), deposit: "1", nonce: "2", expiry_ms: String(Date.now() + 60_000) };
+    const q = store.createProposal({ mandate_id: m.id, action, args: "{}", context: "", cross_chain: crossChain, oneclick, wallet_id: "shop-bot.intented.testnet", chain_proposal_id: 3 });
+    store.updateProposal(q.id, { ...verdict("ALLOW"), status: "allowed", step: "execute" });
+    const pipeline = createPipeline({ ...deps, walletFor: () => ({ proposalStatus: async () => "executed" }) });
+    pipeline.settle(q.id);
+    await until(() => store.getProposal(q.id)!.status === "executed");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(submitted).toEqual([]);
+    // POST /api/executed stores the hash; the follower picks it up.
+    store.updateProposal(q.id, { near_tx_hash: "agent-etx" });
+    await until(() => submitted.length > 0);
+    expect(submitted).toEqual([[crossChain.deposit_address, "agent-etx", "shop-bot.intented.testnet"]]);
   });
 
   it("never tells 1Click about a deposit after a DENY", async () => {

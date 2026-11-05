@@ -32,8 +32,8 @@ export interface PipelineDeps {
   log: (line: string) => void;
   /** How often an interrupted proposal re-reads the wallet while it could still execute. */
   recheckMs?: number;
-  /** For payments through 1Click: tells 1Click about the deposit and follows it. `nearSender` signs execute: the agent. */
-  oneclick?: { client: Pick<ReturnType<typeof createOneClick>, "submitDeposit" | "trackDeposit">; nearSender: string };
+  /** For payments through 1Click: tells 1Click about the deposit and follows it. `nearSender` is who signed execute: the wallet's agent. */
+  oneclick?: { client: Pick<ReturnType<typeof createOneClick>, "submitDeposit" | "trackDeposit">; nearSender: (walletId: string) => Promise<string | undefined> };
   /** How often an executed deposit is re-read from 1Click. */
   trackMs?: number;
 }
@@ -75,7 +75,7 @@ export function createPipeline(d: PipelineDeps) {
       // 1Click finds a deposit by itself; telling it is faster, and the testnet stand-in needs it.
       if (!submitted && p.near_tx_hash) {
         try {
-          await client.submitDeposit(oc.deposit_address, p.near_tx_hash, nearSender);
+          await client.submitDeposit(oc.deposit_address, p.near_tx_hash, await nearSender(p.wallet_id));
           submitted = true;
         } catch (e) {
           d.log(`proposal ${id}: telling 1Click about the deposit failed, retrying (${errorText(e)})`);

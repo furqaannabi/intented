@@ -9,7 +9,7 @@ import { verifySignedQuote, type CrossChainPayment, type Quote, type SignedQuote
 import type { RedteamLatest } from "./redteam.js";
 import type { ProposalRow, Store } from "./store.js";
 import { checkPropose, toAction } from "./validate.js";
-import { checkVerdictRequest, MIN_LEFT_MS, VERDICT_LIMIT, type VerdictDeps, type VerdictRequest } from "./verdict.js";
+import { checkExecutedRequest, checkQuoteRequest, checkVerdictRequest, MIN_LEFT_MS, QUOTE_LIMIT, VERDICT_LIMIT, type VerdictDeps, type VerdictRequest } from "./verdict.js";
 
 /** Long enough for a real mandate, short enough that the open endpoint can't be used as storage. */
 const MAX_MANDATE_CHARS = 2000;
@@ -265,6 +265,80 @@ export function createApp({
     return c.json(body, status);
   });
 
+  // A 1Click quote for a payment a wallet's agent is about to propose: the deposit address and amount to propose,
+  // with the signed quote kept here, so the judge request's cross_chain is the API's own, never the agent's.
+  const quoteLimit = windowLimiter(verdicts?.quoteLimit ?? QUOTE_LIMIT);
+  app.post("/api/quote", async (c) => {
+    if (!verdicts || !crossChain) return c.json({ error: "payments through 1Click are off on this API" }, 501);
+    const req = checkQuoteRequest(await c.req.json().catch(() => null), verdicts, network);
+    if ("error" in req) return c.json({ error: req.error }, 400);
+
+    let config;
+    try {
+      config = await verdicts.readWallet(req.wallet_id).config();
+    } catch (e) {
+      return c.json({ error: `could not read ${req.wallet_id} (${(e instanceof Error ? e.message : String(e)).slice(0, 200)})` }, 502);
+    }
+    // Refused before a quote is spent: the wallet would refuse the payment anyway.
+    if (!config.cross_chain_enabled) return c.json({ error: `${req.wallet_id} has payments through 1Click switched off` }, 409);
+    if (config.cross_chain_recipients.length && !config.cross_chain_recipients.includes(req.intent.recipient)) {
+      return c.json({ error: `${req.intent.recipient} isn't on ${req.wallet_id}'s cross-chain recipient list` }, 409);
+    }
+    if (config.one_click_key !== crossChain.quoteKey) return c.json({ error: `${req.wallet_id} accepts quotes signed by another 1Click key` }, 409);
+
+    const retryAfter = quoteLimit.retryAfter(req.wallet_id, now());
+    if (retryAfter) {
+      c.header("Retry-After", String(retryAfter));
+      return c.json({ error: `too many quotes; try again in ${retryAfter}s` }, 429);
+    }
+    quoteLimit.record(req.wallet_id, now());
+
+    let paid;
+    try {
+      paid = await crossChain.pay({
+        amount: req.intent.amount, origin_asset: `nep141:${req.intent.token}`, dest_asset: req.intent.dest_asset, recipient: req.intent.recipient, refund_to: req.wallet_id,
+      });
+    } catch (e) {
+      return c.json({ error: `could not get a 1Click quote: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}` }, 502);
+    }
+    if (!verifySignedQuote(paid.signed_quote, crossChain.quoteKey)) return c.json({ error: "1Click's quote signature does not verify" }, 502);
+    const built = buildCrossChain(req.intent, paid, { now: now(), simulated: network !== "mainnet" });
+    if ("error" in built) return c.json({ error: `unusable 1Click quote: ${built.error}` }, 502);
+
+    const q = store.createQuote(
+      {
+        wallet_id: req.wallet_id, token: req.intent.token, amount_in: paid.quote.amountIn, deposit_address: paid.deposit_address,
+        deadline_ms: built.cross_chain.deadline_ms, cross_chain: built.cross_chain, oneclick: built.oneclick,
+      },
+      now(),
+    );
+    return c.json({ quote_id: q.id, deposit_address: q.deposit_address, token: q.token, amount_in: q.amount_in, deadline_ms: q.deadline_ms, amount_out: q.cross_chain.amount_out });
+  });
+
+  // The agent reports the execute it sent, so the receipt can link it and a 1Click deposit can be submitted.
+  // The chain is the authority: the transaction must be the wallet's agent calling execute on this proposal, and have succeeded.
+  app.post("/api/executed", async (c) => {
+    if (!verdicts) return c.json({ error: "verdicts for other wallets are off on this API" }, 501);
+    const req = checkExecutedRequest(await c.req.json().catch(() => null), verdicts);
+    if ("error" in req) return c.json({ error: req.error }, 400);
+    const p = store.getProposalOnChain(req.wallet_id, req.proposal_id);
+    if (!p?.verdict) return c.json({ error: `this API judged no proposal ${req.proposal_id} on ${req.wallet_id}` }, 404);
+
+    let tx;
+    try {
+      const { agent_id } = await verdicts.readWallet(req.wallet_id).config();
+      tx = agent_id ? await verdicts.readTx(req.near_tx_hash, agent_id) : null;
+    } catch (e) {
+      return c.json({ error: `could not read the chain (${(e instanceof Error ? e.message : String(e)).slice(0, 200)})` }, 502);
+    }
+    const call = tx?.receiver_id === req.wallet_id ? tx.calls.find((k) => k.method === "execute") : undefined;
+    if (!tx) return c.json({ error: `no transaction ${req.near_tx_hash} from ${req.wallet_id}'s agent` }, 409);
+    if (!call || call.args?.proposal_id !== req.proposal_id) return c.json({ error: `${req.near_tx_hash} isn't ${req.wallet_id}'s execute of proposal ${req.proposal_id}` }, 409);
+    if (!tx.ok) return c.json({ error: `${req.near_tx_hash} didn't succeed` }, 409);
+    store.updateProposal(p.id, { near_tx_hash: req.near_tx_hash });
+    return c.json({ id: p.id });
+  });
+
   async function verdictFor(verdicts: VerdictDeps, req: VerdictRequest): Promise<VerdictAnswer> {
     const wallet = verdicts.readWallet(req.wallet_id);
 
@@ -293,17 +367,34 @@ export function createApp({
     const form = checkPropose({ mandate_id: mandate.id, action: onChain.action, args: onChain.args_json, context: req.context }, { network, model, now: now() });
     if ("error" in form) return refuse(`the wallet's proposal can't be judged: ${form.error}`);
 
+    // A payment through 1Click: the proposal must be exactly what the API's own quote says, and cross_chain comes from that quote.
+    const quote = req.quote_id === undefined ? undefined : store.getQuote(req.quote_id);
+    if (req.quote_id !== undefined) {
+      if (!quote || quote.wallet_id !== req.wallet_id) return refuse(`no quote ${req.quote_id} for ${req.wallet_id}`);
+      if (quote.proposal_id) return refuse(`quote ${req.quote_id} was used for another proposal; ask for a new one`);
+      if (now() >= Number(quote.deadline_ms)) return refuse(`quote ${req.quote_id} is past its deadline; ask for a new one`);
+      const args = JSON.parse(form.args) as Record<string, unknown>;
+      const matches = form.action.receiver_id === quote.token && form.action.method === "ft_transfer" && args.receiver_id === quote.deposit_address && args.amount === quote.amount_in;
+      if (!matches) return refuse(`proposal ${req.proposal_id} isn't an ft_transfer of ${quote.amount_in} ${quote.token} to ${quote.deposit_address}, as quote ${req.quote_id} says`);
+      if (BigInt(form.action.expiry_ms) >= BigInt(quote.deadline_ms)) return refuse(`proposal ${req.proposal_id} must expire before the quote's deadline, ${quote.deadline_ms}`);
+    }
+
     // Counted per wallet, before the call: a failed judgement costs a NEAR AI call too.
     const retryAfter = verdictLimit.retryAfter(req.wallet_id, now());
     if (retryAfter) return { status: 429, body: { error: `too many verdicts for ${req.wallet_id}; try again in ${retryAfter}s` }, retryAfter };
     verdictLimit.record(req.wallet_id, now());
 
-    const p = store.createProposal({ ...form, wallet_id: req.wallet_id, chain_proposal_id: req.proposal_id });
+    const p = store.createProposal({
+      ...form, wallet_id: req.wallet_id, chain_proposal_id: req.proposal_id, ...(quote ? { cross_chain: quote.cross_chain, oneclick: quote.oneclick } : {}),
+    });
+    // No await since the check above, so two requests can't both use the quote.
+    if (quote) store.useQuote(quote.id, p.id);
     let v;
     try {
-      v = await verdicts.judge(mandate.text, toAction(form.action), form.args, form.context);
+      v = await verdicts.judge(mandate.text, toAction(form.action), form.args, form.context, quote?.cross_chain);
     } catch (e) {
       store.updateProposal(p.id, { status: "failed", step: "done", reason: `no verdict (${(e instanceof Error ? e.message : String(e)).slice(0, 200)})` });
+      if (quote) store.releaseQuote(quote.id, p.id);
       return { status: 502, body: { error: "the judge gave no verdict; try again" } };
     }
     store.updateProposal(p.id, {

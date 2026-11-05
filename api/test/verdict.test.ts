@@ -3,6 +3,7 @@ import type { Judgement } from "@intented/firewall-core";
 import { describe, expect, it } from "vitest";
 import { createApp, type AppDeps } from "../src/app.js";
 import { openStore } from "../src/store.js";
+import type { ChainTx } from "../src/wallet.js";
 
 const WALLET = "shop-bot.intented.testnet";
 const RULES = "Buy market data from intented-vendor.testnet only.";
@@ -13,7 +14,7 @@ const ARGS_JSON = JSON.stringify({ receiver_id: "intented-vendor.testnet", amoun
 function chainWallet(now: number) {
   const args_json = ARGS_JSON;
   return {
-    config: { frozen: false, mandate_hash: RULES_HASH, model_id: "m", prompt_hash: "p" },
+    config: { frozen: false, mandate_hash: RULES_HASH, model_id: "m", prompt_hash: "p", agent_id: WALLET as string },
     proposals: new Map<number, unknown>([
       [
         0,
@@ -38,6 +39,8 @@ function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable
   const judged: { mandate: string; argsJson: string; context: string }[] = [];
   const settling: string[] = [];
   const judge = { failures: 0 };
+  /** Transactions on chain by hash, as the RPC's tx lookup returns them. */
+  const txs = new Map<string, ChainTx>();
   const verdicts: AppDeps["verdicts"] = {
     judge: async (mandate, action, argsJson, context): Promise<Judgement> => {
       judged.push({ mandate, argsJson, context });
@@ -59,13 +62,18 @@ function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable
     factoryId: "intented.testnet",
     ownWalletId: "intented-wallet.testnet",
     settle: (id) => settling.push(id),
+    readTx: async (hash, signerId) => {
+      const t = txs.get(hash);
+      return t && t.signer_id === signerId ? t : null;
+    },
     limit: opts.limit,
   };
   const app = createApp({
     store, network: "testnet", model: "m", agentToken: "t", startPipeline: () => {}, attestationUrls: {}, redteam: () => null, verdicts, now: () => now,
   });
   const ask = (body: object) => app.request("/api/verdict", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  return { ask, judged, settling, store, wallets, now, judge, app };
+  const executed = (body: object) => app.request("/api/executed", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  return { ask, judged, settling, store, wallets, now, judge, app, txs, executed };
 }
 
 describe("POST /api/verdict", () => {
@@ -178,6 +186,58 @@ describe("POST /api/verdict", () => {
       expect((await res.json()).error).toMatch(error);
       expect(judged).toEqual([]);
       expect(store.proposalsSince(0)).toEqual([]);
+    });
+  }
+});
+
+describe("POST /api/executed", () => {
+  const HASH = "4rddy8CUvMfzJjxVALZdMPNmZ7W8ofKB5KERee66X2og";
+  const executeTx = (over: Partial<ChainTx> = {}): ChainTx => ({
+    signer_id: WALLET, receiver_id: WALLET, ok: true, calls: [{ method: "execute", args: { proposal_id: 0, req_bytes: [], resp_bytes: [], signature: "0xsig" } }], ...over,
+  });
+
+  it("checks the agent's execute on chain and stores its hash on the judged proposal", async () => {
+    const t = setup();
+    const { id } = await (await t.ask({ wallet_id: WALLET, proposal_id: 0, context: "" })).json();
+    t.txs.set(HASH, executeTx());
+
+    const res = await t.executed({ wallet_id: WALLET, proposal_id: 0, near_tx_hash: HASH });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id });
+    expect((await (await t.app.request(`/api/proposals/${id}`)).json()).near_tx_hash).toBe(HASH);
+  });
+
+  it("answers 404 for a proposal this API didn't judge", async () => {
+    const t = setup();
+    t.txs.set(HASH, executeTx());
+    expect((await t.executed({ wallet_id: WALLET, proposal_id: 0, near_tx_hash: HASH })).status).toBe(404);
+  });
+
+  it("answers 400 for a malformed body", async () => {
+    const t = setup();
+    for (const body of [
+      { wallet_id: "evil.testnet", proposal_id: 0, near_tx_hash: HASH },
+      { wallet_id: WALLET, proposal_id: -1, near_tx_hash: HASH },
+      { wallet_id: WALLET, proposal_id: 0, near_tx_hash: "not a hash" },
+      { wallet_id: WALLET, proposal_id: 0 },
+    ]) expect((await t.executed(body)).status, JSON.stringify(body)).toBe(400);
+  });
+
+  const wrong: [string, Partial<ChainTx> | null][] = [
+    ["isn't on chain, or another account signed it", null],
+    ["called another contract", { receiver_id: "other.testnet" }],
+    ["called another method", { calls: [{ method: "propose", args: { proposal_id: 0 } }] }],
+    ["executed another proposal", { calls: [{ method: "execute", args: { proposal_id: 1 } }] }],
+    ["failed", { ok: false }],
+  ];
+  for (const [what, over] of wrong) {
+    it(`answers 409 and stores nothing when the transaction ${what}`, async () => {
+      const t = setup();
+      const { id } = await (await t.ask({ wallet_id: WALLET, proposal_id: 0, context: "" })).json();
+      if (over) t.txs.set(HASH, executeTx(over));
+      const res = await t.executed({ wallet_id: WALLET, proposal_id: 0, near_tx_hash: HASH });
+      expect(res.status).toBe(409);
+      expect((await (await t.app.request(`/api/proposals/${id}`)).json()).near_tx_hash).toBeUndefined();
     });
   }
 });
