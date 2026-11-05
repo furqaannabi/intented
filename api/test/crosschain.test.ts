@@ -1,33 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { buildCrossChain, checkCrossChainPropose, DEADLINE_MARGIN_MS, EXPIRY_MS } from "../src/crosschain.js";
+import { buildCrossChain, checkIntent, DEADLINE_MARGIN_MS, EXPIRY_MS } from "../src/crosschain.js";
 
 const BASE_USDC = "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near";
 const VENDOR = "0x7284d41b5b852f2bd4c99bdf95043d84452d299c";
 const intent = { token: "wrap.testnet", amount: "400000", dest_chain: "base", dest_asset: BASE_USDC, recipient: VENDOR };
-const body = (over: Record<string, unknown> = {}, cc: Record<string, unknown> = {}) => ({ mandate_id: "m_1", cross_chain: { ...intent, ...cc }, context: "402 body", ...over });
-const check = (b: unknown) => checkCrossChainPropose(b, { network: "testnet" });
+const body = (cc: Record<string, unknown> = {}) => ({ ...intent, ...cc });
+const check = (b: unknown) => checkIntent(b, "testnet", "intent");
 
-describe("checkCrossChainPropose: the second propose body", () => {
+describe("checkIntent: the payment POST /api/quote is asked to quote", () => {
   it("accepts a payment of Base USDC paid with wNEAR", () => {
-    expect(check(body())).toEqual({ mandate_id: "m_1", intent, context: "402 body" });
+    expect(check(body())).toEqual(intent);
   });
 
   it("lowercases a checksummed recipient", () => {
-    const r = check(body({}, { recipient: "0x7284D41B5B852F2BD4C99BDF95043D84452D299C" }));
-    expect(r).toMatchObject({ intent: { recipient: VENDOR } });
+    expect(check(body({ recipient: "0x7284D41B5B852F2BD4C99BDF95043D84452D299C" }))).toMatchObject({ recipient: VENDOR });
   });
 
   it.each([
-    ["an action alongside", body({ action: {} })],
-    ["a token the core doesn't know", body({}, { token: "wrap.near" })],
-    ["a zero amount", body({}, { amount: "0" })],
-    ["a non-decimal amount", body({}, { amount: "0.4" })],
-    ["an unknown destination asset", body({}, { dest_asset: "nep141:eth.omft.near" })],
-    ["a chain that doesn't match the asset", body({}, { dest_chain: "arbitrum" })],
-    ["a short recipient", body({}, { recipient: "0x7284d41b" })],
-    ["a NEAR account as recipient", body({}, { recipient: "intented-vendor.testnet" })],
-    ["no cross_chain object", { mandate_id: "m_1", context: "" }],
+    ["a token the core doesn't know", body({ token: "wrap.near" })],
+    ["a zero amount", body({ amount: "0" })],
+    ["a non-decimal amount", body({ amount: "0.4" })],
+    ["an unknown destination asset", body({ dest_asset: "nep141:eth.omft.near" })],
+    ["a chain that doesn't match the asset", body({ dest_chain: "arbitrum" })],
+    ["a short recipient", body({ recipient: "0x7284d41b" })],
+    ["a NEAR account as recipient", body({ recipient: "intented-vendor.testnet" })],
+    ["no object", null],
   ])("refuses %s", (_, b) => {
     expect(check(b)).toHaveProperty("error");
   });

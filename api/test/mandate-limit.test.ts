@@ -9,8 +9,6 @@ function setup(limit = { perClient: 2, total: 3, windowMs: 60_000 }) {
     store: openStore(":memory:"),
     network: "testnet",
     model: "Qwen/Qwen3.8-27B",
-    agentToken: undefined,
-    startPipeline: () => {},
     attestationUrls: {},
     redteam: () => null,
     mandateLimit: limit,

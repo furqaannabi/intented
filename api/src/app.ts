@@ -1,10 +1,10 @@
 // The HTTP API (interface spec). Behaviour: decisions/2026-11-01-api-pipeline-behaviour.md.
 
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { Network } from "@intented/firewall-core";
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import { buildCrossChain, checkCrossChainPropose } from "./crosschain.js";
+import { buildCrossChain } from "./crosschain.js";
 import { verifySignedQuote, type CrossChainPayment, type Quote, type SignedQuote } from "./oneclick.js";
 import type { RedteamLatest } from "./redteam.js";
 import type { ProposalRow, Store } from "./store.js";
@@ -14,9 +14,6 @@ import { checkExecutedRequest, checkQuoteRequest, checkVerdictRequest, MIN_LEFT_
 /** Long enough for a real mandate, short enough that the open endpoint can't be used as storage. */
 const MAX_MANDATE_CHARS = 2000;
 const CONTEXT_EXCERPT_CHARS = 500;
-/** How long a retry with the same Idempotency-Key gets the first proposal back. */
-const KEY_TTL_MS = 24 * 60 * 60_000;
-const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{1,64}$/;
 /** Stored mandates per client and in all, per window: the owner sets one now and then. */
 const MANDATE_LIMIT = { perClient: 5, total: 30, windowMs: 60_000 };
 
@@ -87,10 +84,6 @@ export interface AppDeps {
   store: Store;
   network: Network;
   model: string;
-  /** The agent's bearer token for POST /api/propose. Unset, the endpoint refuses everyone. */
-  agentToken: string | undefined;
-  /** Starts the pipeline for a stored proposal; returns at once. */
-  startPipeline: (proposalId: string) => void;
   /** Lowercase signer address to its published attestation report. */
   attestationUrls: Record<string, string>;
   /** The published red-team run, or null when none is published. */
@@ -101,15 +94,9 @@ export interface AppDeps {
   clientOf?: (c: Context) => string;
   mandateLimit?: typeof MANDATE_LIMIT;
   now?: () => number;
-  /**
-   * Payments through 1Click. Unset, a cross-chain propose is refused: set it only
-   * once the firewall core's judge() puts `cross_chain` in the request, so the
-   * judge sees the real recipient.
-   */
+  /** Payments through 1Click: POST /api/quote. Unset, it answers 501. */
   crossChain?: {
     pay: (p: CrossChainPayment) => Promise<{ deposit_address: string; quote: Quote; signed_quote: SignedQuote }>;
-    /** The wallet: 1Click refunds a failed swap here. */
-    refundTo: string;
     /** The key quotes must be signed with: 1Click's on mainnet, the stand-in's on testnet. The same key the owner registers on the wallet. */
     quoteKey: string;
   };
@@ -117,21 +104,12 @@ export interface AppDeps {
   verdicts?: VerdictDeps;
 }
 
-/** Constant-time, so the token can't be guessed byte by byte from response times. */
-function tokenMatches(header: string | undefined, token: string): boolean {
-  const given = Buffer.from(header?.replace(/^Bearer /, "") ?? "");
-  const want = Buffer.from(token);
-  return given.length === want.length && timingSafeEqual(given, want);
-}
-
 export function createApp({
-  store, network, model, agentToken, startPipeline, attestationUrls, redteam, corsOrigins = [], crossChain,
+  store, network, model, attestationUrls, redteam, corsOrigins = [], crossChain,
   clientOf = () => "", mandateLimit = MANDATE_LIMIT, now = Date.now, verdicts,
 }: AppDeps) {
   const app = new Hono();
   const mandates = windowLimiter(mandateLimit);
-  // Idempotency keys whose first request is still running; a second request with one is refused, not run twice.
-  const keysInFlight = new Set<string>();
   // Before the routes: Hono runs middleware in registration order.
   if (corsOrigins.length) app.use("/api/*", cors({ origin: corsOrigins }));
 
@@ -162,88 +140,6 @@ export function createApp({
     const m = store.getMandateByHash(hash);
     return m ? c.json({ mandate_id: m.id, text: m.text, text_hash: m.text_hash }) : c.json({ error: "no mandate with that hash" }, 404);
   });
-
-  // The agent only: this spends NEAR AI credit and signs with the agent key.
-  app.post("/api/propose", async (c) => {
-    if (!agentToken) return c.json({ error: "AGENT_API_TOKEN is not configured" }, 503);
-    if (!tokenMatches(c.req.header("authorization"), agentToken)) return c.json({ error: "unauthorized" }, 401);
-    const key = c.req.header("idempotency-key");
-    if (key !== undefined && !IDEMPOTENCY_KEY.test(key)) return c.json({ error: "Idempotency-Key must be 1 to 64 characters of A-Z a-z 0-9 _ -" }, 400);
-    const raw = await c.req.text();
-    let body: unknown = null;
-    try {
-      body = JSON.parse(raw);
-    } catch {}
-    if (key === undefined) return propose(body);
-
-    // A retry with the key gets the first proposal back: no second quote, judge call or transaction.
-    const bodyHash = createHash("sha256").update(raw, "utf8").digest("hex");
-    const held = store.getIdempotencyKey(key);
-    if (held && now() - held.created_at < KEY_TTL_MS) {
-      return held.body_sha256 === bodyHash
-        ? c.json({ proposal_id: held.proposal_id })
-        : c.json({ error: "this Idempotency-Key was used with a different body" }, 409);
-    }
-    if (keysInFlight.has(key)) return c.json({ error: "a request with this Idempotency-Key is still running" }, 409);
-    keysInFlight.add(key);
-    try {
-      const res = await propose(body);
-      // Only a stored proposal keeps the key, so a request refused for its form can be retried with it.
-      if (res.ok) store.putIdempotencyKey(key, bodyHash, ((await res.clone().json()) as { proposal_id: string }).proposal_id, now());
-      return res;
-    } finally {
-      keysInFlight.delete(key);
-    }
-  });
-
-  async function propose(body: unknown): Promise<Response> {
-    const json = (data: object, status: 200 | 400 | 409 = 200) => Response.json(data, { status });
-    if (typeof body === "object" && body !== null && "cross_chain" in body) return proposeCrossChain(body);
-    const checked = checkPropose(body, { network, model, now: Date.now() });
-    if ("error" in checked) return json({ error: checked.error }, 400);
-    if (!store.getMandate(checked.mandate_id)) return json({ error: "unknown mandate_id" }, 400);
-    // A retry carries the agent's nonce again: it gets the first proposal back, so one payment is judged and sent once.
-    // Lookup and insert run with no await between them, so two requests at once can't both store it.
-    const held = store.getProposalByNonce(checked.action.nonce);
-    if (held) {
-      const same = held.mandate_id === checked.mandate_id && held.args === checked.args && JSON.stringify(held.action) === JSON.stringify(checked.action);
-      return same ? json({ proposal_id: held.id }) : json({ error: "action.nonce is already used by another proposal" }, 409);
-    }
-    const p = store.createProposal(checked);
-    startPipeline(p.id);
-    return json({ proposal_id: p.id });
-  }
-
-  // The second body: the agent states the payment, the API quotes it and builds the transfer.
-  async function proposeCrossChain(body: object): Promise<Response> {
-    const json = (data: object, status: 400 | 501 | 502 | 200 = 200) => Response.json(data, { status });
-    if (!crossChain) return json({ error: "cross-chain payments are off on this API: no 1Click quote key is configured" }, 501);
-    const checked = checkCrossChainPropose(body, { network });
-    if ("error" in checked) return json({ error: checked.error }, 400);
-    if (!store.getMandate(checked.mandate_id)) return json({ error: "unknown mandate_id" }, 400);
-    const { intent } = checked;
-
-    let paid;
-    try {
-      paid = await crossChain.pay({
-        amount: intent.amount, origin_asset: `nep141:${intent.token}`, dest_asset: intent.dest_asset, recipient: intent.recipient, refund_to: crossChain.refundTo,
-      });
-    } catch (e) {
-      return json({ error: `could not get a 1Click quote: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}` }, 502);
-    }
-    // The wallet refuses a quote that doesn't verify; fail here, before the judge is paid for.
-    if (!verifySignedQuote(paid.signed_quote, crossChain.quoteKey)) return json({ error: "1Click's quote signature does not verify" }, 502);
-    // Anything not on mainnet is the stand-in, so every delivery it reports is simulated.
-    const built = buildCrossChain(intent, paid, { now: Date.now(), simulated: network !== "mainnet" });
-    if ("error" in built) return json({ error: `unusable 1Click quote: ${built.error}` }, 502);
-    // The same checks as an agent-built action, so nothing is stored that the wallet would refuse for its form.
-    const ok = checkPropose({ mandate_id: checked.mandate_id, action: built.action, args: built.args, context: checked.context }, { network, model, now: Date.now() });
-    if ("error" in ok) return json({ error: `unusable 1Click quote: ${ok.error}` }, 502);
-
-    const p = store.createProposal({ ...ok, cross_chain: built.cross_chain, oneclick: built.oneclick });
-    startPipeline(p.id);
-    return json({ proposal_id: p.id });
-  }
 
   // Open, like the chain it reads: anyone may ask for the verdict on a wallet's pending proposal, and gets the
   // answer its agent would. Only the wallet's own key can execute it.

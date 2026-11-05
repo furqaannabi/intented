@@ -26,10 +26,11 @@ Agents with wallets get prompt-injected. Spending caps and allowlists check rule
 **What is verified where, and what is trusted**
 
 - **Attestation is checked off-chain, not by the contract.** `pnpm attest` verifies the model TEE's Intel TDX quote against Intel's certificate chain, checks that the quote binds the signing address and a fresh nonce, and checks NVIDIA's signed GPU attestation. Only then does the owner allowlist the signer. It does not compare the attested app image with a known-good one (none is published), and it trusts NVIDIA's signing keys as served over TLS. Reports: [`docs/attestations/`](./docs/attestations/). Details: [the checker record](./docs/decisions/2026-11-01-attestation-checker.md).
-- **The model can be wrong.** Whatever the agent read, such as a paywall's response, is attacker-controlled. An attacker can keep rewording it until the model slips. The red-team numbers below are our own 83 cases, not an adaptive attacker. A compromised agent can also re-propose the same action and get up to 30 verdicts an hour per wallet, as it could on the API's own path. The contract's caps limit what one wrong `ALLOW` can cost; the model can only tighten what the contract permits, never loosen it.
+- **The model can be wrong.** Whatever the agent read, such as a paywall's response, is attacker-controlled. An attacker can keep rewording it until the model slips. The red-team numbers below are our own 83 cases, not an adaptive attacker. A compromised agent can also re-propose the same action and get up to 30 verdicts an hour per wallet. The contract's caps limit what one wrong `ALLOW` can cost; the model can only tighten what the contract permits, never loosen it.
 - **1Click is trusted to deliver.** The wallet verifies that 1Click signed the quote, but it can't prove that 1Click then delivers on Base. On testnet a stand-in plays 1Click, and every delivery it reports is labelled simulated.
 - **The wallet account's full-access key can replace the contract.** Whoever holds it can bypass every check. For `intented-wallet.testnet`, that's the team. Wallets made by the factory have no full-access key, so nobody can replace their contract; their owner gets funds out with `withdraw`.
 - **The agent holds only a function-call key** limited to `propose` and `execute` on its wallet, so it can't transfer funds directly.
+- **The API holds no NEAR key.** It judges, quotes 1Click and reads the chain; every `propose` and `execute` is sent by the wallet's own agent. It holds the NEAR AI key and the 1Click JWT.
 
 See [the trust model](./docs/decisions/2026-11-01-signed-verdict-trust-model.md).
 
@@ -115,7 +116,7 @@ A paid run spends a little testnet wNEAR from the wallet, and every run a little
 
 - The judge sees the real Base recipient, token and amount, and the mandate names the vendor's Base address.
 - The wallet checks the recipient against its cross-chain recipient list and the signed 1Click quote against the 1Click key it holds. On testnet that key is the stand-in's.
-- The API quotes the payment and builds the transfer to the deposit address; the agent never picks one. A retried propose with the same `Idempotency-Key` gets the first proposal back, so it can't pay twice.
+- The API quotes the payment and tells the agent the deposit address and amount to propose; the agent never picks the deposit address. The judge gets `cross_chain` from the API's stored quote, never from the agent, and one quote serves one proposal.
 - 1Click runs only on mainnet. On testnet a stand-in quotes, signs and reports delivery, and every delivery it reports is simulated and labelled so: nothing reaches Base.
 - Not done: the first real payment on mainnet, through 1Click itself.
 

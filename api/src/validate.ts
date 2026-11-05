@@ -1,4 +1,4 @@
-// Checks on POST /api/propose, so nothing is stored that the pipeline or the
+// Checks on a proposal POST /api/verdict reads from the chain, so nothing is judged that the
 // wallet would refuse for its form alone (decision 5 of the pipeline record).
 
 import { createHash } from "node:crypto";

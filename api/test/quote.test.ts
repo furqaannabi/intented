@@ -29,7 +29,6 @@ export function quoteSetup(opts: { limit?: { perClient: number; total: number; w
   };
   const asked: CrossChainPayment[] = [];
   const crossChain: AppDeps["crossChain"] = {
-    refundTo: "intented-wallet.testnet",
     quoteKey: QUOTE_KEY,
     pay: async (p) => {
       asked.push(p);
@@ -54,7 +53,7 @@ export function quoteSetup(opts: { limit?: { perClient: number; total: number; w
     readTx: async () => null,
     quoteLimit: opts.limit,
   };
-  const app = createApp({ store, network: "testnet", model: "m", agentToken: "t", startPipeline: () => {}, attestationUrls: {}, redteam: () => null, verdicts, crossChain, now: () => clock.at });
+  const app = createApp({ store, network: "testnet", model: "m", attestationUrls: {}, redteam: () => null, verdicts, crossChain, now: () => clock.at });
   const intent = { token: "wrap.testnet", amount: "400000", dest_chain: "base", dest_asset: BASE_USDC, recipient: VENDOR };
   const quote = (body: object) => app.request("/api/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const verdict = (body: object) => app.request("/api/verdict", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });

@@ -1,14 +1,12 @@
-// The second POST /api/propose body: a payment through 1Click
-// (decisions/2026-11-03-cross-chain-through-1click.md). The agent states the
-// intent; the API quotes it and builds the ft_transfer to the deposit address,
-// so the agent never picks a deposit address.
+// A payment through 1Click (decisions/2026-11-03-cross-chain-through-1click.md): the agent states the intent to
+// POST /api/quote; the API quotes it and works out the ft_transfer to the deposit address, so the agent never picks
+// a deposit address.
 
 import { createHash } from "node:crypto";
 import { KNOWN_TOKENS, type Network } from "@intented/firewall-core";
 import type { SignedQuote } from "./oneclick.js";
 import type { ActionJson } from "./store.js";
 
-const MAX_CONTEXT_CHARS = 20_000;
 const POSITIVE = /^[1-9][0-9]*$/;
 const U128_MAX = (1n << 128n) - 1n;
 
@@ -26,23 +24,6 @@ export interface CrossChainIntent {
   dest_asset: string;
   /** Lowercase 0x + 40 hex. */
   recipient: string;
-}
-
-export type CrossChainProposeInput = { mandate_id: string; intent: CrossChainIntent; context: string };
-
-/** The input, or the reason it is refused. */
-export function checkCrossChainPropose(body: unknown, opts: { network: Network }): CrossChainProposeInput | { error: string } {
-  if (typeof body !== "object" || body === null) return { error: "body must be a JSON object" };
-  const { mandate_id, cross_chain, context, action, args } = body as Record<string, unknown>;
-  if (action !== undefined || args !== undefined) return { error: "send either action and args, or cross_chain, not both" };
-  if (typeof mandate_id !== "string") return { error: "mandate_id must be a string" };
-  if (typeof context !== "string") return { error: "context must be a string (it may be empty)" };
-  if (context.length > MAX_CONTEXT_CHARS) return { error: `context is over ${MAX_CONTEXT_CHARS} characters` };
-  if (typeof cross_chain !== "object" || cross_chain === null) return { error: "cross_chain must be an object" };
-
-  const intent = checkIntent(cross_chain, opts.network, "cross_chain");
-  if ("error" in intent) return intent;
-  return { mandate_id, intent, context };
 }
 
 /** A payment through 1Click as the agent states it, or why it is refused. `field` names it in the error. */

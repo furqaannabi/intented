@@ -12,7 +12,7 @@ pnpm start      # http://localhost:8787
 pnpm test
 ```
 
-It reads `NEAR_NETWORK`, `NEAR_RPC_URL`, `NEAR_AI_API_KEY`, `NEAR_AI_MODEL`, `CONTRACT_ACCOUNT_ID`, `FACTORY_ACCOUNT_ID` (default `intented.testnet` on testnet), `AGENT_ACCOUNT_ID`, `AGENT_PRIVATE_KEY` (a function-call key scoped to the wallet), `AGENT_API_TOKEN`, `WEB_ORIGINS`, `TRUST_PROXY`, `DATABASE_PATH`, `PORT`, and for 1Click `ONECLICK_JWT`, `ONECLICK_BASE_URL` and, off mainnet, `ONECLICK_STANDIN_PUBLIC_KEY`. It logs proposal ids, statuses and transaction hashes, never keys, tokens or prompts.
+It reads `NEAR_NETWORK`, `NEAR_RPC_URL`, `NEAR_AI_API_KEY`, `NEAR_AI_MODEL`, `CONTRACT_ACCOUNT_ID`, `FACTORY_ACCOUNT_ID` (default `intented.testnet` on testnet), `WEB_ORIGINS`, `TRUST_PROXY`, `DATABASE_PATH`, `PORT`, and for 1Click `ONECLICK_JWT`, `ONECLICK_BASE_URL` and, off mainnet, `ONECLICK_STANDIN_PUBLIC_KEY`. It holds no NEAR key and sends no transactions. It logs proposal ids, statuses and transaction hashes, never keys, tokens or prompts.
 
 ## Endpoints
 
@@ -22,39 +22,30 @@ The shapes are in [the interface spec](../docs/interface-spec.md).
 | --- | --- | --- |
 | `POST /api/mandate` | anyone | Stores a mandate text and returns its sha256. Nothing changes on-chain until the owner calls `set_mandate`. A text already stored gets its stored `mandate_id` back. New texts are limited to 5 a minute per client and 30 a minute in all; over that, `429` with `Retry-After` |
 | `GET /api/mandates/:text_hash` | anyone | The stored text with that hash |
-| `POST /api/propose` | the agent (`AGENT_API_TOKEN`) | Stores a proposal and starts the pipeline; returns at once. With an `Idempotency-Key` header, a retry with the same key and body gets the first `proposal_id` back; the same key with another body is a `409`. Without one, a retry with the same nonce gets the first `proposal_id`, and a different action reusing a nonce is a `409` ([record](../docs/decisions/2026-11-04-accept-idempotency-key.md)) |
+| `POST /api/verdict` | anyone | Judges a wallet's pending proposal, read from the chain, and returns the signed verdict ready for the agent's `execute`. 30 per wallet per hour |
+| `POST /api/quote` | anyone | A 1Click quote for a payment the agent is about to propose: the deposit address and amount. 30 per wallet and 120 in all per hour |
+| `POST /api/executed` | anyone | The agent reports its `execute`; the API checks it on chain, stores the hash, and tells 1Click about a deposit |
 | `GET /api/proposals?since=` | anyone | Proposals changed after a time, oldest change first |
 | `GET /api/proposals/:id` | anyone | One proposal |
 | `GET /api/redteam/latest` | anyone | The published red-team run, [`redteam/latest.json`](../redteam/latest.json) |
 
-## The pipeline
+## After a verdict
 
-For each proposal, in the background:
+The wallet's agent proposes, asks `POST /api/verdict`, and sends `execute` itself. In the background the API:
 
-1. Read the wallet's config. Stop before any NEAR AI call unless the wallet's mandate hash, model and prompt hash match this API's.
-2. Judge: the firewall core's `judge()` makes the NEAR AI call and checks the TEE signature over the exact request and response.
-3. `propose` and then `execute` on-chain, `DENY` included: the wallet's refusal is the proof. On-chain steps run one at a time, so the agent key's nonces never race.
-4. If a step throws, or the API restarts mid-way, the outcome is read from the wallet's own record, never guessed.
+1. Settles each judged proposal from the wallet's own record (`get_proposal`), never guessed, after a restart too.
+2. For a payment through 1Click, once the agent reports its `execute` through `POST /api/executed`, tells 1Click about the deposit and follows it until `SUCCESS`, `REFUNDED` or `FAILED`.
 
-## Cross-chain propose
+## Payments through 1Click
 
-A payment through 1Click, to **USDC on Base only**. The agent sends the second body:
+To **USDC on Base only**. The agent asks `POST /api/quote` with `{ wallet_id, intent: { token, amount, dest_chain, dest_asset, recipient } }`, where `amount` is what the recipient receives. The API:
 
-```
-{ mandate_id, cross_chain: { token, amount, dest_chain, dest_asset, recipient }, context }
-```
+1. Refuses before spending a quote if the wallet has cross-chain payments off or accepts another 1Click key. A recipient off the wallet's list is still quoted: the model judges it, and the wallet refuses it at `execute` ([record](../docs/decisions/2026-11-05-quote-skips-recipient-list.md)).
+2. Gets an exact-output 1Click quote, with the wallet as the refund account, checks 1Click's signature on it (the same check the wallet makes), and stores it.
+3. Returns the deposit address, token, input amount and deadline. The agent proposes that `ft_transfer`, expiring before the deadline, and asks `POST /api/verdict` with the `quote_id`.
+4. Checks the proposal on chain against the stored quote, then judges with `cross_chain` filled from the quote, so the judge sees who is really paid. A quote serves one proposal. It is marked `simulated` on any network but mainnet.
 
-`amount` is what the recipient receives. The API then:
-
-1. Gets an exact-output 1Click quote. The wallet is always the refund account.
-2. Builds the `ft_transfer` of the quoted input to the deposit address, expiring well before the quote's deadline. The agent never picks a deposit address.
-3. Fills the judge request's `cross_chain` field from the quote (the Base recipient, what it receives, the deadline), so the judge sees who is really paid.
-4. Stores `oneclick` on the proposal. A retry with the same `Idempotency-Key` gets this proposal back with no second quote; without a key, a retry is a second quote and a second payment. It is marked `simulated` on any network but mainnet.
-5. After execute, tells 1Click the deposit's transaction and follows the deposit until `SUCCESS`, `REFUNDED` or `FAILED`, after a restart too.
-
-Before proposing, the API checks 1Click's signature on the quote, the same check the wallet makes, and answers `502` if it fails, so a bad quote never reaches the judge.
-
-1Click runs on mainnet only. On mainnet, quotes come from 1Click and are checked with its key. On any other network the route is on only when `ONECLICK_BASE_URL` points at the stand-in in [`agent/`](../agent/README.md) and `ONECLICK_STANDIN_PUBLIC_KEY` is set (`pnpm oneclick-key` writes both keys); otherwise a cross-chain propose gets a `501`, so a testnet API never quotes against the real 1Click. The server's startup log says which.
+1Click runs on mainnet only. On mainnet, quotes come from 1Click and are checked with its key. On any other network quoting is on only when `ONECLICK_BASE_URL` points at the stand-in in [`agent/`](../agent/README.md) and `ONECLICK_STANDIN_PUBLIC_KEY` is set (`pnpm oneclick-key` writes both keys); otherwise `POST /api/quote` answers `501`, so a testnet API never quotes against the real 1Click. The server's startup log says which.
 
 ## KT4
 

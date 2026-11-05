@@ -69,7 +69,7 @@ function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable
     limit: opts.limit,
   };
   const app = createApp({
-    store, network: "testnet", model: "m", agentToken: "t", startPipeline: () => {}, attestationUrls: {}, redteam: () => null, verdicts, now: () => now,
+    store, network: "testnet", model: "m", attestationUrls: {}, redteam: () => null, verdicts, now: () => now,
   });
   const ask = (body: object) => app.request("/api/verdict", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const executed = (body: object) => app.request("/api/executed", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });

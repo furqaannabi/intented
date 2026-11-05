@@ -2,11 +2,11 @@
 
 The demo agent, the mock x402 paywall, and the testnet stand-in for 1Click. **Owner: William.** Why it is built this way: [the agent and paywall record](../docs/decisions/2026-11-01-demo-agent-and-paywall.md) and [the cross-chain record](../docs/decisions/2026-11-03-cross-chain-through-1click.md).
 
-The agent buys market data from an x402-style paywall. It is deliberately naive: it pays whatever the 402 asks, to whoever it names, through `POST /api/propose`, and leaves the judgement to Intented. The paywall has an honest route and a poisoned one that asks for 10× the price, paid to the attacker, while staying within the wallet's cap. The attack demo is never cut.
+The agent buys market data from an x402-style paywall. It is deliberately naive: it proposes whatever the 402 asks, to whoever it names, and leaves the judgement to Intented. It holds `intented-agent.testnet`'s function-call key and sends its own `propose` and `execute`; the API only judges. The paywall has an honest route and a poisoned one that asks for 10× the price, paid to the attacker, while staying within the wallet's cap. The attack demo is never cut.
 
 ## Run
 
-Needs Node 24 and pnpm 11, the API running, and `.env` filled in (`AGENT_API_TOKEN`, `AGENT_ACCOUNT_ID`, `CONTRACT_ACCOUNT_ID`, and the API's own variables).
+Needs Node 24 and pnpm 11, the API running, and `.env` filled in (`CONTRACT_ACCOUNT_ID`, `AGENT_ACCOUNT_ID`, `AGENT_PRIVATE_KEY`: the agent account's function-call key on the wallet).
 
 ```sh
 pnpm install
@@ -104,12 +104,14 @@ Each transaction unlocks the data once, even when two requests carrying it arriv
 
 1. `GET` the paywall; expect `402`.
 2. Find the rules. `pnpm agent` reads the wallet's `mandate_hash` from `get_config` before each run. The agent then fetches that text with `GET /api/mandates/:text_hash` and checks it hashes to `mandate_hash`. If the API has no text for it, it stores the known demo text, but only if that hashes to the wallet's.
-3. `POST /api/propose`. The 402 body goes in unparsed as `context`, so the judge sees it as quoted data. Each purchase sends a fresh `Idempotency-Key`, so a retry of the same purchase can't be paid twice.
+3. Work out the payment.
    - **NEAR routes:** an `ft_transfer` on the 402's token, to its payee, for its amount.
-   - **Base routes:** the second body, `cross_chain: { token, amount, dest_chain, dest_asset, recipient }`, paid in wNEAR. The API quotes it and builds the transfer to the 1Click deposit address; the agent never picks one.
-4. Poll `GET /api/proposals/:id` until the wallet has answered or the pipeline has given up.
-5. **Base routes only:** once the wallet has paid the deposit, poll until 1Click reports `SUCCESS`, `REFUNDED` or `FAILED`. Anything but `SUCCESS` ends the run unpaid.
-6. If paid, `GET` the paywall again with the proof in `PAYMENT-SIGNATURE`:
+   - **Base routes:** `POST /api/quote` with `{ token, amount, dest_chain, dest_asset, recipient }`, paid in wNEAR. The answer is an `ft_transfer` of the quoted amount to the 1Click deposit address, expiring before the quote's deadline; the agent never picks the deposit address. A refused quote ends the run unpaid.
+4. `propose` it on the wallet with its own key.
+5. `POST /api/verdict` with the proposal id and the 402 body unparsed as `context`, so the judge sees it as quoted data (and the `quote_id` on Base routes).
+6. `execute` with the verdict, `DENY` included: the wallet's refusal is the proof. After a successful `execute` it reports the transaction with `POST /api/executed`.
+7. **Base routes only:** poll `GET /api/proposals/:id` until 1Click reports `SUCCESS`, `REFUNDED` or `FAILED`. Anything but `SUCCESS` ends the run unpaid.
+8. If paid, `GET` the paywall again with the proof in `PAYMENT-SIGNATURE`:
    - NEAR routes: the wallet's transaction and the agent's account;
    - Base routes, simulated delivery: the deposit transaction and the deposit address;
    - Base routes, real delivery: the Base transaction.

@@ -101,9 +101,6 @@ export function openStore(path: string, ownWallet = "intented-wallet.testnet") {
       token TEXT NOT NULL, amount_in TEXT NOT NULL, deposit_address TEXT NOT NULL, deadline_ms TEXT NOT NULL,
       cross_chain TEXT NOT NULL, oneclick TEXT NOT NULL, proposal_id TEXT
     );
-    CREATE TABLE IF NOT EXISTS idempotency_keys (
-      key TEXT PRIMARY KEY, body_sha256 TEXT NOT NULL, proposal_id TEXT NOT NULL, created_at INTEGER NOT NULL
-    );
   `);
   // Added for the cross-chain payment; a database from before it gets the columns empty.
   const columns = (db.prepare("PRAGMA table_info(proposals)").all() as { name: string }[]).map((c) => c.name);
@@ -184,23 +181,6 @@ export function openStore(path: string, ownWallet = "intented-wallet.testnet") {
     /** Frees a quote whose proposal got no verdict, so the agent can ask again with it. */
     releaseQuote(quoteId: string, proposalId: string): void {
       db.prepare("UPDATE quotes SET proposal_id = NULL WHERE id = ? AND proposal_id = ?").run(quoteId, proposalId);
-    },
-
-    getIdempotencyKey(key: string): { body_sha256: string; proposal_id: string; created_at: number } | undefined {
-      return db.prepare("SELECT body_sha256, proposal_id, created_at FROM idempotency_keys WHERE key = ?").get(key) as
-        | { body_sha256: string; proposal_id: string; created_at: number }
-        | undefined;
-    },
-
-    /** Replaces an expired key's row; the caller checks it has expired. */
-    putIdempotencyKey(key: string, body_sha256: string, proposal_id: string, at: number): void {
-      db.prepare("INSERT OR REPLACE INTO idempotency_keys (key, body_sha256, proposal_id, created_at) VALUES (?, ?, ?, ?)").run(key, body_sha256, proposal_id, at);
-    },
-
-    /** The API's own wallet takes each nonce once, so at most one of its proposals should hold it. Other wallets' nonces are theirs. */
-    getProposalByNonce(nonce: string): ProposalRow | undefined {
-      const r = db.prepare("SELECT * FROM proposals WHERE wallet_id = ? AND json_extract(action, '$.nonce') = ? ORDER BY created_at LIMIT 1").get(ownWallet, nonce);
-      return r ? toRow(r as Record<string, unknown>) : undefined;
     },
 
     getProposal(proposalId: string): ProposalRow | undefined {

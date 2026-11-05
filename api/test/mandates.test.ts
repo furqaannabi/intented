@@ -8,8 +8,6 @@ const app = () =>
     store: openStore(":memory:"),
     network: "testnet",
     model: "Qwen/Qwen3.8-27B",
-    agentToken: undefined,
-    startPipeline: () => {},
     attestationUrls: {},
     redteam: () => null,
   });
