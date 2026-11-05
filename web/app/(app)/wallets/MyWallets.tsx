@@ -217,6 +217,7 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function Pill({ tone, children }: { tone?: "ok" | "warn"; children: React.ReactNode }) {
-  const color = tone === "ok" ? "text-lime" : tone === "warn" ? "text-[#e9c98a]" : "text-soft";
+  // Neutral, never lime or coral: those two mean ALLOW and DENY only. A warning is outlined, and its words say what it is.
+  const color = tone === "ok" ? "text-soft" : tone === "warn" ? "text-text ring-1 ring-soft/60 ring-inset" : "text-soft";
   return <span className={`inline-flex items-center gap-1.5 rounded-full bg-card px-2.5 py-1 font-mono text-xs font-medium ${color}`}>{children}</span>;
 }

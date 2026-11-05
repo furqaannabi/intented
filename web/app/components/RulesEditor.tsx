@@ -18,7 +18,8 @@ const short = (s: string) => (s.length > 17 ? `${s.slice(0, 8)}…${s.slice(-8)}
 
 /**
  * The owner rewrites a wallet's rules: the text is saved to the API, its hash is checked here, and the owner signs
- * set_mandate on the wallet in their own NEAR wallet. The caller shows the outcome and reads the wallet again.
+ * set_mandate on the wallet in their own NEAR wallet. The caller shows the outcome and reads the wallet again. If saving
+ * or signing fails, the editor stays open with the draft and says why, so nothing typed is lost.
  */
 export function RulesEditor({
   walletId,
@@ -26,7 +27,6 @@ export function RulesEditor({
   signerId,
   wallet,
   onDone,
-  onError,
   onCancel,
   large = true,
 }: {
@@ -35,14 +35,15 @@ export function RulesEditor({
   signerId: string;
   wallet: ReturnType<typeof useNearWallet>["wallet"];
   onDone: (txHash: string) => void;
-  onError: (message: string) => void;
   onCancel: () => void;
   large?: boolean;
 }) {
   const [draft, setDraft] = useState(current);
   const [step, setStep] = useState<Step>({ step: "edit" });
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
+    setError(null);
     setStep({ step: "saving" });
     try {
       const res = await fetch("/api/mandate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: draft }) });
@@ -55,7 +56,8 @@ export function RulesEditor({
       const outcome = await (await wallet()).signAndSendTransaction({ signerId, receiverId: walletId, actions: [call("set_mandate", { text_hash: hash })] });
       onDone(outcome.transaction.hash);
     } catch (e) {
-      onError(e instanceof Error && e.message ? e.message : "The wallet didn't sign");
+      setError(e instanceof Error && e.message ? e.message : "The wallet didn't sign");
+      setStep({ step: "edit" });
     }
   }
 
@@ -82,6 +84,11 @@ export function RulesEditor({
         <b className="font-bold text-text">The agent switches to these rules on its next payment.</b> The contract&apos;s limits still apply: rules can
         only tighten them, never loosen them.
       </p>
+      {error && step.step === "edit" && (
+        <p className="mt-4 text-sm break-words text-coral" role="alert">
+          {error.replace(/\.$/, "")}. Your text is kept; you can try again.
+        </p>
+      )}
       {step.step === "edit" ? (
         <div className="mt-6 flex flex-wrap gap-2.5">
           <button onClick={save} disabled={!draft || draft === current} className={primary}>
@@ -108,7 +115,7 @@ export function RulesEditor({
 }
 
 function StepRow({ n, state, title, note }: { n: number; state: "done" | "now" | "todo"; title: string; note?: string }) {
-  const badge = { done: "bg-lime text-lime-ink", now: "bg-soft text-ink", todo: "bg-line text-mute" }[state];
+  const badge = { done: "bg-card text-text", now: "bg-soft text-ink", todo: "bg-line text-mute" }[state];
   return (
     <li className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-3">
       <span className={`grid size-7 place-items-center rounded-[9px] font-mono text-xs ${badge}`} aria-hidden="true">

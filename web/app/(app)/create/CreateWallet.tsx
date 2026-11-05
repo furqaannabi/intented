@@ -48,6 +48,23 @@ type Flow =
   | { step: "error"; message: string }
   | { step: "created"; walletId: string; tx: string; mandateHash: string; agentKey: string | null };
 
+/** The form, kept for this tab while it's being filled in, so a wallet that signs in on another page loses nothing. */
+const DRAFT_KEY = "intented:create-draft";
+type Draft = { name: string; rules: string; tokenIndex: number; perTx: string; daily: string; agentKey: string; allowance: string };
+function readDraft(): Partial<Draft> {
+  try {
+    return JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? "{}") as Partial<Draft>;
+  } catch {
+    return {};
+  }
+}
+function writeDraft(d: Draft | null) {
+  try {
+    if (d) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+    else sessionStorage.removeItem(DRAFT_KEY);
+  } catch {}
+}
+
 const shortKey = (s: string) => (s.length > 22 ? `${s.slice(0, 14)}…${s.slice(-6)}` : s);
 const errorText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
@@ -76,6 +93,25 @@ export function CreateWallet() {
 
   const token = TESTNET_TOKENS[tokenIndex];
   const walletId = `${name}.${FACTORY_ID}`;
+
+  // Restores this tab's draft once, after the first render (sessionStorage isn't there on the server). A link from
+  // intented init keeps its own name and key. Declared before the effect that saves, so the saved draft is read first.
+  useEffect(() => {
+    const d = readDraft();
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (!params.get("name") && typeof d.name === "string") setName(d.name);
+    if (!linkKey && typeof d.agentKey === "string") setAgentKey(d.agentKey);
+    if (typeof d.rules === "string") setRules(d.rules);
+    if (typeof d.tokenIndex === "number" && TESTNET_TOKENS[d.tokenIndex]) setTokenIndex(d.tokenIndex);
+    if (typeof d.perTx === "string") setPerTx(d.perTx);
+    if (typeof d.daily === "string") setDaily(d.daily);
+    if (typeof d.allowance === "string") setAllowance(d.allowance);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (flow.step !== "created") writeDraft({ name, rules, tokenIndex, perTx, daily, agentKey, allowance });
+  }, [name, rules, tokenIndex, perTx, daily, agentKey, allowance, flow.step]);
 
   // The judge comes from our live wallet, so a new wallet trusts the same attested signer, prompt and model.
   useEffect(() => {
@@ -137,6 +173,18 @@ export function CreateWallet() {
 
   const ready =
     !!near.account && !!judge && !!factory && nameStatus === "free" && !!rulesTrimmed && rules.length <= MAX_RULES && !capsError && !keyError && !allowanceError;
+  // What still stands between the owner and "Create wallet", in the form's own order.
+  const missing = [
+    !judge || !factory ? "Reading the factory and the judge from NEAR testnet…" : null,
+    nameStatus === "invalid" ? (name ? "Name it: lowercase letters and digits, with single - or _ between them" : "Name it: choose a name") : null,
+    nameStatus === "checking" ? "Name it: checking the name is free…" : null,
+    nameStatus === "taken" ? `Name it: ${walletId} is taken` : null,
+    nameStatus === "error" ? "Name it: couldn't check the name; edit it to try again" : null,
+    !rulesTrimmed ? "Write the rules" : rules.length > MAX_RULES ? `Write the rules: at most ${MAX_RULES} characters` : null,
+    capsError ? `Hard limits: ${capsError}` : null,
+    keyError ? `Agent key: ${keyError}` : null,
+    allowanceError ? `Agent's gas: ${allowanceError}` : null,
+  ].filter((m): m is string => !!m);
 
   const createArgs = useMemo(
     () =>
@@ -189,6 +237,7 @@ export function CreateWallet() {
       }
       if (!made) throw new Error(`The transaction went through, but ${walletId} wasn't created; the factory refunds the deposit. Transaction ${outcome.transaction.hash}.`);
       rememberWallet(walletId);
+      writeDraft(null);
       setFlow({ step: "created", walletId, tx: outcome.transaction.hash, mandateHash: hash, agentKey: key || null });
     } catch (e) {
       setFlow({ step: "error", message: errorText(e, "The wallet didn't sign") });
@@ -202,6 +251,19 @@ export function CreateWallet() {
   return (
     <>
       <Intro />
+
+      {/* First, not last: the owner signs at the end, and a phone would otherwise find this 2,000px down. */}
+      {!near.account && near.status !== "loading" && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-[18px] border border-line bg-ink-2 p-5">
+          <p className="max-w-[42em] text-sm text-mute">
+            <b className="font-bold text-text">Connect your NEAR testnet wallet first.</b> It becomes this wallet&apos;s owner and approves one call at the
+            end. What you fill in here is kept in this tab while you sign in.
+          </p>
+          <button onClick={near.connect} disabled={near.status !== "ready"} className={secondary}>
+            Connect your NEAR wallet
+          </button>
+        </div>
+      )}
 
       {loadError && (
         <p className="mt-6 rounded-[18px] border border-line bg-ink-2 p-5 text-sm text-mute">
@@ -228,7 +290,7 @@ export function CreateWallet() {
               />
               <span className={suffix}>.{FACTORY_ID}</span>
             </div>
-            <p className={`mt-2 text-[13px] ${nameStatus === "free" ? "text-lime" : nameStatus === "taken" ? "text-coral" : "text-mute"}`} aria-live="polite">
+            <p className={`mt-2 text-[13px] ${nameStatus === "free" ? "text-soft" : nameStatus === "taken" ? "text-coral" : "text-mute"}`} aria-live="polite">
               {!name
                 ? "Lowercase letters and digits, with - or _ between them."
                 : nameStatus === "invalid"
@@ -272,7 +334,7 @@ export function CreateWallet() {
                   aria-checked={i === tokenIndex}
                   disabled={busy}
                   onClick={() => setTokenIndex(i)}
-                  className={`rounded-full border-[1.5px] bg-ink-2 px-3.5 py-1.5 text-sm font-bold ${i === tokenIndex ? "border-lime text-lime" : "border-line"}`}
+                  className={`rounded-full border-[1.5px] bg-ink-2 px-3.5 py-1.5 text-sm font-bold ${i === tokenIndex ? "border-soft text-text" : "border-line text-mute"}`}
                 >
                   {t.symbol}
                 </button>
@@ -329,12 +391,12 @@ export function CreateWallet() {
             {judge ? (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-line bg-ink-2 p-3.5">
                 <div className="min-w-0">
-                  <p className="font-mono text-xs font-medium text-lime">Attestation verified off-chain · Intel TDX + NVIDIA</p>
+                  <p className="font-mono text-xs font-medium text-soft">Attestation verified off-chain · Intel TDX + NVIDIA</p>
                   <p className="mt-1 font-mono text-[13px] break-all text-soft">
                     {judge.model_id} · signer {judge.signer}
                   </p>
                 </div>
-                <a href={`${REPO}/blob/main/docs/attestations/${judge.signer}.json`} className="inline-flex items-center gap-1 text-[13px] text-lime hover:underline">
+                <a href={`${REPO}/blob/main/docs/attestations/${judge.signer}.json`} className="inline-flex items-center gap-1 text-[13px] text-text underline decoration-line underline-offset-[3px] hover:decoration-soft">
                   Attestation report <ArrowUpRight className="size-3.5" />
                 </a>
               </div>
@@ -405,6 +467,16 @@ export function CreateWallet() {
           )}
           {near.status === "failed" && <p className="mt-2 text-xs text-coral">The wallet list didn&apos;t load. Reload to try again.</p>}
           {near.connectError && <p className="mt-2 text-xs text-coral">{near.connectError}</p>}
+          {near.account && !ready && !busy && missing.length > 0 && (
+            <div className="mt-3 text-[13px] text-mute" aria-live="polite">
+              <p>Before you can create it:</p>
+              <ul className="mt-1 grid list-disc gap-0.5 pl-5">
+                {missing.map((m) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {flow.step === "error" && <p className="mt-3 text-[13px] break-words text-coral">{flow.message}</p>}
           <p className="mt-3 text-[12.5px] text-mute">
             Your wallet asks you to approve one call: <span className="font-mono">{FACTORY_ID} · create</span>, 300 Tgas.
@@ -425,7 +497,7 @@ function Section({ n, title, note, first, children }: { n: number; title: string
   return (
     <section className={first ? "pb-6" : "border-t border-line py-6"}>
       <div className="mb-4 flex items-start gap-3.5">
-        <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-[9px] bg-lime font-mono text-[13px] text-lime-ink" aria-hidden="true">
+        <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-[9px] bg-card font-mono text-[13px] text-text" aria-hidden="true">
           {n}
         </span>
         <div>
@@ -531,7 +603,7 @@ function Created({
 
   return (
     <div className="pt-10 pb-24">
-      <p className="flex items-center gap-3 text-[clamp(34px,4.2vw,56px)] leading-none font-black tracking-[-0.035em] text-lime">
+      <p className="flex items-center gap-3 text-[clamp(34px,4.2vw,56px)] leading-none font-black tracking-[-0.035em]">
         <Check className="size-[0.8em]" /> Created
       </p>
       <p className="mt-4 font-mono text-[clamp(17px,1.8vw,22px)] font-medium break-all">{walletId}</p>
@@ -559,7 +631,7 @@ function Created({
             <ul className="grid gap-1.5">
               {checks.map((c) => (
                 <li key={c.label} className={`flex items-start gap-2 ${c.ok ? "text-text" : "text-coral"}`}>
-                  {c.ok ? <Check className="mt-1 size-3.5 shrink-0 text-lime" /> : <Cross className="mt-1 size-3.5 shrink-0" />}
+                  {c.ok ? <Check className="mt-1 size-3.5 shrink-0 text-soft" /> : <Cross className="mt-1 size-3.5 shrink-0" />}
                   {c.label}
                 </li>
               ))}
@@ -586,7 +658,7 @@ function Created({
             <span className={suffix}>{token.symbol}</span>
           </div>
           {fundState.step === "done" && (
-            <a href={nearblocksTx(fundState.tx)} className="inline-flex items-center gap-1 text-lime hover:underline">
+            <a href={nearblocksTx(fundState.tx)} className="inline-flex items-center gap-1 text-text underline decoration-line underline-offset-[3px] hover:decoration-soft">
               <Check className="size-3.5" /> Sent · transaction <ArrowUpRight className="size-3.5" />
             </a>
           )}

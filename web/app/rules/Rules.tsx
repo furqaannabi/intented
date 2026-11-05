@@ -109,7 +109,7 @@ function WalletRules({ walletId }: { walletId: string }) {
         </div>
         {account ? (
           <span className="inline-flex items-center gap-2.5 text-sm text-mute">
-            <span className="size-2 rounded-full bg-lime" aria-hidden="true" />
+            <span className="size-2 rounded-full bg-soft" aria-hidden="true" />
             <span className="font-mono text-[13px] text-text">{account}</span>
             <button onClick={disconnect} className="underline underline-offset-[3px] hover:text-text">
               Sign out
@@ -148,7 +148,6 @@ function WalletRules({ walletId }: { walletId: string }) {
                 setEdit({ step: "done", tx });
                 load();
               }}
-              onError={(message) => setEdit({ step: "error", message })}
               onCancel={() => setEdit({ step: "view" })}
             />
           ) : (
@@ -178,7 +177,7 @@ function WalletRules({ walletId }: { walletId: string }) {
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 sm:grid-cols-[190px_minmax(0,1fr)_auto]">
                     <dt className="text-mute max-sm:col-span-2">mandate_hash on the wallet</dt>
                     <dd className="truncate font-mono text-xs">{config.mandate_hash}</dd>
-                    <dd className={text.state === "live" ? "text-lime" : "text-mute"}>{text.state === "live" ? "matches the text" : ""}</dd>
+                    <dd className={text.state === "live" ? "text-soft" : "text-mute"}>{text.state === "live" ? "matches the text" : ""}</dd>
                   </div>
                 </dl>
               )}
@@ -191,7 +190,7 @@ function WalletRules({ walletId }: { walletId: string }) {
 
               {edit.step === "done" && (
                 <p className="mt-5 flex items-center gap-2 text-sm">
-                  <Check className="size-4 text-lime" /> Rules set on the wallet ·{" "}
+                  <Check className="size-4 text-soft" /> Rules set on the wallet ·{" "}
                   <a href={nearblocksTx(edit.tx)} className="font-mono text-soft hover:underline">
                     {short(edit.tx)}
                   </a>
@@ -270,7 +269,7 @@ function WalletRules({ walletId }: { walletId: string }) {
 function LiveLabel({ text }: { text: Text }) {
   if (text.state === "live")
     return (
-      <p className="mb-4 flex items-center gap-2 text-xs font-black tracking-[0.12em] text-lime uppercase">
+      <p className="mb-4 flex items-center gap-2 text-xs font-black tracking-[0.12em] text-soft uppercase">
         <Check className="size-3.5" /> Live on the wallet
       </p>
     );

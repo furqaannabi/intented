@@ -42,7 +42,7 @@ export function AppHeader() {
                 title={near.account}
                 className="flex max-w-[220px] items-center gap-2 rounded-full border border-line bg-ink-2 px-3 py-1.5 font-mono text-[12.5px] text-soft hover:border-soft max-[479px]:max-w-[92px]"
               >
-                <span className="size-[7px] shrink-0 rounded-full bg-lime" aria-hidden="true" />
+                <span className="size-[7px] shrink-0 rounded-full bg-soft" aria-hidden="true" />
                 <span className="truncate">{near.account}</span>
               </button>
               {menu && (

@@ -14,7 +14,7 @@ Four colours, and each one has one job. Tokens live in `app/globals.css` and are
 | `lime` (on `lime-ink`) | #c8ff3d | ALLOW, a paid payment, the primary button. Nothing else |
 | `coral` | #ff5b4a | DENY, a refused payment, the agent being tricked. Nothing else |
 
-Don't add colours. Panels stay neutral grey: no white or tinted paper. A verdict colours only its own line, never a whole panel.
+The two brand exceptions are the logo mark and the hero word "intented.". Step numbers, checkmarks, selected states, "verified" labels and links are neutral (`soft`/`text`), and a warning is an outlined neutral pill whose words say what it is. Don't add colours. Panels stay neutral grey: no white or tinted paper. A verdict colours only its own line, never a whole panel.
 
 ## Type
 

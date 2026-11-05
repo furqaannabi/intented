@@ -85,8 +85,8 @@ export default function Home() {
               </figure>
               <ul className="divide-y divide-line border-y border-line">
                 <li className="flex gap-4 py-5">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-coral/15 text-coral">
-                    <Cross className="size-5" />
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-card text-soft">
+                    <ArrowUpRight className="size-5" />
                   </span>
                   <div>
                     <p className="text-[17px] font-bold">A spending cap alone pays it</p>
@@ -94,8 +94,8 @@ export default function Home() {
                   </div>
                 </li>
                 <li className="flex gap-4 py-5">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-lime text-lime-ink">
-                    <Check className="size-5" />
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-coral/15 text-coral">
+                    <Cross className="size-5" />
                   </span>
                   <div>
                     <p className="text-[17px] font-bold">Intented refuses it</p>
@@ -139,7 +139,7 @@ export default function Home() {
             <ul className="mt-12 grid border-t border-line sm:grid-cols-2 sm:gap-x-12">
               {CHECKS.map((check) => (
                 <li key={check.title} className="flex gap-3.5 border-b border-line py-5">
-                  <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg bg-lime text-lime-ink">
+                  <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg bg-card text-soft">
                     <Check className="size-3.5" />
                   </span>
                   <div>
@@ -158,7 +158,7 @@ export default function Home() {
               On the chain, for anyone to check.
             </h2>
             <dl className="mt-12 border-y border-line py-6">
-              <dt className="text-[clamp(48px,5vw,76px)] leading-none font-black tracking-[-0.04em] text-lime">5.5 s</dt>
+              <dt className="text-[clamp(48px,5vw,76px)] leading-none font-black tracking-[-0.04em]">5.5 s</dt>
               <dd className="mt-2.5 text-[15px] text-mute">median time to a signed verdict</dd>
             </dl>
             <div className="mt-6 grid gap-3.5 md:grid-cols-2">
@@ -182,7 +182,7 @@ export default function Home() {
               </a>{" "}
               is verified off-chain and published, and its signing key is then allowlisted in the wallet.
             </p>
-            <Link href="/activity" className="mt-8 inline-flex items-center gap-1.5 font-bold text-lime hover:underline hover:underline-offset-4">
+            <Link href="/activity" className="mt-8 inline-flex items-center gap-1.5 font-bold text-text underline decoration-line underline-offset-4 hover:decoration-soft">
               See every payment and its receipt <ArrowUpRight className="size-4" />
             </Link>
           </div>

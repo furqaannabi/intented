@@ -174,7 +174,7 @@ function WalletPage({ walletId }: { walletId: string }) {
           {tx.step === "signing" && <>Approve “{tx.what}” in your wallet…</>}
           {tx.step === "done" && (
             <>
-              <Check className="size-4 text-lime" /> {tx.what} ·{" "}
+              <Check className="size-4 text-soft" /> {tx.what} ·{" "}
               <a href={nearblocksTx(tx.hash)} className="font-mono text-soft hover:underline">
                 {short(tx.hash, 8, 8)}
               </a>
@@ -243,15 +243,11 @@ function WalletPage({ walletId }: { walletId: string }) {
                   setTx({ what: "Set the rules", step: "done", hash });
                   load();
                 }}
-                onError={(message) => {
-                  setEditingRules(false);
-                  setTx({ what: "Set the rules", step: "error", message });
-                }}
                 onCancel={() => setEditingRules(false)}
               />
             ) : rules.state === "live" ? (
               <>
-                <p className="mt-4 flex items-center gap-2 text-xs font-black tracking-[0.12em] text-lime uppercase">
+                <p className="mt-4 flex items-center gap-2 text-xs font-black tracking-[0.12em] text-soft uppercase">
                   <Check className="size-3.5" /> Live on the wallet
                 </p>
                 <p className="mt-2.5 text-[clamp(20px,1.9vw,26px)] leading-tight font-bold tracking-[-0.015em] [overflow-wrap:anywhere]">{rules.text}</p>
@@ -394,7 +390,7 @@ function AgentCard({ state, walletId, isOwner, busy, sign }: { state: WalletStat
                 {near2(limits.toString())}.
               </p>
               <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-text">
-                <input type="checkbox" checked={cover} onChange={(e) => setCover(e.target.checked)} className="size-4 accent-lime" />
+                <input type="checkbox" checked={cover} onChange={(e) => setCover(e.target.checked)} className="size-4 accent-soft" />
                 Also send {near2(short)} NEAR from your account, so it can cover them
               </label>
             </div>
