@@ -168,7 +168,9 @@ function WalletRow({ row }: { row: Row }) {
   if (s === "error" || s === null) {
     return (
       <div className="rounded-[20px] border border-line bg-ink-2 px-[22px] py-5">
-        <p className="font-mono break-all">{row.id}</p>
+        <p className="font-mono [overflow-wrap:anywhere]">
+          <WalletName id={row.id} />
+        </p>
         <p className="mt-1 text-[13px] text-coral">Couldn&apos;t read this wallet from NEAR testnet. Reload to try again.</p>
       </div>
     );
@@ -180,7 +182,9 @@ function WalletRow({ row }: { row: Row }) {
       className="grid grid-cols-2 items-center gap-x-4 gap-y-3 rounded-[20px] border border-line bg-ink-2 px-[22px] py-5 hover:border-[#444] md:grid-cols-[minmax(0,1fr)_auto_auto_auto] md:gap-6"
     >
       <div className="col-span-2 min-w-0 md:col-span-1">
-        <p className="font-mono font-medium break-all">{row.id}</p>
+        <p className="font-mono font-medium [overflow-wrap:anywhere]">
+          <WalletName id={row.id} />
+        </p>
         <p className="mt-1 truncate text-[13px] text-mute">
           {s.rules.state === "live" ? s.rules.text : s.rules.state === "none" ? "No rules set: every payment is refused." : "Rules text not available."}
         </p>
@@ -192,12 +196,31 @@ function WalletRow({ row }: { row: Row }) {
   );
 }
 
+/** A wallet's name that breaks before ".intented.testnet" on a narrow screen, not mid-word. */
+function WalletName({ id }: { id: string }) {
+  const dot = id.indexOf(".");
+  if (dot < 0) return <>{id}</>;
+  return (
+    <>
+      {id.slice(0, dot + 1)}
+      <wbr />
+      {id.slice(dot + 1)}
+    </>
+  );
+}
+
 /** A wallet row while its wallet is read: the name if this browser remembers it, then the row's shape. */
 function RowSkeleton({ id }: { id: string | null }) {
   return (
     <div className="grid grid-cols-2 items-center gap-x-4 gap-y-3 rounded-[20px] border border-line bg-ink-2 px-[22px] py-5 md:grid-cols-[minmax(0,1fr)_auto_auto_auto] md:gap-6">
       <div className="col-span-2 min-w-0 md:col-span-1">
-        {id ? <p className="font-mono font-medium break-all">{id}</p> : <Skeleton className="h-5 w-3/5" />}
+        {id ? (
+          <p className="font-mono font-medium [overflow-wrap:anywhere]">
+            <WalletName id={id} />
+          </p>
+        ) : (
+          <Skeleton className="h-5 w-3/5" />
+        )}
         <Skeleton className="mt-2 h-3.5 w-4/5" />
       </div>
       <Stat label="Balance" value={<Skeleton className="mt-1 h-5 w-24" />} />

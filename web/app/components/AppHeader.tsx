@@ -12,8 +12,9 @@ import "./site-header.css";
 const LINKS = [
   { href: "/wallets", label: "My wallets", short: "Wallets", hide: "" },
   { href: "/create", label: "Create wallet", short: "Create", hide: "max-[379px]:hidden" },
-  // The demo wallet's page inside the app, so the demo opens in the same header and layout as your own wallet.
-  { href: `/wallets/${WALLET_ID}`, label: "Live demo", short: null, hide: "max-sm:hidden" },
+  // The demo wallet's page inside the app, so the demo opens in the same header and layout as your own wallet. Named for
+  // what it opens: the public site's "Live demo" is the feed of payments, /activity.
+  { href: `/wallets/${WALLET_ID}`, label: "Demo wallet", short: null, hide: "max-sm:hidden" },
 ] as const;
 
 /** The app's header: your wallets, and the NEAR account you're signed in with. */

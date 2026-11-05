@@ -94,7 +94,7 @@ function Link({ href, children }: { href: string; children: React.ReactNode }) {
 
 function Label({ children, aside }: { children: React.ReactNode; aside?: string }) {
   return (
-    <div className="mb-2 flex justify-between gap-3 font-mono text-[10px] font-medium tracking-[0.08em] text-mute uppercase">
+    <div className="mb-2 flex justify-between gap-3 font-mono text-[11px] font-medium tracking-[0.06em] text-mute uppercase">
       <span>{children}</span>
       {aside && <span>{aside}</span>}
     </div>

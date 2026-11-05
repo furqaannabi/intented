@@ -167,6 +167,24 @@ function WalletPage({ walletId }: { walletId: string }) {
         </div>
       </div>
 
+      {/* Said in words, not only in the Freeze button's tooltip or a pill. */}
+      {(isOwner || config.frozen || fullAccessKeys > 0) && (
+        <div className="-mt-2 mb-6 space-y-1.5 text-sm text-mute">
+          {config.frozen ? (
+            <p>
+              <span className="font-bold text-text">Frozen.</span> No payment executes until the owner unfreezes it. Withdraw still works.
+            </p>
+          ) : (
+            isOwner && <p>Freeze stops every payment until you unfreeze. Withdraw still works.</p>
+          )}
+          {fullAccessKeys > 0 && (
+            <p>
+              This account has {fullAccessKeys === 1 ? "a full-access key" : `${fullAccessKeys} full-access keys`}: whoever holds it could replace the contract or move the funds without a verdict. Wallets made by the factory have none.
+            </p>
+          )}
+        </div>
+      )}
+
       {isOwner && panel && <OwnerPanel key={panel} kind={panel} state={state} walletId={walletId} owner={near.account!} busy={busy} sign={sign} onClose={() => setPanel(null)} />}
 
       {tx && (

@@ -102,6 +102,9 @@ export default function Home() {
                     <p className="text-[15px] text-mute">
                       The rules name one vendor. The AI signs DENY, and the wallet refuses on-chain. Nothing is sent.
                     </p>
+                    <a href={txUrl(REFUSED_TX)} className="mt-2 inline-flex items-center gap-1 text-[15px] font-bold underline decoration-line underline-offset-4 hover:decoration-soft">
+                      This refusal on nearblocks <ArrowUpRight className="size-4" />
+                    </a>
                   </div>
                 </li>
               </ul>
@@ -194,7 +197,7 @@ export default function Home() {
               Give your agent a wallet that says no.
             </h2>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <a href="#attack" className={primary}>See it block an attack</a>
+              <Link href="/activity" className={primary}>Watch every payment, live</Link>
               <a href={REPO} className={secondary}>Read the code</a>
             </div>
           </div>
