@@ -135,6 +135,16 @@ export function parseUnits(value: string, decimals: number): string | null {
   return raw;
 }
 
+/**
+ * What an amount field keeps of what was typed or pasted: digits and one dot, at most `decimals` after it.
+ * A comma becomes the dot, for keyboards that type one.
+ */
+export function decimalInput(value: string, decimals: number): string {
+  const s = value.replace(/,/g, ".").replace(/[^\d.]/g, "");
+  const dot = s.indexOf(".");
+  return dot < 0 ? s : s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, "").slice(0, decimals);
+}
+
 /** Lowercase hex sha256 of the text's UTF-8 bytes, exactly as the wallet's mandate_hash is computed. */
 export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));

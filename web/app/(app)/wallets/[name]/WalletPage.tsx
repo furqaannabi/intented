@@ -8,7 +8,7 @@ import { PaymentsChart } from "../../../components/PaymentsChart";
 import { RulesEditor } from "../../../components/RulesEditor";
 import { Loading, Skeleton } from "../../../components/Skeleton";
 import { REPO } from "../../../components/SiteHeader";
-import { FACTORY_ID, formatUnits, freeNear, nearblocksAccount, nearblocksTx, parseUnits, TESTNET_TOKENS, viewOn, WALLET_ID } from "../../../lib/near";
+import { decimalInput, FACTORY_ID, formatUnits, freeNear, nearblocksAccount, nearblocksTx, parseUnits, TESTNET_TOKENS, viewOn, WALLET_ID } from "../../../lib/near";
 import { rememberWallet, walletFromPath } from "../../../lib/myWallets";
 import { useNearWallet } from "../../../lib/useNearWallet";
 import { call, ED25519_KEY, fundActions, transfer, WITHDRAW_GAS, type FunctionCall, type Transfer } from "../../../lib/walletActions";
@@ -340,17 +340,19 @@ function AgentCard({ state, walletId, isOwner, busy, sign }: { state: WalletStat
   const [allowance, setAllowance] = useState("0.5");
   const k = key.trim();
   const raw = parseUnits(allowance, 24);
-  const ok = ED25519_KEY.test(k) && !!raw && raw !== "0";
+  const limitOk = !!raw && raw !== "0";
+  const ok = ED25519_KEY.test(k) && limitOk;
   // Our own wallet's agent is a separate account; a factory wallet is its own agent, with keys on itself.
   const ownAgent = state.config.agent_id === walletId;
 
   // Every key's gas comes from the wallet's free NEAR. If all their limits, this one included, add up to more,
-  // the missing NEAR can go in the same transaction as the key.
+  // the missing NEAR can go in the same transaction as the key. Worked out from the limit alone, so the choice
+  // shows before the key is pasted.
   const free = BigInt(freeNear(state.account));
-  const limits = state.agentKeys.reduce((sum, a) => sum + BigInt(a.allowance ?? "0"), BigInt(raw && ok ? raw : "0"));
+  const limits = state.agentKeys.reduce((sum, a) => sum + BigInt(a.allowance ?? "0"), BigInt(limitOk ? raw : "0"));
   // Rounded up to the next 0.01 NEAR, so the amount shown is the amount sent.
   const cent = BigInt("10000000000000000000000");
-  const short = ok && !state.agentKeys.some((a) => a.allowance === null) && limits > free ? (((limits - free + cent - BigInt(1)) / cent) * cent).toString() : null;
+  const short = limitOk && !state.agentKeys.some((a) => a.allowance === null) && limits > free ? (((limits - free + cent - BigInt(1)) / cent) * cent).toString() : null;
   const [cover, setCover] = useState(true);
   const sendNear = short !== null && cover;
 
@@ -389,9 +391,9 @@ function AgentCard({ state, walletId, isOwner, busy, sign }: { state: WalletStat
             <input aria-label="Agent public key" value={key} onChange={(e) => setKey(e.target.value)} placeholder="ed25519:…" spellCheck={false} className={`${input} font-mono`} />
           </div>
           <div className="flex flex-wrap gap-2.5">
-            <div className={`${field} w-[180px]`}>
-              <input aria-label="Gas allowance" value={allowance} onChange={(e) => setAllowance(e.target.value)} inputMode="decimal" className={input} />
-              <span className="px-3 font-mono text-xs text-mute">NEAR gas</span>
+            <div className={`${field} w-[210px]`}>
+              <input aria-label="Gas allowance" value={allowance} onChange={(e) => setAllowance(decimalInput(e.target.value, 24))} inputMode="decimal" className={input} />
+              <span className="px-3 font-mono text-xs text-mute">NEAR gas limit</span>
             </div>
             <button
               disabled={busy || !ok}
@@ -401,6 +403,7 @@ function AgentCard({ state, walletId, isOwner, busy, sign }: { state: WalletStat
               {sendNear ? `Add the key and ${near2(short)} NEAR` : "Add a key"}
             </button>
           </div>
+          {short === null && <p className="text-[13px] text-mute">The most this key may spend on fees, out of the wallet&apos;s free NEAR. Nothing is sent now.</p>}
           {short !== null && (
             <div className="rounded-[12px] border border-line bg-ink px-3.5 py-2.5 text-[13px] text-mute">
               <p>
@@ -515,7 +518,7 @@ function OwnerPanel({
             <input
               aria-label={kind === "fund" ? "Amount to send" : "Amount to withdraw"}
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => setAmount(decimalInput(e.target.value, decimals))}
               placeholder={kind === "fund" ? "0.05" : "0"}
               inputMode="decimal"
               autoFocus

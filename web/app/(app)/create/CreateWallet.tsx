@@ -8,6 +8,7 @@ import { InitCommand } from "../../components/InitCommand";
 import { REPO } from "../../components/SiteHeader";
 import { Loading, Skeleton, Spinner } from "../../components/Skeleton";
 import {
+  decimalInput,
   FACTORY_ID,
   formatUnits,
   getConfig,
@@ -341,8 +342,8 @@ export function CreateWallet() {
               ))}
             </div>
             <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
-              <Amount id="cw-ptx" label="At most per payment" value={perTx} onChange={setPerTx} unit={token.symbol} disabled={busy} />
-              <Amount id="cw-day" label="At most per day (UTC)" value={daily} onChange={setDaily} unit={token.symbol} disabled={busy} />
+              <Amount id="cw-ptx" label="At most per payment" value={perTx} onChange={setPerTx} unit={token.symbol} decimals={token.decimals} disabled={busy} />
+              <Amount id="cw-day" label="At most per day (UTC)" value={daily} onChange={setDaily} unit={token.symbol} decimals={token.decimals} disabled={busy} />
             </div>
             {capsError && <p className="mt-2 text-[13px] text-coral">{capsError}</p>}
           </Section>
@@ -376,7 +377,7 @@ export function CreateWallet() {
             )}
             {key && (
               <div className="mt-4 max-w-[260px]">
-                <Amount id="cw-allow" label="Gas allowance" value={allowance} onChange={setAllowance} unit="NEAR" disabled={busy} />
+                <Amount id="cw-allow" label="Gas allowance" value={allowance} onChange={setAllowance} unit="NEAR" decimals={24} disabled={busy} />
                 <p className={`mt-2 text-[13px] ${allowanceError ? "text-coral" : "text-mute"}`}>
                   {allowanceError ??
                     (Number(allowance) > 0.5
@@ -510,14 +511,14 @@ function Section({ n, title, note, first, children }: { n: number; title: string
   );
 }
 
-function Amount({ id, label, value, onChange, unit, disabled }: { id: string; label: string; value: string; onChange: (v: string) => void; unit: string; disabled?: boolean }) {
+function Amount({ id, label, value, onChange, unit, decimals, disabled }: { id: string; label: string; value: string; onChange: (v: string) => void; unit: string; decimals: number; disabled?: boolean }) {
   return (
     <div>
       <label htmlFor={id} className="text-sm font-bold">
         {label}
       </label>
       <div className={`${field} mt-2`}>
-        <input id={id} value={value} onChange={(e) => onChange(e.target.value)} inputMode="decimal" disabled={disabled} className={input} />
+        <input id={id} value={value} onChange={(e) => onChange(decimalInput(e.target.value, decimals))} inputMode="decimal" disabled={disabled} className={input} />
         <span className={suffix}>{unit}</span>
       </div>
     </div>
@@ -654,7 +655,7 @@ function Created({
               : `Send ${token.symbol} from your account, registering the wallet with the token first. One approval.`}
           </p>
           <div className={field}>
-            <input aria-label="Amount to send" value={fund} onChange={(e) => setFund(e.target.value)} inputMode="decimal" className={input} disabled={fundState.step === "signing"} />
+            <input aria-label="Amount to send" value={fund} onChange={(e) => setFund(decimalInput(e.target.value, token.decimals))} inputMode="decimal" className={input} disabled={fundState.step === "signing"} />
             <span className={suffix}>{token.symbol}</span>
           </div>
           {fundState.step === "done" && (
@@ -685,9 +686,10 @@ function Created({
                 <input aria-label="Agent public key" value={newKey} onChange={(e) => setNewKey(e.target.value)} placeholder="ed25519:…" spellCheck={false} className={`${input} font-mono text-sm`} disabled={keyState.step === "signing"} />
               </div>
               <div className={field}>
-                <input aria-label="Gas allowance" value={keyAllowance} onChange={(e) => setKeyAllowance(e.target.value)} inputMode="decimal" className={input} disabled={keyState.step === "signing"} />
-                <span className={suffix}>NEAR gas</span>
+                <input aria-label="Gas allowance" value={keyAllowance} onChange={(e) => setKeyAllowance(decimalInput(e.target.value, 24))} inputMode="decimal" className={input} disabled={keyState.step === "signing"} />
+                <span className={suffix}>NEAR gas limit</span>
               </div>
+              <p className="text-[13px] text-mute">The most this key may spend on fees, out of the NEAR your deposit left in the wallet. Nothing is sent now.</p>
               {!newKey && <InitCommand name={walletId.slice(0, -FACTORY_ID.length - 1)} then="prints the public key to paste here." />}
               {keyState.step === "error" && <p className="break-words text-coral">{keyState.message}</p>}
               <button onClick={addKey} disabled={keyState.step === "signing" || !ED25519_KEY.test(newKey.trim()) || !parseUnits(keyAllowance, 24)} className={`${primary} mt-auto`}>
