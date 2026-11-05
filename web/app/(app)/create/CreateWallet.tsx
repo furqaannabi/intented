@@ -625,12 +625,6 @@ function Created({
           )}
         </Card>
       </div>
-
-      <p className="mt-6 max-w-[52em] rounded-[14px] border border-line bg-ink-2 px-4 py-3.5 text-[13.5px] text-mute">
-        <b className="font-bold text-text">Not yet: verdicts for this wallet.</b> Intented&apos;s API judges payments for{" "}
-        <span className="font-mono">intented-wallet.testnet</span> only today, so your agent can&apos;t get a signed ALLOW for this wallet until the
-        API serves every wallet.
-      </p>
     </div>
   );
 }

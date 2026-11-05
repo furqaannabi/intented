@@ -38,7 +38,7 @@ function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable
   const wallets = new Map([[WALLET, chainWallet(now)]]);
   const judged: { mandate: string; argsJson: string; context: string }[] = [];
   const settling: string[] = [];
-  const judge = { failures: 0 };
+  const judge = { failures: 0, verdict: "ALLOW" as "ALLOW" | "DENY" };
   /** Transactions on chain by hash, as the RPC's tx lookup returns them. */
   const txs = new Map<string, ChainTx>();
   const verdicts: AppDeps["verdicts"] = {
@@ -46,7 +46,7 @@ function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable
       judged.push({ mandate, argsJson, context });
       if (judge.failures-- > 0) throw new Error("NEAR AI timed out");
       return {
-        verdict: "ALLOW", reason: "matches the rules", model: "m", chat_id: "chat-1", signer: "0xsigner", signature: "0xsig",
+        verdict: judge.verdict, reason: "matches the rules", model: "m", chat_id: "chat-1", signer: "0xsigner", signature: "0xsig",
         req_bytes: new Uint8Array([1, 2, 3]), resp_bytes: new Uint8Array([4, 5]),
       };
     },
@@ -228,7 +228,7 @@ describe("POST /api/executed", () => {
     ["called another contract", { receiver_id: "other.testnet" }],
     ["called another method", { calls: [{ method: "propose", args: { proposal_id: 0 } }] }],
     ["executed another proposal", { calls: [{ method: "execute", args: { proposal_id: 1 } }] }],
-    ["failed", { ok: false }],
+    ["failed, on an ALLOW", { ok: false }],
   ];
   for (const [what, over] of wrong) {
     it(`answers 409 and stores nothing when the transaction ${what}`, async () => {
@@ -240,4 +240,14 @@ describe("POST /api/executed", () => {
       expect((await (await t.app.request(`/api/proposals/${id}`)).json()).near_tx_hash).toBeUndefined();
     });
   }
+
+  it("stores the wallet's refused execute of a DENY, so the receipt links the refusal on chain", async () => {
+    const t = setup();
+    t.judge.verdict = "DENY";
+    const { id } = await (await t.ask({ wallet_id: WALLET, proposal_id: 0, context: "" })).json();
+    t.txs.set(HASH, executeTx({ ok: false }));
+    const res = await t.executed({ wallet_id: WALLET, proposal_id: 0, near_tx_hash: HASH });
+    expect(res.status).toBe(200);
+    expect((await (await t.app.request(`/api/proposals/${id}`)).json()).near_tx_hash).toBe(HASH);
+  });
 });

@@ -210,7 +210,8 @@ export function createApp({
   });
 
   // The agent reports the execute it sent, so the receipt can link it and a 1Click deposit can be submitted.
-  // The chain is the authority: the transaction must be the wallet's agent calling execute on this proposal, and have succeeded.
+  // The chain is the authority: the transaction must be the wallet's agent calling execute on this proposal, and have succeeded,
+  // or, for a DENY, have been refused: that refusal is the receipt's proof. A DENY can never execute, so its hash is never a deposit.
   app.post("/api/executed", async (c) => {
     if (!verdicts) return c.json({ error: "verdicts for other wallets are off on this API" }, 501);
     const req = checkExecutedRequest(await c.req.json().catch(() => null), verdicts);
@@ -228,7 +229,7 @@ export function createApp({
     const call = tx?.receiver_id === req.wallet_id ? tx.calls.find((k) => k.method === "execute") : undefined;
     if (!tx) return c.json({ error: `no transaction ${req.near_tx_hash} from ${req.wallet_id}'s agent` }, 409);
     if (!call || call.args?.proposal_id !== req.proposal_id) return c.json({ error: `${req.near_tx_hash} isn't ${req.wallet_id}'s execute of proposal ${req.proposal_id}` }, 409);
-    if (!tx.ok) return c.json({ error: `${req.near_tx_hash} didn't succeed` }, 409);
+    if (!tx.ok && p.verdict !== "DENY") return c.json({ error: `${req.near_tx_hash} didn't succeed` }, 409);
     store.updateProposal(p.id, { near_tx_hash: req.near_tx_hash });
     return c.json({ id: p.id });
   });

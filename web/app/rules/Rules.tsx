@@ -189,14 +189,6 @@ function WalletRules({ walletId }: { walletId: string }) {
                 </p>
               )}
 
-              {walletId !== WALLET_ID && (
-                <p className="mt-4 max-w-[52em] text-[13px] text-mute">
-                  <b className="font-bold text-text">Not judged yet.</b> Intented&apos;s API judges payments for{" "}
-                  <span className="font-mono">{WALLET_ID}</span> only today, so this wallet&apos;s agent can&apos;t get a signed ALLOW until
-                  the API serves every wallet.
-                </p>
-              )}
-
               {edit.step === "done" && (
                 <p className="mt-5 flex items-center gap-2 text-sm">
                   <Check className="size-4 text-lime" /> Rules set on the wallet ·{" "}

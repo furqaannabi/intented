@@ -63,8 +63,9 @@ describe("pay", () => {
   it("still hands a DENY to the wallet, which refuses it on chain as the record", async () => {
     const t = setup(verdict("DENY"));
     expect(await t.run()).toMatchObject({ outcome: "denied", reason: "says DENY" });
-    // A refused execute is no deposit and gets no receipt link, so it isn't reported.
-    expect(t.calls.at(-1)).toBe("execute 4 0xsig");
+    // The refused execute is reported, so the receipt links the refusal on chain.
+    expect(t.calls.slice(-2)).toEqual(["execute 4 0xsig", "POST http://api/api/executed"]);
+    expect(t.sent.at(-1)).toEqual({ wallet_id: WALLET, proposal_id: 4, near_tx_hash: "etx" });
   });
 
   it("says plainly when the API can't be reached", async () => {

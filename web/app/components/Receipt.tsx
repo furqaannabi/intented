@@ -72,6 +72,17 @@ function DeliveryStep({ kind, oneclick: oc }: { kind: Outcome; oneclick: OneClic
 
 const chainName = (c: string) => (c === "base" ? "Base" : c);
 
+/** 1Click's statuses, in words. */
+const DELIVERY: Record<string, string> = {
+  PENDING_DEPOSIT: "waiting for the deposit",
+  KNOWN_DEPOSIT_TX: "deposit seen",
+  PROCESSING: "processing",
+  SUCCESS: "delivered",
+  INCOMPLETE_DEPOSIT: "deposit too small",
+  REFUNDED: "refunded to the wallet",
+  FAILED: "failed",
+};
+
 function Link({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a href={href} className="inline-flex items-center gap-1 text-text underline decoration-line underline-offset-[3px] hover:decoration-soft">
@@ -156,7 +167,7 @@ export function Receipt({ proposal: p }: { proposal: Proposal }) {
         </section>
       )}
 
-      {oc && (
+      {oc && wallet === "paid" && (
         <section className="rcpt-section">
           <Label aside={oc.simulated ? "simulated" : undefined}>Cross-chain, through 1Click</Label>
           <dl className="grid gap-x-5 gap-y-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)] [&_dd]:font-mono [&_dd]:text-[12.5px] [&_dd]:leading-relaxed [&_dd]:break-all [&_dt]:text-mute max-sm:[&_dt]:mt-2">
@@ -166,13 +177,13 @@ export function Receipt({ proposal: p }: { proposal: Proposal }) {
             </dd>
             <dt>Receives</dt>
             <dd>{oc.amount_out}</dd>
-            <dt>Wallet pays</dt>
+            <dt>Wallet paid</dt>
             <dd>{walletAmount(p) || "—"}</dd>
             <dt>Deposit address</dt>
             <dd>{oc.deposit_address}</dd>
             <dt>Delivery</dt>
             <dd>
-              {oc.status} {oc.simulated && <Tag dashed>simulated</Tag>}
+              {DELIVERY[oc.status] ?? oc.status.toLowerCase().replace(/_/g, " ")} {oc.simulated && <Tag dashed>simulated</Tag>}
             </dd>
             <dt>{chainName(oc.dest_chain)} transaction</dt>
             <dd>
@@ -181,6 +192,27 @@ export function Receipt({ proposal: p }: { proposal: Proposal }) {
           </dl>
           <p className="mt-2.5 text-[13px] leading-normal text-mute">
             The contract checks the payment to the deposit address. That 1Click delivers to the recipient is 1Click&rsquo;s word, checked afterwards through its status.
+          </p>
+        </section>
+      )}
+
+      {/* Not paid (refused, failed, or still being judged): 1Click only quoted, and the deposit address was never paid. */}
+      {oc && wallet !== "paid" && (
+        <section className="rcpt-section">
+          <Label>Cross-chain, through 1Click</Label>
+          <dl className="grid gap-x-5 gap-y-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)] [&_dd]:font-mono [&_dd]:text-[12.5px] [&_dd]:leading-relaxed [&_dd]:break-all [&_dt]:text-mute max-sm:[&_dt]:mt-2">
+            <dt>Recipient</dt>
+            <dd>
+              {oc.recipient} on {chainName(oc.dest_chain)}
+            </dd>
+            <dt>Quoted</dt>
+            <dd>
+              {oc.amount_out}
+              {walletAmount(p) && ` for ${walletAmount(p)}`}
+            </dd>
+          </dl>
+          <p className="mt-2.5 text-[13px] leading-normal text-mute">
+            {wallet === "judging" || wallet === "approved" ? "A quote so far: nothing has been sent to 1Click yet." : "A quote only: the wallet never paid 1Click's deposit address, so nothing was sent."}
           </p>
         </section>
       )}

@@ -101,7 +101,8 @@ describe("agent: a 402 on Base, paid through 1Click", () => {
     const { executed, proofs, sent, run } = setup([oneclick("PENDING_DEPOSIT")], { lookupDelivery: delivered }, "DENY");
     const r = await run();
     expect(executed).toEqual([3]);
-    expect(sent.executed).toEqual([]);
+    // The wallet's refusal is reported, so the receipt links it on chain.
+    expect(sent.executed).toEqual([{ wallet_id: "intented-wallet.testnet", proposal_id: 3, near_tx_hash: DEPOSIT_TX }]);
     expect(proofs).toEqual([]);
     expect(r).toMatchObject({ status: "denied", verdict: "DENY", data: null });
   });

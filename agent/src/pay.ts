@@ -78,20 +78,26 @@ export async function pay({ walletId, payment, context, agent, apiUrl, quoteId, 
 
   const e = await agent.execute(proposal_id, v);
   onStep({ step: "executed", ...e });
-  if (v.verdict === "DENY") return { outcome: "denied", proposal_id, id: v.id, execute_tx: e.near_tx_hash, reason: v.reason };
-  if (!e.ok) return { outcome: "failed", proposal_id, id: v.id, execute_tx: e.near_tx_hash, reason: v.reason, error: e.error ?? "the wallet refused it" };
 
-  // Tells the API which transaction paid, so the receipt links it and a 1Click deposit is submitted. The payment
-  // stands either way: the API settles it from the wallet's own record, so a failed report isn't a failed payment.
-  try {
-    const r = await f(`${apiUrl}/api/executed`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ wallet_id: walletId, proposal_id, near_tx_hash: e.near_tx_hash }),
-    });
-    onStep(r.ok ? { step: "reported", ok: true } : { step: "reported", ok: false, error: `API ${r.status}: ${((await r.json().catch(() => ({}))) as { error?: string }).error ?? ""}` });
-  } catch (err) {
-    onStep({ step: "reported", ok: false, error: err instanceof Error ? err.message : String(err) });
+  // Tells the API which transaction paid, or for a DENY which one the wallet refused, so the receipt links it and a
+  // 1Click deposit is submitted. The outcome stands either way: the API settles it from the wallet's own record.
+  const report = async () => {
+    try {
+      const r = await f(`${apiUrl}/api/executed`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ wallet_id: walletId, proposal_id, near_tx_hash: e.near_tx_hash }),
+      });
+      onStep(r.ok ? { step: "reported", ok: true } : { step: "reported", ok: false, error: `API ${r.status}: ${((await r.json().catch(() => ({}))) as { error?: string }).error ?? ""}` });
+    } catch (err) {
+      onStep({ step: "reported", ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+  if (v.verdict === "DENY") {
+    if (e.near_tx_hash) await report();
+    return { outcome: "denied", proposal_id, id: v.id, execute_tx: e.near_tx_hash, reason: v.reason };
   }
+  if (!e.ok) return { outcome: "failed", proposal_id, id: v.id, execute_tx: e.near_tx_hash, reason: v.reason, error: e.error ?? "the wallet refused it" };
+  await report();
   return { outcome: "paid", proposal_id, id: v.id, execute_tx: e.near_tx_hash, reason: v.reason };
 }
