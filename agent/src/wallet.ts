@@ -36,7 +36,7 @@ export function paymentAction(p: Payment, now: number): { action: Action; argsJs
   };
 }
 
-/** A signed verdict as POST /api/verdict returns it (proposed, not built yet): the bytes base64, ready for execute. */
+/** A signed verdict as POST /api/verdict returns it: the bytes base64, ready for execute. */
 export interface SignedVerdict {
   req_bytes: string;
   resp_bytes: string;

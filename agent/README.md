@@ -17,6 +17,7 @@ pnpm agent base            # 0.40 USDC to the vendor's Base address, through 1Cl
 pnpm agent base-poisoned   # 4 USDC to 0xbad0…0bad, through 1Click
 pnpm oneclick-key          # once: the stand-in's signing key, into ../.env
 pnpm intented init <name>  # the agent's key for <name>.intented.testnet, and the link that creates the wallet
+pnpm intented pay <name> --to <account> --amount <wNEAR> --context "..."  # propose, verdict, execute on that wallet
 pnpm oneclick              # the 1Click stand-in, testnet only: http://localhost:8403
 pnpm test
 ```
@@ -41,7 +42,27 @@ On a factory wallet the agent sends its own `propose` and `execute`, signed with
 - `loadAgentKey({ walletId, home })` reads the saved key. It refuses a file that is missing, readable by others, or whose private key doesn't match its public key.
 - `walletAgent({ key, rpcUrl })` signs through the firewall core's `createChainClient`, the code the API uses for the demo wallet, with the wallet itself as the signer. `propose(payment)` records an `ft_transfer` as pending and returns its `proposal_id`; `execute(proposal_id, verdict)` hands the wallet the signed verdict, which it pays on only if every check holds.
 - When the wallet can't pay the agent's gas, `propose` and `execute` say so in one sentence with what to do, instead of NEAR's error: the wallet has no NEAR left for gas, the key has used up its gas limit, or the key isn't on the wallet. NEAR's own error stays as the `cause`.
-- The verdict comes from `POST /api/verdict`, which isn't built yet. Until then `execute` can only be refused: on 4 November, `william-test-1104.intented.testnet` took proposal 0 from the agent's own key (tx `2jF1cMsxhn7zNKWaR1sDvm1s8eEvC5ZGzKLvkSQjmUyx`) and refused an unsigned verdict for it (tx `4xjkjQ7iTSYEvxX2PwjJDN7a55JfU5g9DWt4TL72DwKS`). No wNEAR moved.
+- The verdict comes from `POST /api/verdict` on the API.
+
+## Paying: `intented pay`
+
+```bash
+pnpm intented pay retest-1104 --to intented-vendor.testnet --amount 0.001 --context "HTTP 402: market data costs 0.001 wNEAR."
+```
+
+It proposes the payment on `<name>.intented.testnet` with the saved key, asks `POST /api/verdict` about that proposal, and hands the verdict to the wallet's `execute`. The wallet pays only on a valid `ALLOW` within its caps. A `DENY` is handed over too, so the wallet's refusal is on chain as the record. Without a verdict the proposal expires and nothing moves.
+
+- `--amount` is in wNEAR and converted exactly to the token's smallest unit (24 decimals). `--token` defaults to `wrap.testnet`.
+- `--context` (or `--context-file`) is what the agent read that led to the payment, such as the paywall's 402 reply. The judge reads it as data.
+- `INTENTED_API_URL` (default `http://localhost:8787`) and `NEAR_RPC_URL` (default testnet) override where it goes. Colours are left out when the output isn't a terminal, or `NO_COLOR` is set.
+- It exits 0 only when the payment was made.
+
+On 5 November, on `retest-1104.intented.testnet`:
+
+| Run | Verdict | `execute` |
+| --- | --- | --- |
+| 0.001 wNEAR to `intented-vendor.testnet`, the vendor its rules name | `ALLOW` | paid, tx `4rddy8CUvMfzJjxVALZdMPNmZ7W8ofKB5KERee66X2og` |
+| 0.005 wNEAR to `attacker-7731.testnet`, from a context that says the vendor moved | `DENY` | refused on chain, tx `62h7SnsLzY9vmXZj2Nhu3roHhRDvSEuYi8WVqM1fcVPC`; nothing moved |
 
 ## The paywall
 
