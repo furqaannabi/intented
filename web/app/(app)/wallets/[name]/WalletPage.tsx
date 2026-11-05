@@ -129,7 +129,12 @@ function WalletPage({ walletId }: { walletId: string }) {
       </p>
       <div className="flex flex-wrap items-end justify-between gap-4 pt-3.5 pb-6">
         <div className="min-w-0">
-          <h1 className="font-mono text-[clamp(22px,2.6vw,34px)] leading-tight font-medium break-all">{walletId}</h1>
+          {/* Breaks before ".intented.testnet" on a narrow screen, not mid-word; a label too long for one line still wraps. */}
+          <h1 className="font-mono text-[clamp(22px,2.6vw,34px)] leading-tight font-medium [overflow-wrap:anywhere]">
+            {walletId.slice(0, walletId.indexOf(".") + 1 || undefined)}
+            <wbr />
+            {walletId.indexOf(".") < 0 ? "" : walletId.slice(walletId.indexOf(".") + 1)}
+          </h1>
           <div className="mt-2.5 flex flex-wrap gap-2">
             <Pill>owner {config.owner_id}</Pill>
             {factoryCode && account.code_hash === factoryCode && <Pill tone="ok">factory code ✓</Pill>}

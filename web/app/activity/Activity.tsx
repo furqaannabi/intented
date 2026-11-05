@@ -59,7 +59,7 @@ function Row({ proposal: p, selected, page }: { proposal: Proposal; selected: bo
         href={`${page}${page.includes("?") ? "&" : "?"}p=${p.id}`}
         scroll={false}
         aria-current={selected ? "true" : undefined}
-        className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 rounded-[14px] px-3.5 py-4 transition-colors hover:bg-ink-2 ${
+        className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 rounded-[14px] px-3.5 py-4 transition-colors hover:bg-ink-2 max-sm:grid-cols-[auto_minmax(0,1fr)] max-sm:items-start max-sm:gap-y-2 ${
           selected ? "bg-ink-2 ring-1 ring-line ring-inset" : ""
         }`}
       >
@@ -69,15 +69,16 @@ function Row({ proposal: p, selected, page }: { proposal: Proposal; selected: bo
             <span className="truncate">{p.oneclick ? shortAddress(payee(p)) : payee(p)}</span>
             {p.oneclick && <Tag>{p.oneclick.dest_chain}</Tag>}
           </span>
-          <span className="block truncate text-[13px] text-mute">{signed || error || "Waiting for a verdict"}</span>
+          {/* On a phone the reason gets two lines, not a few words. */}
+          <span className="block truncate text-[13px] text-mute max-sm:line-clamp-2 max-sm:whitespace-normal">{signed || error || "Waiting for a verdict"}</span>
         </span>
-        <span className="text-right">
+        {/* On a phone the amount and status get their own line under the recipient, so the recipient keeps the full width. */}
+        <span className="text-right max-sm:col-start-2 max-sm:flex max-sm:items-center max-sm:justify-between max-sm:gap-3 max-sm:text-left">
           <span className={`block font-mono text-sm whitespace-nowrap ${kind === "refused" ? "text-mute line-through" : ""}`}>
             −{amount(p)}
           </span>
-          {/* On a phone the "simulated" tag goes under the status, so the recipient keeps its width. */}
           <span
-            className={`mt-0.5 flex items-center justify-end gap-x-1.5 gap-y-1 text-[11px] font-black tracking-[0.12em] whitespace-nowrap uppercase max-sm:flex-col max-sm:items-end ${STATUS[kind]}`}
+            className={`mt-0.5 flex items-center justify-end gap-x-1.5 text-[11px] font-black tracking-[0.12em] whitespace-nowrap uppercase max-sm:mt-0 ${STATUS[kind]}`}
           >
             <span>{OUTCOME_LABEL[kind]}</span>
             {p.oneclick?.simulated && kind === "delivered" && <Tag dashed>simulated</Tag>}
@@ -89,8 +90,8 @@ function Row({ proposal: p, selected, page }: { proposal: Proposal; selected: bo
 }
 
 /**
- * The heading and the payments of the wallet named by ?wallet=, our own by default. The API's proposals carry no wallet
- * and are all intented-wallet.testnet's, so another wallet gets a plain "not served yet", never our wallet's list.
+ * The heading and the payments of the wallet named by ?wallet=, the demo wallet by default. A name that isn't an
+ * Intented wallet gets a plain note, never another wallet's list.
  */
 export function ActivityView() {
   const param = useSearchParams().get("wallet");
