@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Cross } from "../components/icons";
 import { Receipt } from "../components/Receipt";
 import { Tag } from "../components/Tag";
-import { nearblocksAccount, WALLET_ID, walletFromParam } from "../lib/near";
+import { WALLET_ID, walletFromParam } from "../lib/near";
 import { amount, outcome, OUTCOME_LABEL, payee, shortAddress, splitReason, type Outcome, type Proposal } from "../lib/proposal";
 import { Loading, Skeleton } from "../components/Skeleton";
 import "./activity.css";
@@ -47,13 +47,16 @@ function Badge({ kind }: { kind: Outcome }) {
   );
 }
 
-function Row({ proposal: p, selected }: { proposal: Proposal; selected: boolean }) {
+/** The page's own address for a wallet; the demo wallet's is plain /activity. */
+const pageFor = (walletId: string) => (walletId === WALLET_ID ? "/activity" : `/activity?wallet=${walletId}`);
+
+function Row({ proposal: p, selected, page }: { proposal: Proposal; selected: boolean; page: string }) {
   const kind = outcome(p);
   const { signed, error } = splitReason(p);
   return (
     <li>
       <Link
-        href={`/activity?p=${p.id}`}
+        href={`${page}${page.includes("?") ? "&" : "?"}p=${p.id}`}
         scroll={false}
         aria-current={selected ? "true" : undefined}
         className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 rounded-[14px] px-3.5 py-4 transition-colors hover:bg-ink-2 ${
@@ -98,10 +101,11 @@ export function ActivityView() {
         <h1 className="text-[clamp(34px,4vw,56px)] leading-none font-black tracking-[-0.035em]">Activity</h1>
         <p className="mt-3 text-sm text-mute">
           Wallet <span className="font-mono break-all text-text">{walletId ?? param}</span> on NEAR testnet
+          {walletId && <> · every verdict signed in a TEE on NEAR AI Cloud</>}
           {walletId === WALLET_ID && (
             <>
               {" "}
-              · every verdict signed in a TEE on NEAR AI Cloud ·{" "}
+              ·{" "}
               <Link href="/rules" className="text-text underline decoration-line underline-offset-4 hover:decoration-soft">
                 the rules it pays by
               </Link>
@@ -109,32 +113,20 @@ export function ActivityView() {
           )}
         </p>
       </div>
-      {walletId === WALLET_ID ? (
-        <Activity />
+      {walletId ? (
+        <Activity key={walletId} walletId={walletId} />
       ) : (
         <p className="my-6 max-w-[44em] rounded-[18px] border border-line bg-ink-2 p-5 text-sm text-mute">
-          {walletId ? (
-            <>
-              <b className="font-bold text-text">No payments shown for this wallet yet.</b> Intented&apos;s API judges and records payments for{" "}
-              <span className="font-mono">{WALLET_ID}</span> only today. Everything this wallet has done is on{" "}
-              <a href={nearblocksAccount(walletId)} className="text-text underline decoration-line underline-offset-4 hover:decoration-soft">
-                nearblocks
-              </a>
-              .
-            </>
-          ) : (
-            <>
-              That isn&apos;t an Intented wallet. Wallets are <span className="font-mono">{WALLET_ID}</span> or a name ending in{" "}
-              <span className="font-mono">.intented.testnet</span>.
-            </>
-          )}
+          That isn&apos;t an Intented wallet. Wallets are <span className="font-mono">{WALLET_ID}</span> or a name ending in{" "}
+          <span className="font-mono">.intented.testnet</span>.
         </p>
       )}
     </>
   );
 }
 
-function Activity() {
+function Activity({ walletId }: { walletId: string }) {
+  const page = pageFor(walletId);
   const selectedId = useSearchParams().get("p");
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [online, setOnline] = useState(true);
@@ -147,7 +139,7 @@ function Activity() {
     const poll = async () => {
       let more = false;
       try {
-        const res = await fetch(`/api/proposals?since=${since}`, { cache: "no-store" });
+        const res = await fetch(`/api/proposals?since=${since}&wallet=${encodeURIComponent(walletId)}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const changed: Proposal[] = await res.json();
         if (!live) return;
@@ -169,7 +161,7 @@ function Activity() {
       live = false;
       clearTimeout(timer);
     };
-  }, []);
+  }, [walletId]);
 
   // On a phone the receipt replaces the list, so start it at the top.
   useEffect(() => {
@@ -218,11 +210,11 @@ function Activity() {
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-8 pb-20 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
           <ul className={`border-t border-line [&>li]:border-b [&>li]:border-line ${selectedId ? "max-lg:hidden" : ""}`}>
             {proposals.map((p) => (
-              <Row key={p.id} proposal={p} selected={p.id === selected?.id} />
+              <Row key={p.id} proposal={p} selected={p.id === selected?.id} page={page} />
             ))}
           </ul>
           <div className={`lg:sticky lg:top-24 ${selectedId ? "" : "max-lg:hidden"}`}>
-            <Link href="/activity" scroll={false} className="mb-4 inline-flex items-center gap-1.5 text-mute hover:text-text lg:hidden">
+            <Link href={page} scroll={false} className="mb-4 inline-flex items-center gap-1.5 text-mute hover:text-text lg:hidden">
               <ArrowLeft className="size-4" /> All payments
             </Link>
             {selected ? (

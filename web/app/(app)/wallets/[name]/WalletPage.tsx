@@ -207,15 +207,9 @@ function WalletPage({ walletId }: { walletId: string }) {
           <Card
             title="Payments"
             lead={`${tokens[0].token.symbol} per day (UTC), last 14 days: what the wallet paid, what the verdict refused, and what failed.`}
-            link={walletId === WALLET_ID ? <Link href="/activity">Open its activity →</Link> : undefined}
+            link={<Link href={walletId === WALLET_ID ? "/activity" : `/activity?wallet=${walletId}`}>Open its activity →</Link>}
           >
             <PaymentsChart walletId={walletId} tokenId={tokens[0].id} token={tokens[0].token} />
-            {walletId !== WALLET_ID && (
-              <p className="mt-3 text-[13px] text-mute">
-                Intented&apos;s API judges payments for <span className="font-mono">{WALLET_ID}</span> only today; this wallet&apos;s agent can get a
-                signed ALLOW once the verdict service serves every wallet.
-              </p>
-            )}
           </Card>
         </div>
       )}

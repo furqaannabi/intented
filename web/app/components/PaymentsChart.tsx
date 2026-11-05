@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { allProposals, dailyPayments, OUTCOMES, type ChartOutcome, type Day } from "../lib/dailyPayments";
-import { formatUnits, WALLET_ID, type WalletToken } from "../lib/near";
+import { formatUnits, type WalletToken } from "../lib/near";
 import { Loading, Skeleton } from "./Skeleton";
 
 const DAYS = 14;
@@ -18,23 +18,21 @@ const dayLabel = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateStrin
 
 /**
  * The wallet's payments per UTC day for the last two weeks, in one token, against the daily cap the contract enforces.
- * Only the demo wallet has proposals in the API today; every other wallet gets the empty chart.
+ * The demo wallet's come from the API's own pipeline; a factory wallet's from the verdicts its agent asked for.
  */
 export function PaymentsChart({ walletId, tokenId, token }: { walletId: string; tokenId: string; token: WalletToken }) {
-  const served = walletId === WALLET_ID;
-  const [days, setDays] = useState<Day[] | null | "error">(served ? null : dailyPayments([], tokenId, DAYS));
+  const [days, setDays] = useState<Day[] | null | "error">(null);
 
   useEffect(() => {
-    if (!served) return;
     let live = true;
-    allProposals().then(
+    allProposals(walletId).then(
       (ps) => live && setDays(dailyPayments(ps, tokenId, DAYS)),
       () => live && setDays("error"),
     );
     return () => {
       live = false;
     };
-  }, [served, tokenId]);
+  }, [walletId, tokenId]);
 
   if (days === "error") return <p className="mt-4 text-sm text-mute">Couldn&apos;t reach the API for this wallet&apos;s payments. Reload to try again.</p>;
   if (days === null)

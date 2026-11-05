@@ -58,13 +58,13 @@ export function dailyPayments(proposals: Proposal[], tokenId: string, days = 14,
   return out;
 }
 
-/** Every proposal the API holds, read page by page. */
-export async function allProposals(): Promise<Proposal[]> {
+/** Every proposal the API holds for one wallet, read page by page. */
+export async function allProposals(walletId: string): Promise<Proposal[]> {
   const PAGE = 100; // the API returns at most this many changes per call
   const byId = new Map<string, Proposal>();
   let since = 0;
   for (;;) {
-    const res = await fetch(`/api/proposals?since=${since}`, { cache: "no-store" });
+    const res = await fetch(`/api/proposals?since=${since}&wallet=${encodeURIComponent(walletId)}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`The API answered ${res.status}`);
     const page: Proposal[] = await res.json();
     for (const p of page) {
