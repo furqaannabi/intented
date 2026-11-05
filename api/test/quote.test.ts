@@ -90,7 +90,6 @@ describe("POST /api/quote", () => {
 describe("POST /api/quote refuses", () => {
   const refusals: [string, (c: WalletConfig) => void, RegExp][] = [
     ["cross-chain payments are off on the wallet", (c) => (c.cross_chain_enabled = false), /switched off/],
-    ["the recipient isn't on the wallet's list", (c) => (c.cross_chain_recipients = ["0x" + "1".repeat(40)]), /recipient list/],
     ["the wallet expects quotes signed by another key", (c) => (c.one_click_key = "ed25519:other"), /another 1Click key/],
   ];
   for (const [what, change, error] of refusals) {
@@ -104,9 +103,9 @@ describe("POST /api/quote refuses", () => {
     });
   }
 
-  it("any recipient when the wallet's list is empty", async () => {
+  it("nothing for a recipient off the wallet's list: the model judges it, and the wallet refuses it at execute", async () => {
     const t = quoteSetup();
-    t.config.cross_chain_recipients = [];
+    t.config.cross_chain_recipients = ["0x" + "1".repeat(40)];
     expect((await t.quote({ wallet_id: WALLET, intent: t.intent })).status).toBe(200);
   });
 

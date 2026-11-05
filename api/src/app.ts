@@ -279,11 +279,9 @@ export function createApp({
     } catch (e) {
       return c.json({ error: `could not read ${req.wallet_id} (${(e instanceof Error ? e.message : String(e)).slice(0, 200)})` }, 502);
     }
-    // Refused before a quote is spent: the wallet would refuse the payment anyway.
+    // Refused before a quote is spent: the wallet would refuse the payment anyway. The recipient list is not checked
+    // here: a recipient off it goes to the model, and the wallet refuses it at execute.
     if (!config.cross_chain_enabled) return c.json({ error: `${req.wallet_id} has payments through 1Click switched off` }, 409);
-    if (config.cross_chain_recipients.length && !config.cross_chain_recipients.includes(req.intent.recipient)) {
-      return c.json({ error: `${req.intent.recipient} isn't on ${req.wallet_id}'s cross-chain recipient list` }, 409);
-    }
     if (config.one_click_key !== crossChain.quoteKey) return c.json({ error: `${req.wallet_id} accepts quotes signed by another 1Click key` }, 409);
 
     const retryAfter = quoteLimit.retryAfter(req.wallet_id, now());

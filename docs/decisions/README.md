@@ -61,6 +61,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-04 | [Accepted: POST /api/verdict judges any factory wallet's proposals, and the agent sends its own transactions](./2026-11-04-accept-verdict-for-any-wallet.md) | Furqaan, William |
 | 2026-11-05 | [The demo agent holds its own key, and the API holds none: a quote step for 1Click, POST /api/propose removed](./2026-11-05-demo-agent-holds-its-own-key.md) (proposed; accepted below) | William |
 | 2026-11-05 | [Accepted: the demo agent holds its own key and the API holds none, with a cap on quotes across all wallets](./2026-11-05-accept-demo-agent-own-key.md) | Furqaan, William |
+| 2026-11-05 | [POST /api/quote doesn't check the cross-chain recipient list; the model and the contract do](./2026-11-05-quote-skips-recipient-list.md) | Furqaan, William |
 
 ## Not decided yet
 
