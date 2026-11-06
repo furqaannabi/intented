@@ -155,7 +155,7 @@ How the run works and how a run is published: [`redteam/README.md`](./redteam/RE
 | Folder | Tests | Run |
 | --- | --- | --- |
 | `contract/wallet` | 57, including every `execute` refusal: unknown signer, a flipped byte, `DENY`, a different action, a fake mandate or prompt, a false amount, a reused nonce, expiry, caps, freeze, each cross-chain and signed-quote condition, oversized or too many proposals, and `prune` | `cargo test` |
-| `contract/factory` | 6: what `create` sends, the deposit and name checks, the refund, the code hash, `set_code` | `cargo test` |
+| `contract/factory` | 9: what `create` sends, the deposit and name checks, the refund, the code hash, `set_code`, `get_wallets` and its migration | `cargo test` |
 | `firewall-core` | 141 | `pnpm test` |
 | `api` | 74 | `pnpm test` |
 | `agent` | 34 | `pnpm test` |

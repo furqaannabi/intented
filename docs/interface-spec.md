@@ -71,17 +71,29 @@ What the model must return, as structured JSON output, in this order:
 | Method | Who may call |
 | --- | --- |
 | `new(owner_id, agent_id, model_id)` | init, once |
+| `new_with(owner_id, agent_id, model_id, setup)` | init, once (the factory's one-call setup) |
 | `set_mandate(text_hash)` · `set_prompt_hash(text_hash)` · `set_model_id(model_id)` | owner |
 | `register_signer(eth_address)` · `revoke_signer(eth_address)` | owner |
 | `allow_receiver(receiver_id)` · `disallow_receiver(receiver_id)` | owner |
 | `set_token(token_id, { symbol, decimals, caps: { per_tx, daily } })` · `set_near_caps({ per_tx, daily })` | owner |
 | `set_cross_chain(enabled)` · `allow_cross_chain_recipient(address)` · `disallow_cross_chain_recipient(address)` · `set_one_click_key(public_key)` | owner |
 | `freeze()` · `unfreeze()` | owner |
+| `withdraw(token_id?, amount)` | owner |
+| `add_agent_key(public_key, allowance)` · `remove_agent_key(public_key)` | owner |
+| `prune(proposal_ids)` | anyone for executed, failed or expired-pending proposals; the owner also for any pending one; at most 64 ids |
 | `propose(action, args_json) -> proposal_id` | the agent's function-call key |
 | `execute(proposal_id, req_bytes, resp_bytes, sig_65) -> Promise` | the agent's function-call key |
 | `get_config()` · `get_token(token_id)` · `get_proposal(proposal_id)` | anyone (views) |
 
-`propose` requires `sha256(args_json) == args_sha256`. `execute` succeeds only when every check passes:
+```
+setup = { signer, prompt_hash, mandate_hash?, token_id, token: { symbol, decimals, caps }, near_caps }
+```
+
+- `new_with` applies the same checks as the owner's setters, and allowlists `token_id` as a receiver.
+- `withdraw` sends a token (`ft_transfer`) or, with no `token_id`, NEAR above what the wallet's storage needs, to the owner. Unjudged; works while frozen.
+- `add_agent_key` adds a function-call key on the wallet's own account, scoped to `propose` and `execute` on it, with a positive allowance. Never a full-access key.
+
+`propose` requires `sha256(args_json) == args_sha256`. It also refuses `args_json` over 2048 bytes, a `method` over 64 characters, an action whose `receiver_id` is the wallet itself, an `expiry_ms` more than an hour ahead, and a proposal while 32 are pending. A successful `execute` frees its slot. `execute` succeeds only when every check passes:
 
 1. The caller is the agent and the proposal is pending.
 2. The wallet is not frozen.
@@ -108,6 +120,17 @@ What the model must return, as structured JSON output, in this order:
 A callback then marks the proposal `executed` or `failed`.
 
 `get_config` also returns the cross-chain switch, the recipient list and the 1Click key. The signed quote ties the deposit address to the recipient, so the deposit address is not the API's word. The contract still can't prove that 1Click delivers, or that the quote is fresh: delivery is checkable afterwards through 1Click's status for the deposit address, and a deposit to an expired quote is refunded to the wallet.
+
+## Wallet factory (Furqaan, testnet only)
+
+| Method | Who may call |
+| --- | --- |
+| `new(code)` | init, once; the code for new wallets changes only by `set_code` |
+| `create(name, model_id, setup, agent_key?, agent_allowance?) -> Promise` | anyone, with a deposit of at least `get_min_deposit()` |
+| `set_code(code)` | the factory account itself; wallets already made keep their code |
+| `get_code_hash()` · `get_min_deposit()` · `get_wallets(owner_id, from_index?, limit?)` | anyone (views); `get_wallets` lists the wallets an owner created, oldest first, at most 100 per page |
+
+`create` makes `<name>.<factory>` in one batch: create the account, transfer the deposit, deploy the stored code, call `new_with` with the caller as owner and the wallet as its own agent, and, if `agent_key` is given, add it scoped to `propose` and `execute`. It adds no full-access key. If the batch fails, the deposit is refunded to the caller. `get_code_hash()` is base58(sha256(code)), the form NEAR shows as an account's `code_hash`.
 
 ## Firewall core (Furqaan)
 
@@ -179,3 +202,4 @@ Proposal = {
 | 2026-11-05 | Furqaan, William | `POST /api/quote` no longer refuses a recipient off the wallet's cross-chain list. Record: [here](./decisions/2026-11-05-quote-skips-recipient-list.md) |
 | 2026-11-05 | Furqaan, William | `POST /api/propose` removed, with its `Idempotency-Key`: all four demos run on `POST /api/verdict`, and the API holds no NEAR key. Record: [accepted](./decisions/2026-11-05-accept-demo-agent-own-key.md) |
 | 2026-11-05 | William | `POST /api/executed` also takes the wallet's refused `execute` of a `DENY`, so a refusal's receipt links its transaction. Record: [here](./decisions/2026-11-05-receipts-link-refused-execute.md) |
+| 2026-11-06 | Furqaan, William | `propose`'s size limits, self-call refusal and bound of 32 pending proposals expiring within the hour; `new_with`, `withdraw`, `add_agent_key`, `remove_agent_key`, `prune`; the testnet wallet factory with `get_wallets`. Records: [factory](./decisions/2026-11-04-wallet-factory-on-testnet.md), [as built](./decisions/2026-11-04-factory-as-built.md), [bounded proposals](./decisions/2026-11-04-bounded-proposals-and-mainnet-key.md), [accepted](./decisions/2026-11-06-accept-wallet-factory-and-bounded-proposals.md) |

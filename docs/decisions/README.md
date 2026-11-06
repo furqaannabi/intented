@@ -63,10 +63,12 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-05 | [Accepted: the demo agent holds its own key and the API holds none, with a cap on quotes across all wallets](./2026-11-05-accept-demo-agent-own-key.md) | Furqaan, William |
 | 2026-11-05 | [POST /api/quote doesn't check the cross-chain recipient list; the model and the contract do](./2026-11-05-quote-skips-recipient-list.md) | Furqaan, William |
 | 2026-11-05 | [A refusal's receipt links the wallet's refused execute](./2026-11-05-receipts-link-refused-execute.md) | William |
+| 2026-11-06 | [No OutLayer integration this hackathon; Discord question 3 closed as not needed](./2026-11-06-cut-outlayer.md) | Furqaan |
+| 2026-11-06 | [Accepted: the wallet factory, bounded proposals and the wallet's new methods enter the interface spec](./2026-11-06-accept-wallet-factory-and-bounded-proposals.md) | Furqaan, William |
+| 2026-11-06 | [The full protocol goes to mainnet, and factory wallets have cap ceilings](./2026-11-06-full-protocol-on-mainnet.md) (ceilings proposed) | Furqaan, William |
 
 ## Not decided yet
 
 | Question | Settled by | Owner |
 | --- | --- | --- |
 | API host (Railway or Render) | William's pick, by deployment on Day 9 | William |
-| Optional OutLayer integration | Discord question 3 | Furqaan |
