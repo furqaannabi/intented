@@ -9,6 +9,7 @@
     "oneclick-key": "tsx src/oneclick-key.ts",
     "agent": "tsx src/cli.ts",
     "intented": "tsx src/intented.ts",
+    "check-tx": "tsx src/check.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -24,6 +25,7 @@
   "dependencies": {
     "@hono/node-server": "^2.1.5",
     "@intented/firewall-core": "link:../firewall-core",
+    "ethers": "^6.17.0",
     "hono": "^4.13.14"
   }
 }

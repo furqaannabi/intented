@@ -26,7 +26,7 @@ Agents with wallets get prompt-injected. Spending caps and allowlists check rule
 **What is verified where, and what is trusted**
 
 - **Attestation is checked off-chain, not by the contract.** `pnpm attest` verifies the model TEE's Intel TDX quote against Intel's certificate chain, checks that the quote binds the signing address and a fresh nonce, and checks NVIDIA's signed GPU attestation. Only then does the owner allowlist the signer. It does not compare the attested app image with a known-good one (none is published), and it trusts NVIDIA's signing keys as served over TLS. Reports: [`docs/attestations/`](./docs/attestations/). Details: [the checker record](./docs/decisions/2026-11-01-attestation-checker.md).
-- **The model can be wrong.** Whatever the agent read, such as a paywall's response, is attacker-controlled. An attacker can keep rewording it until the model slips. The red-team numbers below are our own 83 cases, not an adaptive attacker. A compromised agent can also re-propose the same action and get up to 30 verdicts an hour per wallet. The contract's caps limit what one wrong `ALLOW` can cost; the model can only tighten what the contract permits, never loosen it.
+- **The model can be wrong.** Whatever the agent read, such as a paywall's response, is attacker-controlled. An attacker can keep rewording it until the model slips. The red-team numbers below are our own 83 cases, not an adaptive attacker. A compromised agent can also re-propose the same action and get up to 30 verdicts an hour per wallet, and no more than the API's daily cap (`VERDICT_DAILY_CAP`) where it's set. The contract's caps limit what one wrong `ALLOW` can cost; the model can only tighten what the contract permits, never loosen it.
 - **1Click is trusted to deliver.** The wallet verifies that 1Click signed the quote, but it can't prove that 1Click then delivers on Base. On testnet a stand-in plays 1Click, and every delivery it reports is labelled simulated.
 - **The wallet account's full-access key can replace the contract.** Whoever holds it can bypass every check. For `intented-wallet.testnet`, that's the team. Wallets made by the factory have no full-access key, so nobody can replace their contract; their owner gets funds out with `withdraw`.
 - **The agent holds only a function-call key** limited to `propose` and `execute` on its wallet, so it can't transfer funds directly.
@@ -38,7 +38,7 @@ See [the trust model](./docs/decisions/2026-11-01-signed-verdict-trust-model.md)
 
 ## Try it
 
-The web app isn't deployed yet; [run it locally](#run-it-yourself) to follow along. Every payment below is a real proposal from 4 November 2026 on the testnet wallet `intented-wallet.testnet`, and every transaction can be checked on nearblocks without the app.
+The web app isn't deployed yet; [run it locally](#run-it-yourself) to follow along. Every payment below is a real proposal from 4 or 5 November 2026 on NEAR testnet, on `intented-wallet.testnet` unless it says otherwise, and every transaction can be checked on nearblocks without the app.
 
 ![The landing page: a poisoned paywall tells the agent to pay the attacker, and NEAR AI signs DENY](./docs/screenshots/landing.png)
 
@@ -62,6 +62,24 @@ The web app isn't deployed yet; [run it locally](#run-it-yourself) to follow alo
 
 **5. Check the signer.** Every verdict above was signed by `0x835ab53d20294ef795906dff21ae4c045336aa26`. Its attestation report was verified off-chain and is published in [`docs/attestations/`](./docs/attestations/); the address was then allowlisted on the wallet. The contract doesn't verify the TDX quote itself.
 
+**6. Check a payment without the app.** `check-tx` reads one `execute` transaction and the wallet's `get_config` from NEAR's public archival RPC, and nothing else: not our API, not the web app, no `.env`. From `execute`'s own arguments it recomputes the text NEAR AI signed, `model:sha256(request):sha256(response)`, recovers the signer, checks it against the wallet's allowlist, and prints the model's signed answer, how `execute` ended and the token transfers it made.
+
+```sh
+cd agent && pnpm install
+pnpm check-tx intented-wallet.testnet C8P7yHvwT6e6C5LZLgXQ4uXDJwyoCDGX6Y7Vq5uvbtHH
+```
+```
+signed text  Qwen/Qwen3.8-27B:0d075e0e…c064:32f07d31…6256
+signer       0x835ab53d20294ef795906dff21ae4c045336aa26 (on intented-wallet.testnet's allowlist: 0x835ab53d20294ef795906dff21ae4c045336aa26)
+verdict      ALLOW: The action transfers 0.001 wNEAR to intended-vendor.testnet, which exactly matches the mandate's recipient, token, and amount limit.
+execute      succeeded
+transfer     1000000000000000000000 of wrap.testnet, intented-wallet.testnet → intented-vendor.testnet
+```
+
+A refused attack prints the signed `DENY`, `execute refused: Smart contract panicked: verdict is not ALLOW` and `transfer none`: try `pnpm check-tx retest-1105.intented.testnet G9z8XBq486PEMDHD2EDZYQSz7Fxop3M9iNJrDgi5jmPs`.
+
+**7. Make your own wallet.** On testnet, anyone can. `pnpm --dir agent intented init <name>` makes the agent's key on your machine and prints a link to the Create wallet page. There you sign one `create` call with your own NEAR wallet, with your rules and limits, and the factory makes `<name>.intented.testnet` with that key limited to `propose` and `execute`. `pnpm --dir agent intented pay <name> …` then pays through it. Made this way on 5 November, `retest-1105.intented.testnet` paid the vendor ([`AHCrqfxh…`](https://testnet.nearblocks.io/txns/AHCrqfxh7D6Y9Tkineih2z3W4zM6TAUuPU54TjAGP6om)) and refused the attack (`G9z8XBq4…` above).
+
 ### Run it yourself
 
 Needs Node 24, pnpm 11, and `.env` at the repo root, filled in from [`.env.example`](./.env.example). The agent needs a function-call key on a wallet contract and a NEAR AI key; the keys for `intented-wallet.testnet` are the team's, so to run it yourself you deploy [the contract](./contract/) to your own testnet account. The Base runs also need the stand-in's signing key to be the wallet's 1Click key: `pnpm --dir agent oneclick-key` makes one, and the wallet's owner sets it with `set_one_click_key`. Each line is its own terminal.
@@ -79,13 +97,26 @@ Then run the agent and watch Activity:
 ```sh
 pnpm --dir agent agent honest          # pays 0.001 wNEAR to intented-vendor.testnet, then gets the data
 pnpm --dir agent agent poisoned        # proposes 0.01 wNEAR to intented-attacker.testnet: DENY, refused on-chain
-pnpm --dir agent agent base            # 0.4 USDC to the vendor's Base address, through 1Click
+pnpm --dir agent agent base            # 2 USDC to the vendor's Base address, through 1Click
 pnpm --dir agent agent base-poisoned   # 4 USDC to 0xbad0…0bad: DENY, refused on-chain
 ```
 
 A paid run spends a little testnet wNEAR from the wallet, and every run a little gas from the agent's account. `make redteam` runs [the red team](#red-team).
 
 **From Claude Code, Cursor or Codex.** [`mcp/`](./mcp/README.md) is an MCP server with three tools: `intented_init` makes the agent's key and the link that creates its wallet, `intented_pay` pays through the same code as `intented pay` (propose, signed verdict, the wallet's `execute`), and `intented_status` reads the wallet's rules. Testnet and wNEAR only. The coding agent chooses what it passes as context; the check on the payment itself and the caps hold either way.
+
+## On mainnet
+
+**Not done yet.** Planned for 11 November ([runbook](./docs/mainnet-runbook.md)): one wallet, `wallet.intented.near`, makes one real 2 USDC payment to the vendor's Base address through 1Click, and refuses one attack. The product itself stays on testnet; mainnet is one wallet, not a deployment for anyone ([record](./docs/decisions/2026-11-06-one-mainnet-wallet.md)). Its transactions will be listed here. Until they are, nothing in this section has happened.
+
+How to check them, without our API or web app:
+
+1. **The wallet.** On [nearblocks](https://nearblocks.io/address/wallet.intented.near), its only key should be the agent's function-call key for `propose` and `execute`. Its full-access key is deleted after setup, so nobody can replace its contract.
+2. **Each verdict.** `pnpm --dir agent check-tx wallet.intented.near <execute tx hash>`, as in [step 6](#try-it). It recovers the signer from the transaction and checks it against the wallet's allowlist.
+3. **The paid payment.** `execute` succeeded, and its one transfer is USDC from the wallet to 1Click's deposit address. 1Click then pays the vendor on Base: on [basescan](https://basescan.org), that is a USDC transfer of 2 USDC to the vendor's address. The wallet checked 1Click's signed quote, so the deposit address is tied to that recipient and amount. It can't prove the delivery itself: that part is 1Click's.
+4. **The refused attack.** The model signed `DENY`, `execute` was refused on-chain, and nothing was transferred.
+
+If 1Click doesn't deliver, this section will say so, and a NEAR-native payment, 0.10 USDC to `intented-vendor.near`, carries the demo instead.
 
 ## Repo map
 
@@ -102,17 +133,21 @@ A paid run spends a little testnet wNEAR from the wallet, and every run a little
 
 ## Status
 
-4 November 2026. Everything runs on NEAR testnet; the mainnet deploy is planned for 11 November.
+6 November 2026. Everything runs on NEAR testnet; the mainnet deploy is planned for 11 November.
 
 **Working on testnet**, on the wallet `intented-wallet.testnet`:
 
 - **An honest payment executes.** The agent pays the mock paywall, the model signs `ALLOW`, and the wallet pays the vendor 0.001 wNEAR: [`C8P7yHvw…`](https://testnet.nearblocks.io/txns/C8P7yHvwT6e6C5LZLgXQ4uXDJwyoCDGX6Y7Vq5uvbtHH).
 - **The attack is refused on-chain.** A poisoned paywall tells the agent to pay 0.01 wNEAR to `intented-attacker.testnet`, which is within the wallet's cap. The model signs `DENY`, and the wallet's `execute` refuses with "verdict is not ALLOW". Nothing is transferred: [`FvsDHLYM…`](https://testnet.nearblocks.io/txns/FvsDHLYMAXuAuTSUyDzhUzG3Z9kPnzv4FD9MxDj88jxm).
 - **Every verdict is signed** by the TEE signing address `0x835ab53d20294ef795906dff21ae4c045336aa26`. Its attestation report was verified off-chain, published in [`docs/attestations/`](./docs/attestations/), and the address was then allowlisted on the wallet.
-- **The web app** has three pages:
+- **The web app** has these pages:
   - the landing page;
   - Activity: a live feed of every proposal, with the model's reason, the signature, the signer's report and the transaction;
-  - Rules: the active mandate, shown only if it hashes to the wallet's on-chain `mandate_hash`. The owner changes it by signing `set_mandate` with their own NEAR wallet.
+  - Rules: the active mandate, shown only if it hashes to the wallet's on-chain `mandate_hash`. The owner changes it by signing `set_mandate` with their own NEAR wallet;
+  - Create wallet: the owner signs one `create` call on the factory, with the agent's key from `intented init`;
+  - My wallets, and a page for each wallet: its balance, payments, rules, hard limits and agent key. The owner can fund, withdraw, freeze, change the rules and add or remove the agent key, each by signing with their own NEAR wallet.
+
+  The web app holds no key. A second build of it, behind a "Testnet | Mainnet" switch, will show only the mainnet wallet ([record](./docs/decisions/2026-11-06-minimal-mainnet-with-a-network-switch.md)).
 - **The agent follows the live rules.** It reads the wallet's `mandate_hash` before each run and fetches that exact text.
 
 **The cross-chain payment to Base through 1Click works on testnet, with simulated delivery** ([record](./docs/decisions/2026-11-03-cross-chain-through-1click.md)).
@@ -160,8 +195,8 @@ How the run works and how a run is published: [`redteam/README.md`](./redteam/RE
 | `contract/wallet` | 57, including every `execute` refusal: unknown signer, a flipped byte, `DENY`, a different action, a fake mandate or prompt, a false amount, a reused nonce, expiry, caps, freeze, each cross-chain and signed-quote condition, oversized or too many proposals, and `prune` | `cargo test` |
 | `contract/factory` | 9: what `create` sends, the deposit and name checks, the refund, the code hash, `set_code`, `get_wallets` and its migration | `cargo test` |
 | `firewall-core` | 141 | `pnpm test` |
-| `api` | 74 | `pnpm test` |
-| `agent` | 34 | `pnpm test` |
+| `api` | 92 | `pnpm test` |
+| `agent` | 62, including `check-tx` on two real testnet transactions | `pnpm test` |
 | `redteam` | 16 | `pnpm test` |
 | `mcp` | 10, including that no tool output contains the private key | `pnpm test` |
 

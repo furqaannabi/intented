@@ -1,0 +1,7 @@
+{
+ "model_id": "Qwen/Qwen3.8-27B",
+ "signers": [
+  "0x835ab53d20294ef795906dff21ae4c045336aa26"
+ ],
+ "agent_id": "retest-1105.intented.testnet"
+}

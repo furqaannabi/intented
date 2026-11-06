@@ -18,6 +18,7 @@ pnpm agent base-poisoned   # 4 USDC to 0xbad0…0bad, through 1Click
 pnpm oneclick-key          # once: the stand-in's signing key, into ../.env
 pnpm intented init <name>  # the agent's key for <name>.intented.testnet, and the link that creates the wallet
 pnpm intented pay <name> --to <account> --amount <wNEAR> --context "..."  # propose, verdict, execute on that wallet
+pnpm check-tx <wallet> <tx hash>  # check an execute from the chain alone: the signed text, signer, verdict, outcome, transfers
 pnpm oneclick              # the 1Click stand-in, testnet only: http://localhost:8403
 pnpm test
 ```
