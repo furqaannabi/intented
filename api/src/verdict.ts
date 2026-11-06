@@ -21,8 +21,8 @@ export interface VerdictDeps {
   readWallet: (walletId: string) => { config(): Promise<WalletConfig>; proposal(id: number): Promise<ChainProposal | null> };
   /** What this API judges with; a wallet that expects anything else would refuse the verdict. */
   expected: { model: string; promptHash: string };
-  /** Wallets are <label>.<factoryId>, which only the factory can create, plus the API's own. */
-  factoryId: string;
+  /** Wallets are <label>.<factoryId>, which only the factory can create, plus the API's own. No factory (mainnet): the API's own only. */
+  factoryId?: string;
   ownWalletId: string;
   /** Starts following the stored proposal until the wallet's record settles it. */
   settle: (proposalId: string) => void;
@@ -56,8 +56,8 @@ export function checkVerdictRequest(body: unknown, d: Pick<VerdictDeps, "factory
   if (typeof body !== "object" || body === null) return { error: "body must be a JSON object" };
   const { wallet_id, proposal_id, context, quote_id } = body as Record<string, unknown>;
   const suffix = `.${d.factoryId}`;
-  const isFactory = typeof wallet_id === "string" && wallet_id.endsWith(suffix) && LABEL.test(wallet_id.slice(0, -suffix.length)) && wallet_id.length <= 64;
-  if (wallet_id !== d.ownWalletId && !isFactory) return { error: `wallet_id must be ${d.ownWalletId} or <name>.${d.factoryId}` };
+  const isFactory = !!d.factoryId && typeof wallet_id === "string" && wallet_id.endsWith(suffix) && LABEL.test(wallet_id.slice(0, -suffix.length)) && wallet_id.length <= 64;
+  if (wallet_id !== d.ownWalletId && !isFactory) return { error: d.factoryId ? `wallet_id must be ${d.ownWalletId} or <name>.${d.factoryId}` : `wallet_id must be ${d.ownWalletId}` };
   if (typeof proposal_id !== "number" || !Number.isSafeInteger(proposal_id) || proposal_id < 0) return { error: "proposal_id must be the wallet's proposal id, a whole number" };
   if (typeof context !== "string") return { error: "context must be a string (it may be empty)" };
   if (context.length > MAX_CONTEXT_CHARS) return { error: `context is over ${MAX_CONTEXT_CHARS} characters` };

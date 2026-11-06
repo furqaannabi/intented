@@ -8,6 +8,7 @@ const PAGE = 100; // the factory's most per call
 
 /** Every wallet the factory created for this owner, oldest first. */
 export async function ownedWallets(ownerId: string): Promise<string[]> {
+  if (!FACTORY_ID) return [];
   const all: string[] = [];
   for (;;) {
     const page = await viewOn<string[]>(FACTORY_ID, "get_wallets", { owner_id: ownerId, from_index: all.length, limit: PAGE });

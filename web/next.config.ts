@@ -4,6 +4,8 @@ import type { NextConfig } from "next";
 const API_URL = process.env.API_URL ?? "http://localhost:8787";
 
 const nextConfig: NextConfig = {
+  // A second build in the same checkout, such as the mainnet site, can use its own folder.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   cacheComponents: true,
   rewrites: async () => [
     { source: "/api/mandate", destination: `${API_URL}/api/mandate` },

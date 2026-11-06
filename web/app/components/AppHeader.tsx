@@ -3,19 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useState } from "react";
-import { NETWORK, WALLET_ID } from "../lib/near";
+import { IS_MAINNET, WALLET_ID } from "../lib/near";
+import { NetworkSwitch } from "./NetworkSwitch";
 import { Skeleton } from "./Skeleton";
 import { useNearWallet } from "../lib/useNearWallet";
 import "./site-header.css";
 
 // On phones the demo leaves the header; on the smallest, Create does too (My wallets has a Create button).
+// The mainnet site has one wallet and no factory, so only its link.
 const LINKS = [
-  { href: "/wallets", label: "My wallets", short: "Wallets", hide: "" },
-  { href: "/create", label: "Create wallet", short: "Create", hide: "max-[379px]:hidden" },
+  ...(IS_MAINNET
+    ? []
+    : ([
+        { href: "/wallets", label: "My wallets", short: "Wallets", hide: "" },
+        { href: "/create", label: "Create wallet", short: "Create", hide: "max-[379px]:hidden" },
+      ] as const)),
   // The demo wallet's page inside the app, so the demo opens in the same header and layout as your own wallet. Named for
   // what it opens: the public site's "Live demo" is the feed of payments, /activity.
-  { href: `/wallets/${WALLET_ID}`, label: "Demo wallet", short: null, hide: "max-sm:hidden" },
-] as const;
+  IS_MAINNET
+    ? ({ href: `/wallets/${WALLET_ID}`, label: "Mainnet wallet", short: "Wallet", hide: "" } as const)
+    : ({ href: `/wallets/${WALLET_ID}`, label: "Demo wallet", short: null, hide: "max-sm:hidden" } as const),
+];
 
 /** The app's header: your wallets, and the NEAR account you're signed in with. */
 export function AppHeader() {
@@ -29,7 +37,7 @@ export function AppHeader() {
           <span className="site-logo" aria-hidden="true" />
           Intented
         </Link>
-        <span className="rounded-full border border-line px-2 py-0.5 font-mono text-[11px] text-mute max-sm:hidden">{NETWORK}</span>
+        <NetworkSwitch className="max-sm:hidden" />
         {/* The current path is only known at request time, so the links render first and mark the current one after. */}
         <Suspense fallback={<NavLinks path={null} />}>
           <CurrentNavLinks />

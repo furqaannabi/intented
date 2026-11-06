@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowUpRight, Check, Cross } from "../components/icons";
 import { REPO } from "../components/SiteHeader";
 import {
+  FACTORY_ID,
   formatUnits,
   getConfig,
   getToken,
@@ -49,7 +50,16 @@ export function Rules() {
     return (
       <p className="my-10 max-w-[40em] rounded-[18px] border border-line bg-ink-2 p-5 text-sm text-mute">
         <span className="font-mono break-all text-text">{param}</span> isn&apos;t an Intented wallet. Wallets are{" "}
-        <span className="font-mono">{WALLET_ID}</span> or a name ending in <span className="font-mono">.intented.testnet</span>.
+        <span className="font-mono">{WALLET_ID}</span>
+        {FACTORY_ID ? (
+          <>
+            {" "}
+            or a name ending in <span className="font-mono">.{FACTORY_ID}</span>
+          </>
+        ) : (
+          <> only, on this site</>
+        )}
+        .
       </p>
     );
   }

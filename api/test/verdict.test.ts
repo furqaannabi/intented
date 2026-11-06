@@ -31,7 +31,7 @@ function chainWallet(now: number) {
   };
 }
 
-function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable<V>["limit"] : never } = {}) {
+function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable<V>["limit"] : never; factoryId?: string | null } = {}) {
   const now = Date.now();
   const store = openStore(":memory:");
   store.createMandate(RULES, RULES_HASH);
@@ -59,7 +59,7 @@ function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable
       proposal: async (pid) => (wallets.get(id)?.proposals.get(pid) ?? null) as never,
     }),
     expected: { model: "m", promptHash: "p" },
-    factoryId: "intented.testnet",
+    factoryId: opts.factoryId === undefined ? "intented.testnet" : (opts.factoryId ?? undefined),
     ownWalletId: "intented-wallet.testnet",
     settle: (id) => settling.push(id),
     readTx: async (hash, signerId) => {
@@ -114,6 +114,15 @@ describe("POST /api/verdict", () => {
       { wallet_id: WALLET, proposal_id: 0 },
     ]) expect((await ask(body)).status, JSON.stringify(body)).toBe(400);
     expect(judged).toEqual([]);
+  });
+
+  it("with no factory (mainnet), judges only its own wallet", async () => {
+    const { ask, judged, wallets, now } = setup({ factoryId: null });
+    wallets.set("intented-wallet.testnet", chainWallet(now));
+    const factoryWallet = await ask({ wallet_id: WALLET, proposal_id: 0, context: "" });
+    expect([factoryWallet.status, (await factoryWallet.json()).error]).toEqual([400, "wallet_id must be intented-wallet.testnet"]);
+    expect(judged).toEqual([]);
+    expect((await ask({ wallet_id: "intented-wallet.testnet", proposal_id: 0, context: "" })).status).toBe(200);
   });
 
   it("judges each proposal once: asking again, even at the same time, returns the same verdict", async () => {

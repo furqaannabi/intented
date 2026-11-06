@@ -1,6 +1,6 @@
 // Transactions the owner signs in their own NEAR wallet, shared by the Create page and the wallet page.
 
-import type { TESTNET_TOKENS } from "./near";
+import type { Token } from "./near";
 
 export const CALL_GAS = "30000000000000"; // 30 Tgas
 export const WITHDRAW_GAS = "60000000000000"; // withdraw of a token makes its own ft_transfer call
@@ -20,8 +20,6 @@ export const call = (methodName: string, args: object, deposit = "0", gas = CALL
   type: "FunctionCall",
   params: { methodName, args, gas, deposit },
 });
-
-type Token = (typeof TESTNET_TOKENS)[number];
 
 /**
  * One transaction to the token's contract that puts `raw` base units in the wallet. wNEAR is wrapped from the owner's

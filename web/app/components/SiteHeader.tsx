@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { IS_MAINNET, WALLET_ID } from "../lib/near";
 import { ArrowUpRight } from "./icons";
+import { NetworkSwitch } from "./NetworkSwitch";
 import "./site-header.css";
 
 export const REPO = "https://github.com/furqaannabi/intented";
@@ -31,7 +33,8 @@ export function SiteHeader({ current }: { current?: "home" | "demo" }) {
               GitHub <ArrowUpRight className="size-3.5" />
             </a>
           </nav>
-          <Link href="/wallets" className="rounded-full bg-lime px-4 py-2 text-sm font-bold whitespace-nowrap text-lime-ink max-[379px]:px-3">
+          <NetworkSwitch className="max-[899px]:hidden" />
+          <Link href={IS_MAINNET ? `/wallets/${WALLET_ID}` : "/wallets"} className="rounded-full bg-lime px-4 py-2 text-sm font-bold whitespace-nowrap text-lime-ink max-[379px]:px-3">
             <span className="max-[479px]:hidden">Open the app →</span>
             <span className="hidden max-[479px]:inline">App →</span>
           </Link>

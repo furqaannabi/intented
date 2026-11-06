@@ -8,7 +8,7 @@ import { PaymentsChart } from "../../../components/PaymentsChart";
 import { RulesEditor } from "../../../components/RulesEditor";
 import { Loading, Skeleton } from "../../../components/Skeleton";
 import { REPO } from "../../../components/SiteHeader";
-import { decimalInput, FACTORY_ID, formatUnits, freeNear, nearblocksAccount, nearblocksTx, parseUnits, TESTNET_TOKENS, viewOn, WALLET_ID } from "../../../lib/near";
+import { decimalInput, FACTORY_ID, formatUnits, freeNear, nearblocksAccount, nearblocksTx, NETWORK_NAME, parseUnits, TOKENS, viewOn, WALLET_ID } from "../../../lib/near";
 import { rememberWallet, walletFromPath } from "../../../lib/myWallets";
 import { useNearWallet } from "../../../lib/useNearWallet";
 import { call, ED25519_KEY, fundActions, transfer, WITHDRAW_GAS, type FunctionCall, type Transfer } from "../../../lib/walletActions";
@@ -73,7 +73,8 @@ function WalletPage({ walletId }: { walletId: string }) {
     // Reading from the chain on mount is a sync with an external system; the setState calls happen after awaits.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-    viewOn<string>(FACTORY_ID, "get_code_hash", {}).then(setFactoryCode, () => setFactoryCode(null));
+    if (FACTORY_ID) viewOn<string>(FACTORY_ID, "get_code_hash", {}).then(setFactoryCode, () => setFactoryCode(null));
+    else setFactoryCode(null);
   }, [load]);
 
   const isOwner = typeof state === "object" && !!state && near.account === state.config.owner_id;
@@ -100,14 +101,16 @@ function WalletPage({ walletId }: { walletId: string }) {
       <div className="my-10 max-w-[40em] rounded-[18px] border border-line bg-ink-2 p-5 text-sm text-mute">
         {state === null ? (
           <>
-            No account named <span className="font-mono break-all text-text">{walletId}</span> on NEAR testnet.{" "}
-            <Link href="/create" className="text-text underline underline-offset-[3px]">
-              Create it
-            </Link>
+            No account named <span className="font-mono break-all text-text">{walletId}</span> on {NETWORK_NAME}.{" "}
+            {FACTORY_ID && (
+              <Link href="/create" className="text-text underline underline-offset-[3px]">
+                Create it
+              </Link>
+            )}
           </>
         ) : (
           <>
-            Couldn&apos;t read <span className="font-mono text-text">{walletId}</span> from NEAR testnet.{" "}
+            Couldn&apos;t read <span className="font-mono text-text">{walletId}</span> from {NETWORK_NAME}.{" "}
             <button onClick={load} className="font-bold text-text underline underline-offset-[3px]">
               Try again
             </button>
@@ -444,7 +447,7 @@ function OwnerPanel({
   sign: Sign;
   onClose: () => void;
 }) {
-  const tokens = state.tokens.map((t) => ({ ...t, known: TESTNET_TOKENS.find((k) => k.contract === t.id) }));
+  const tokens = state.tokens.map((t) => ({ ...t, known: TOKENS.find((k) => k.contract === t.id) }));
   const fundable = tokens.filter((t) => t.known);
   const [pick, setPick] = useState(0); // fund: an index into fundable; withdraw: into tokens, or tokens.length for NEAR
   const [amount, setAmount] = useState("");
@@ -554,7 +557,7 @@ export function WalletSkeleton({ walletId }: { walletId: string | null }) {
   );
   const lines = (...widths: string[]) => widths.map((w, i) => <Skeleton key={i} className={`mt-3 h-3.5 ${w}`} />);
   return (
-    <Loading label="Reading the wallet from NEAR testnet">
+    <Loading label={`Reading the wallet from ${NETWORK_NAME}`}>
       <div className="pb-24">
         <p className="pt-7 text-sm text-mute">
           <Link href="/wallets" className="hover:text-text">

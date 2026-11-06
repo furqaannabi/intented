@@ -1,12 +1,29 @@
 // Reads from the wallet contract over public RPC, straight from the browser,
 // so what the page shows as "on the wallet" doesn't depend on our API. Also imported on the server, for walletFromParam.
 
-export const NETWORK = "testnet" as const;
-export const WALLET_ID = "intented-wallet.testnet";
-const RPC_URL = "https://test.rpc.fastnear.com";
+// One build per network: NEXT_PUBLIC_NEAR_NETWORK picks it, testnet unless set. The mainnet build is a second site that
+// shows only the mainnet wallet (docs/decisions/2026-11-06-minimal-mainnet-with-a-network-switch.md). Fixed at build time,
+// so a page can't mix networks.
+export const NETWORK: "testnet" | "mainnet" = process.env.NEXT_PUBLIC_NEAR_NETWORK === "mainnet" ? "mainnet" : "testnet";
+export const IS_MAINNET = NETWORK === "mainnet";
+/** "NEAR testnet" or "NEAR mainnet", for copy. */
+export const NETWORK_NAME = `NEAR ${NETWORK}`;
 
-export const nearblocksAccount = (id: string) => `https://testnet.nearblocks.io/address/${id}`;
-export const nearblocksTx = (hash: string) => `https://testnet.nearblocks.io/txns/${hash}`;
+/** The demo wallet. On mainnet it has no default: the build stops unless NEXT_PUBLIC_WALLET_ID names it. */
+export const WALLET_ID =
+  process.env.NEXT_PUBLIC_WALLET_ID ||
+  (IS_MAINNET ? (() => { throw new Error("NEXT_PUBLIC_WALLET_ID must be set for a mainnet build"); })() : "intented-wallet.testnet");
+const RPC_URL = process.env.NEXT_PUBLIC_NEAR_RPC_URL || (IS_MAINNET ? "https://free.rpc.fastnear.com" : "https://test.rpc.fastnear.com");
+
+/** Each build's address, for the header's Testnet | Mainnet switch. Unset, the switch leaves that network out. */
+export const SITE_URLS: Record<typeof NETWORK, string | null> = {
+  testnet: process.env.NEXT_PUBLIC_TESTNET_URL?.replace(/\/+$/, "") || null,
+  mainnet: process.env.NEXT_PUBLIC_MAINNET_URL?.replace(/\/+$/, "") || null,
+};
+
+const NEARBLOCKS = IS_MAINNET ? "https://nearblocks.io" : "https://testnet.nearblocks.io";
+export const nearblocksAccount = (id: string) => `${NEARBLOCKS}/address/${id}`;
+export const nearblocksTx = (hash: string) => `${NEARBLOCKS}/txns/${hash}`;
 
 /** get_config, as the contract returns it. */
 export type WalletConfig = {
@@ -49,8 +66,8 @@ export async function viewOn<T>(accountId: string, method: string, args: object)
 export const getConfig = (walletId: string = WALLET_ID) => viewOn<WalletConfig>(walletId, "get_config", {});
 export const getToken = (tokenId: string, walletId: string = WALLET_ID) => viewOn<WalletToken | null>(walletId, "get_token", { token_id: tokenId });
 
-/** The testnet wallet factory (contract/factory): create(...) makes <name>.intented.testnet. */
-export const FACTORY_ID = "intented.testnet";
+/** The wallet factory (contract/factory): create(...) makes <name>.intented.testnet. Testnet only; mainnet has none. */
+export const FACTORY_ID: string | null = IS_MAINNET ? null : "intented.testnet";
 
 /** One account label: lowercase letters and digits, with single - or _ between them. */
 export const LABEL = /^(?:[a-z\d]+[-_])*[a-z\d]+$/;
@@ -61,6 +78,7 @@ export const LABEL = /^(?:[a-z\d]+[-_])*[a-z\d]+$/;
  */
 export function walletFromParam(param: string | null): string | null {
   if (!param || param === WALLET_ID) return WALLET_ID;
+  if (!FACTORY_ID) return null;
   const suffix = `.${FACTORY_ID}`;
   if (param.length > 64 || !param.endsWith(suffix)) return null;
   return LABEL.test(param.slice(0, -suffix.length)) ? param : null;
@@ -120,12 +138,22 @@ export async function viewKeys(accountId: string): Promise<{ functionCall: Funct
 /** A NEP-141 token balance, in base units. */
 export const ftBalance = (token: string, accountId: string) => viewOn<string>(token, "ft_balance_of", { account_id: accountId });
 
-/** Tokens a wallet can pay in on testnet. Symbol and decimals must equal firewall-core's KNOWN_TOKENS, or the wallet refuses every transfer of it. */
-export const TESTNET_TOKENS = [
-  { contract: "wrap.testnet", symbol: "wNEAR", decimals: 24 },
-  { contract: "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af", symbol: "USDC", decimals: 6 },
-  { contract: "usdc.fakes.testnet", symbol: "USDC.e", decimals: 6 },
-] as const;
+export type Token = { contract: string; symbol: string; decimals: number };
+
+/** Tokens a wallet can pay in, per network. Symbol and decimals must equal firewall-core's KNOWN_TOKENS, or the wallet refuses every transfer of it. */
+const TOKENS_BY_NETWORK: Record<typeof NETWORK, readonly Token[]> = {
+  testnet: [
+    { contract: "wrap.testnet", symbol: "wNEAR", decimals: 24 },
+    { contract: "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af", symbol: "USDC", decimals: 6 },
+    { contract: "usdc.fakes.testnet", symbol: "USDC.e", decimals: 6 },
+  ],
+  mainnet: [
+    { contract: "wrap.near", symbol: "wNEAR", decimals: 24 },
+    { contract: "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1", symbol: "USDC", decimals: 6 },
+    { contract: "usdt.tether-token.near", symbol: "USDt", decimals: 6 },
+  ],
+};
+export const TOKENS = TOKENS_BY_NETWORK[NETWORK];
 
 /** A whole-unit amount as a base-unit integer string, e.g. ("0.01", 24) → "10000000000000000000000"; null if it isn't a plain decimal or has too many places. */
 export function parseUnits(value: string, decimals: number): string | null {

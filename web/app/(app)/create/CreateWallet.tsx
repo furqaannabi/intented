@@ -17,7 +17,8 @@ import {
   nearblocksTx,
   parseUnits,
   sha256Hex,
-  TESTNET_TOKENS,
+  TOKENS,
+  type Token,
   viewAccount,
   viewOn,
   type WalletConfig,
@@ -28,6 +29,8 @@ import { call, ED25519_KEY, fundActions } from "../../lib/walletActions";
 
 const MAX_RULES = 2000; // POST /api/mandate's limit
 const CREATE_GAS = "300000000000000"; // 300 Tgas
+// Create renders only on a build with a factory (testnet): the mainnet build shows a note instead (create/page.tsx).
+const FACTORY = FACTORY_ID ?? "";
 // The NEAR the wallet may attach to a call: ft_transfer's 1 yocto security deposit. Fixed, as in Furqaan's example.
 const NEAR_CAPS = { per_tx: "1", daily: "100" };
 
@@ -81,7 +84,7 @@ export function CreateWallet() {
     const k = params.get("key")?.trim() ?? "";
     return ED25519_KEY.test(k) ? k : "";
   });
-  const [name, setName] = useState(() => params.get("name")?.toLowerCase().slice(0, 64 - FACTORY_ID.length - 1) ?? "");
+  const [name, setName] = useState(() => params.get("name")?.toLowerCase().slice(0, 64 - FACTORY.length - 1) ?? "");
   const [nameStatus, setNameStatus] = useState<NameStatus>("invalid");
   const [rules, setRules] = useState("");
   const [tokenIndex, setTokenIndex] = useState(0);
@@ -92,8 +95,8 @@ export function CreateWallet() {
   const [rulesHash, setRulesHash] = useState("");
   const [flow, setFlow] = useState<Flow>({ step: "form" });
 
-  const token = TESTNET_TOKENS[tokenIndex];
-  const walletId = `${name}.${FACTORY_ID}`;
+  const token = TOKENS[tokenIndex];
+  const walletId = `${name}.${FACTORY}`;
 
   // Restores this tab's draft once, after the first render (sessionStorage isn't there on the server). A link from
   // intented init keeps its own name and key. Declared before the effect that saves, so the saved draft is read first.
@@ -103,7 +106,7 @@ export function CreateWallet() {
     if (!params.get("name") && typeof d.name === "string") setName(d.name);
     if (!linkKey && typeof d.agentKey === "string") setAgentKey(d.agentKey);
     if (typeof d.rules === "string") setRules(d.rules);
-    if (typeof d.tokenIndex === "number" && TESTNET_TOKENS[d.tokenIndex]) setTokenIndex(d.tokenIndex);
+    if (typeof d.tokenIndex === "number" && TOKENS[d.tokenIndex]) setTokenIndex(d.tokenIndex);
     if (typeof d.perTx === "string") setPerTx(d.perTx);
     if (typeof d.daily === "string") setDaily(d.daily);
     if (typeof d.allowance === "string") setAllowance(d.allowance);
@@ -117,7 +120,7 @@ export function CreateWallet() {
   // The judge comes from our live wallet, so a new wallet trusts the same attested signer, prompt and model.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getConfig(), viewOn<string>(FACTORY_ID, "get_min_deposit", {}), viewOn<string>(FACTORY_ID, "get_code_hash", {})])
+    Promise.all([getConfig(), viewOn<string>(FACTORY, "get_min_deposit", {}), viewOn<string>(FACTORY, "get_code_hash", {})])
       .then(([c, minDeposit, codeHash]: [WalletConfig, string, string]) => {
         if (cancelled) return;
         if (!c.signers[0] || !c.prompt_hash) throw new Error("no signer or prompt");
@@ -225,7 +228,7 @@ export function CreateWallet() {
       const wallet = await near.wallet();
       const outcome = await wallet.signAndSendTransaction({
         signerId: near.account,
-        receiverId: FACTORY_ID,
+        receiverId: FACTORY,
         actions: [{ type: "FunctionCall", params: { methodName: "create", args: createArgs, gas: CREATE_GAS, deposit: factory.minDeposit } }],
       });
 
@@ -274,7 +277,7 @@ export function CreateWallet() {
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-8 pt-7 pb-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <form onSubmit={(e) => e.preventDefault()} className="min-w-0">
-          <Section n={1} title="Name it" note={`Your wallet gets its own NEAR account under ${FACTORY_ID}.`} first>
+          <Section n={1} title="Name it" note={`Your wallet gets its own NEAR account under ${FACTORY}.`} first>
             <label htmlFor="cw-name" className="text-sm font-bold">
               Wallet name
             </label>
@@ -289,7 +292,7 @@ export function CreateWallet() {
                 disabled={busy}
                 className={`${input} font-mono text-sm`}
               />
-              <span className={suffix}>.{FACTORY_ID}</span>
+              <span className={suffix}>.{FACTORY}</span>
             </div>
             <p className={`mt-2 text-[13px] ${nameStatus === "free" ? "text-soft" : nameStatus === "taken" ? "text-coral" : "text-mute"}`} aria-live="polite">
               {!name
@@ -327,7 +330,7 @@ export function CreateWallet() {
           <Section n={3} title="Set the hard limits" note="The contract enforces these whatever the AI says. Your rules can only be stricter.">
             <p className="text-sm font-bold">Token the agent pays in</p>
             <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Token">
-              {TESTNET_TOKENS.map((t, i) => (
+              {TOKENS.map((t, i) => (
                 <button
                   key={t.contract}
                   type="button"
@@ -412,7 +415,7 @@ export function CreateWallet() {
             {factory && (
               <p className="mt-3 text-[13px] text-mute">
                 Every wallet from this factory runs code hash <span className="font-mono break-all text-soft">{factory.codeHash}</span>, which{" "}
-                <span className="font-mono">{FACTORY_ID} · get_code_hash()</span> returns and the new account will show.
+                <span className="font-mono">{FACTORY} · get_code_hash()</span> returns and the new account will show.
               </p>
             )}
           </Section>
@@ -425,7 +428,7 @@ export function CreateWallet() {
 
         <aside className="rounded-[24px] bg-card p-[clamp(20px,2.4vw,28px)] lg:sticky lg:top-24" aria-label="What you'll sign">
           <p className="font-mono text-[11px] font-medium tracking-[0.1em] text-mute uppercase">What you&apos;ll sign</p>
-          <p className="mt-2.5 font-mono text-lg font-medium break-all">{name ? walletId : `….${FACTORY_ID}`}</p>
+          <p className="mt-2.5 font-mono text-lg font-medium break-all">{name ? walletId : `….${FACTORY}`}</p>
           <dl className="mt-5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-sm [&_dd]:text-right [&_dd]:font-mono [&_dd]:text-[13px] [&_dd]:break-all [&_dt]:text-mute">
             <dt>Owner</dt>
             <dd>{near.account ?? "your NEAR account"}</dd>
@@ -480,7 +483,7 @@ export function CreateWallet() {
           )}
           {flow.step === "error" && <p className="mt-3 text-[13px] break-words text-coral">{flow.message}</p>}
           <p className="mt-3 text-[12.5px] text-mute">
-            Your wallet asks you to approve one call: <span className="font-mono">{FACTORY_ID} · create</span>, 300 Tgas.
+            Your wallet asks you to approve one call: <span className="font-mono">{FACTORY} · create</span>, 300 Tgas.
             {near.account && (
               <>
                 {" "}
@@ -526,7 +529,6 @@ function Amount({ id, label, value, onChange, unit, decimals, disabled }: { id: 
 }
 
 type Near = ReturnType<typeof useNearWallet>;
-type Token = (typeof TESTNET_TOKENS)[number];
 
 /** After create: read the new wallet back from the chain, then fund it and add the agent's key. */
 function Created({
@@ -690,7 +692,7 @@ function Created({
                 <span className={suffix}>NEAR gas limit</span>
               </div>
               <p className="text-[13px] text-mute">The most this key may spend on fees, out of the NEAR your deposit left in the wallet. Nothing is sent now.</p>
-              {!newKey && <InitCommand name={walletId.slice(0, -FACTORY_ID.length - 1)} then="prints the public key to paste here." />}
+              {!newKey && <InitCommand name={walletId.slice(0, -FACTORY.length - 1)} then="prints the public key to paste here." />}
               {keyState.step === "error" && <p className="break-words text-coral">{keyState.message}</p>}
               <button onClick={addKey} disabled={keyState.step === "signing" || !ED25519_KEY.test(newKey.trim()) || !parseUnits(keyAllowance, 24)} className={`${primary} mt-auto`}>
                 {keyState.step === "signing" ? "Approve in your wallet…" : "Add the key"}

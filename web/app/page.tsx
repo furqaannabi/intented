@@ -2,13 +2,20 @@ import Link from "next/link";
 import { ArrowUpRight, Check, Cross } from "./components/icons";
 import { REPO, SiteHeader } from "./components/SiteHeader";
 import { TapToPay } from "./components/TapToPay";
+import { NetworkSwitch } from "./components/NetworkSwitch";
+import { IS_MAINNET, NETWORK_NAME, nearblocksTx } from "./lib/near";
 import "./home.css";
 
 const ATTESTATIONS = `${REPO}/tree/main/docs/attestations`;
-const txUrl = (hash: string) => `https://testnet.nearblocks.io/txns/${hash}`;
 
-const PAID_TX = "C8P7yHvwT6e6C5LZLgXQ4uXDJwyoCDGX6Y7Vq5uvbtHH";
-const REFUSED_TX = "FvsDHLYMAXuAuTSUyDzhUzG3Z9kPnzv4FD9MxDj88jxm";
+type ProofTx = { hash: string; label: string };
+/** The payment the wallet made and the attack it refused, on this build's network. Mainnet's are added once they exist. */
+const PROOF: { paid: ProofTx; refused: ProofTx } | null = IS_MAINNET
+  ? null
+  : {
+      paid: { hash: "C8P7yHvwT6e6C5LZLgXQ4uXDJwyoCDGX6Y7Vq5uvbtHH", label: "ALLOWED · PAID 0.001 wNEAR" },
+      refused: { hash: "FvsDHLYMAXuAuTSUyDzhUzG3Z9kPnzv4FD9MxDj88jxm", label: "DENIED · REFUSED ON-CHAIN" },
+    };
 
 const STEPS = [
   { who: "You", title: "Write the rules", body: "In plain English: who your agent may pay, in what, and how much." },
@@ -102,9 +109,11 @@ export default function Home() {
                     <p className="text-[15px] text-mute">
                       The rules name one vendor. The AI signs DENY, and the wallet refuses on-chain. Nothing is sent.
                     </p>
-                    <a href={txUrl(REFUSED_TX)} className="mt-2 inline-flex items-center gap-1 text-[15px] font-bold underline decoration-line underline-offset-4 hover:decoration-soft">
-                      This refusal on nearblocks <ArrowUpRight className="size-4" />
-                    </a>
+                    {PROOF && (
+                      <a href={nearblocksTx(PROOF.refused.hash)} className="mt-2 inline-flex items-center gap-1 text-[15px] font-bold underline decoration-line underline-offset-4 hover:decoration-soft">
+                        This refusal on nearblocks <ArrowUpRight className="size-4" />
+                      </a>
+                    )}
                   </div>
                 </li>
               </ul>
@@ -164,20 +173,22 @@ export default function Home() {
               <dt className="text-[clamp(48px,5vw,76px)] leading-none font-black tracking-[-0.04em]">6.0 s</dt>
               <dd className="mt-2.5 text-[15px] text-mute">median time to a signed verdict</dd>
             </dl>
-            <div className="mt-6 grid gap-3.5 md:grid-cols-2">
-              <a href={txUrl(PAID_TX)} className="home-tx">
-                <span className="flex items-center gap-1.5 text-xs font-black tracking-[0.1em] text-lime">
-                  <Check className="size-3.5" /> ALLOWED · PAID 0.001 wNEAR
-                </span>
-                <code>{PAID_TX}</code>
-              </a>
-              <a href={txUrl(REFUSED_TX)} className="home-tx">
-                <span className="flex items-center gap-1.5 text-xs font-black tracking-[0.1em] text-coral">
-                  <Cross className="size-3.5" /> DENIED · REFUSED ON-CHAIN
-                </span>
-                <code>{REFUSED_TX}</code>
-              </a>
-            </div>
+            {PROOF && (
+              <div className="mt-6 grid gap-3.5 md:grid-cols-2">
+                <a href={nearblocksTx(PROOF.paid.hash)} className="home-tx">
+                  <span className="flex items-center gap-1.5 text-xs font-black tracking-[0.1em] text-lime">
+                    <Check className="size-3.5" /> {PROOF.paid.label}
+                  </span>
+                  <code>{PROOF.paid.hash}</code>
+                </a>
+                <a href={nearblocksTx(PROOF.refused.hash)} className="home-tx">
+                  <span className="flex items-center gap-1.5 text-xs font-black tracking-[0.1em] text-coral">
+                    <Cross className="size-3.5" /> {PROOF.refused.label}
+                  </span>
+                  <code>{PROOF.refused.hash}</code>
+                </a>
+              </div>
+            )}
             <p className="mt-5 max-w-[52em] text-sm text-mute">
               Verdicts come from Qwen3.8-27B on NEAR AI Cloud; the median is over our red-team run on 5 November 2026, signature fetch included. The enclave&apos;s{" "}
               <a href={ATTESTATIONS} className="text-text underline decoration-line underline-offset-4 hover:decoration-soft">
@@ -206,8 +217,11 @@ export default function Home() {
 
       <footer className="mx-auto max-w-[1440px] px-[clamp(18px,4.5vw,72px)]">
         <div className="flex flex-wrap justify-between gap-3 border-t border-line py-6 text-sm text-mute">
-          <span>Intented · built for the NEAR Hackathon, November 2026 · running on NEAR testnet</span>
-          <span>NEAR AI Cloud · NEAR Protocol</span>
+          <span>Intented · built for the NEAR Hackathon, November 2026 · running on {NETWORK_NAME}</span>
+          <span className="flex items-center gap-3">
+            <NetworkSwitch />
+            NEAR AI Cloud · NEAR Protocol
+          </span>
         </div>
       </footer>
     </div>

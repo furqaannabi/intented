@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Cross } from "../components/icons";
 import { Receipt } from "../components/Receipt";
 import { Tag } from "../components/Tag";
-import { WALLET_ID, walletFromParam } from "../lib/near";
+import { FACTORY_ID, NETWORK_NAME, WALLET_ID, walletFromParam } from "../lib/near";
 import { amount, outcome, OUTCOME_LABEL, payee, shortAddress, splitReason, type Outcome, type Proposal } from "../lib/proposal";
 import { Loading, Skeleton } from "../components/Skeleton";
 import "./activity.css";
@@ -101,7 +101,7 @@ export function ActivityView() {
       <div className="pt-10 pb-4">
         <h1 className="text-[clamp(34px,4vw,56px)] leading-none font-black tracking-[-0.035em]">Activity</h1>
         <p className="mt-3 text-sm text-mute">
-          Wallet <span className="font-mono break-all text-text">{walletId ?? param}</span> on NEAR testnet
+          Wallet <span className="font-mono break-all text-text">{walletId ?? param}</span> on {NETWORK_NAME}
           {walletId && <> · every verdict signed in a TEE on NEAR AI Cloud</>}
           {walletId === WALLET_ID && (
             <>
@@ -118,8 +118,16 @@ export function ActivityView() {
         <Activity key={walletId} walletId={walletId} />
       ) : (
         <p className="my-6 max-w-[44em] rounded-[18px] border border-line bg-ink-2 p-5 text-sm text-mute">
-          That isn&apos;t an Intented wallet. Wallets are <span className="font-mono">{WALLET_ID}</span> or a name ending in{" "}
-          <span className="font-mono">.intented.testnet</span>.
+          That isn&apos;t an Intented wallet. Wallets are <span className="font-mono">{WALLET_ID}</span>
+          {FACTORY_ID ? (
+            <>
+              {" "}
+              or a name ending in <span className="font-mono">.{FACTORY_ID}</span>
+            </>
+          ) : (
+            <> only, on this site</>
+          )}
+          .
         </p>
       )}
     </>

@@ -1,6 +1,6 @@
 // The Proposal shape from docs/interface-spec.md, and how the UI reads it.
 
-import { formatUnits } from "./near";
+import { formatUnits, nearblocksTx, TOKENS as NETWORK_TOKENS } from "./near";
 
 export type Proposal = {
   id: string;
@@ -71,11 +71,8 @@ export const OUTCOME_LABEL: Record<Outcome, string> = {
   refunded: "Refunded",
 };
 
-// Tokens the UI can show in whole units. Others show the raw amount and the contract.
-const TOKENS: Record<string, { symbol: string; decimals: number }> = {
-  "wrap.testnet": { symbol: "wNEAR", decimals: 24 },
-  "wrap.near": { symbol: "wNEAR", decimals: 24 },
-};
+// Tokens the UI can show in whole units: this build's network's. Others show the raw amount and the contract.
+const TOKENS: Record<string, { symbol: string; decimals: number }> = Object.fromEntries(NETWORK_TOKENS.map((t) => [t.contract, t]));
 
 function parseArgs(p: Proposal): Record<string, unknown> {
   try {
@@ -127,7 +124,7 @@ export const utcDate = (ms: number) =>
 
 export const seconds = (p: Proposal) => `${((p.updated_at - p.created_at) / 1000).toFixed(1)} s`;
 
-export const nearTxUrl = (hash: string) => `https://testnet.nearblocks.io/txns/${hash}`;
+export const nearTxUrl = nearblocksTx;
 
 export const baseTxUrl = (hash: string) => `https://basescan.org/tx/${hash}`;
 
