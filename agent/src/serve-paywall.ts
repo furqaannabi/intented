@@ -14,11 +14,11 @@ const envPath = join(root, "..", ".env");
 if (existsSync(envPath)) process.loadEnvFile(envPath);
 
 const port = Number(process.env.PAYWALL_PORT || 8402);
-const rpcUrl = process.env.NEAR_RPC_URL || "https://rpc.testnet.near.org";
+const mainnet = process.env.NEAR_NETWORK === "mainnet";
+const rpcUrl = process.env.NEAR_RPC_URL || `https://rpc.${mainnet ? "mainnet" : "testnet"}.near.org`;
 
 // The Base routes, when the vendor has a Base address: real receipts on mainnet, the 1Click stand-in on testnet.
 const vendor = process.env.BASE_RECIPIENT_ADDRESS || "";
-const mainnet = process.env.NEAR_NETWORK === "mainnet";
 let base: BaseConfig | undefined;
 if (/^0x[0-9a-fA-F]{40}$/.test(vendor)) {
   base = mainnet
@@ -26,7 +26,7 @@ if (/^0x[0-9a-fA-F]{40}$/.test(vendor)) {
     : { vendor, lookupDelivery: oneclickDelivery(process.env.ONECLICK_BASE_URL || "http://localhost:8403") };
 }
 
-serve({ fetch: createPaywall({ lookupTx: rpcLookupTx(rpcUrl), base }).fetch, port }, () => {
+serve({ fetch: createPaywall({ lookupTx: rpcLookupTx(rpcUrl), base, network: mainnet ? "mainnet" : "testnet" }).fetch, port }, () => {
   const routes = ["/honest/market-data", "/poisoned/market-data", ...(base ? ["/base/market-data", "/base-poisoned/market-data"] : [])];
   console.log(`paywall on http://localhost:${port}: ${routes.join(", ")}`);
   if (!base) console.log("no Base routes: BASE_RECIPIENT_ADDRESS is not a Base address");

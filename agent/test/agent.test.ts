@@ -14,7 +14,7 @@ const DEPOSIT_TX = "DepositTx111111111111111111111111111111111111";
 const MANDATE = "Buy market data; pay the vendor on Base.";
 const HASH = createHash("sha256").update(MANDATE, "utf8").digest("hex");
 const oneclick = (status: string, over: Partial<OneClick> = {}): OneClick => ({
-  deposit_address: DEPOSIT, dest_chain: "base", recipient: VENDOR, amount_out: "0.4 USDC", status, simulated: true, ...over,
+  deposit_address: DEPOSIT, dest_chain: "base", recipient: VENDOR, amount_out: "2 USDC", status, simulated: true, ...over,
 });
 
 const DEADLINE = String(Date.now() + 30 * 60_000);
@@ -31,7 +31,7 @@ function setup(statuses: OneClick[], base: Omit<BaseConfig, "vendor">, verdict: 
   const record = (k: keyof typeof sent) => async (c: Context) => (sent[k].push(await c.req.json()), undefined);
   const api = new Hono()
     .get("/api/mandates/:hash", (c) => c.json({ mandate_id: "m_1", text: MANDATE, text_hash: HASH }))
-    .post("/api/quote", async (c) => (await record("quote")(c), quoteRefused ? c.json({ error: quoteRefused }, 409) : c.json({ quote_id: "q_0123456789abcdef", deposit_address: DEPOSIT, token: "wrap.testnet", amount_in: "808", deadline_ms: DEADLINE, amount_out: "0.4 USDC" })))
+    .post("/api/quote", async (c) => (await record("quote")(c), quoteRefused ? c.json({ error: quoteRefused }, 409) : c.json({ quote_id: "q_0123456789abcdef", deposit_address: DEPOSIT, token: "wrap.testnet", amount_in: "808", deadline_ms: DEADLINE, amount_out: "2 USDC" })))
     .post("/api/verdict", async (c) => (await record("verdict")(c), c.json({ id: "p_1", verdict, reason: `says ${verdict}`, signer: "0xs", signature: "0xsig", req_bytes: "AQ==", resp_bytes: "Ag==" })))
     .post("/api/executed", async (c) => (await record("executed")(c), c.json({ id: "p_1" })))
     .get("/api/proposals/:id", (c) => c.json({ oneclick: statuses.length > 1 ? statuses.shift()! : statuses[0]! }));
@@ -56,7 +56,7 @@ function setup(statuses: OneClick[], base: Omit<BaseConfig, "vendor">, verdict: 
 // What the stand-in reports once it has confirmed DEPOSIT_TX and "delivered".
 const delivered: BaseConfig["lookupDelivery"] = async () => ({
   status: "SUCCESS",
-  quoteResponse: { quote: { amountOut: "400000" }, quoteRequest: { recipient: VENDOR, destinationAsset: BASE_USDC } },
+  quoteResponse: { quote: { amountOut: "2000000" }, quoteRequest: { recipient: VENDOR, destinationAsset: BASE_USDC } },
   swapDetails: { originChainTxHashes: [{ hash: DEPOSIT_TX }] },
 });
 
@@ -66,7 +66,7 @@ describe("agent: a 402 on Base, paid through 1Click", () => {
   it("asks the API to quote it, proposes exactly the quoted transfer with its own key, and gets the verdict on the quote", async () => {
     const { sent, proposed, run } = setup([oneclick("SUCCESS")], { lookupDelivery: delivered });
     await run();
-    expect(sent.quote).toEqual([{ wallet_id: "intented-wallet.testnet", intent: { token: "wrap.testnet", amount: "400000", dest_chain: "base", dest_asset: BASE_USDC, recipient: VENDOR } }]);
+    expect(sent.quote).toEqual([{ wallet_id: "intented-wallet.testnet", intent: { token: "wrap.testnet", amount: "2000000", dest_chain: "base", dest_asset: BASE_USDC, recipient: VENDOR } }]);
     expect(proposed).toHaveLength(1);
     expect(proposed[0]).toMatchObject({ token: "wrap.testnet", to: DEPOSIT, amount: "808" });
     expect(proposed[0]!.expiresAt).toBeLessThan(Number(DEADLINE));
@@ -111,7 +111,7 @@ describe("agent: a 402 on Base, paid through 1Click", () => {
     const pad = (a: string) => `0x${a.slice(2).padStart(64, "0")}`;
     const receipt = {
       status: "0x1",
-      logs: [{ address: BASE_USDC_CONTRACT, topics: ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", pad("0x" + "1".repeat(40)), pad(VENDOR)], data: "0x61a80" }],
+      logs: [{ address: BASE_USDC_CONTRACT, topics: ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", pad("0x" + "1".repeat(40)), pad(VENDOR)], data: "0x1e8480" }],
     };
     const { proofs, run } = setup([oneclick("SUCCESS", { simulated: false, dest_tx_hash: "0xbasetx" })], { lookupReceipt: async (h) => (h === "0xbasetx" ? receipt : null) });
     const r = await run();

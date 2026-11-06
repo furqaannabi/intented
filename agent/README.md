@@ -2,7 +2,7 @@
 
 The demo agent, the mock x402 paywall, and the testnet stand-in for 1Click. **Owner: William.** Why it is built this way: [the agent and paywall record](../docs/decisions/2026-11-01-demo-agent-and-paywall.md) and [the cross-chain record](../docs/decisions/2026-11-03-cross-chain-through-1click.md).
 
-The agent buys market data from an x402-style paywall. It is deliberately naive: it proposes whatever the 402 asks, to whoever it names, and leaves the judgement to Intented. It holds `intented-agent.testnet`'s function-call key and sends its own `propose` and `execute`; the API only judges. The paywall has an honest route and a poisoned one that asks for 10× the price, paid to the attacker, while staying within the wallet's cap. The attack demo is never cut.
+The agent buys market data from an x402-style paywall. It is deliberately naive: it proposes whatever the 402 asks, to whoever it names, and leaves the judgement to Intented. It holds `intented-agent.testnet`'s function-call key and sends its own `propose` and `execute`; the API only judges. The paywall has an honest route and a poisoned one that asks for more than the price, paid to the attacker, while staying within the wallet's cap. The attack demo is never cut.
 
 ## Run
 
@@ -13,7 +13,7 @@ pnpm install
 pnpm paywall               # http://localhost:8402
 pnpm agent honest          # pays 0.001 wNEAR to intented-vendor.testnet, then gets the data
 pnpm agent poisoned        # proposes 0.01 wNEAR to intented-attacker.testnet; DENY, and the wallet refuses
-pnpm agent base            # 0.40 USDC to the vendor's Base address, through 1Click
+pnpm agent base            # 2 USDC to the vendor's Base address, through 1Click
 pnpm agent base-poisoned   # 4 USDC to 0xbad0…0bad, through 1Click
 pnpm oneclick-key          # once: the stand-in's signing key, into ../.env
 pnpm intented init <name>  # the agent's key for <name>.intented.testnet, and the link that creates the wallet
@@ -66,18 +66,18 @@ On 5 November, on `retest-1104.intented.testnet`:
 
 ## The paywall
 
-| Route | Asks | Payee |
+| Route | Testnet | Mainnet (`NEAR_NETWORK=mainnet`) |
 | --- | --- | --- |
-| `GET /honest/market-data` | 0.001 wNEAR on NEAR testnet | `intented-vendor.testnet` |
-| `GET /poisoned/market-data` | 0.01 wNEAR, with a note telling automated clients the settlement account has changed | `intented-attacker.testnet` |
-| `GET /base/market-data` | 0.40 USDC on Base | the vendor's Base address, `BASE_RECIPIENT_ADDRESS` |
-| `GET /base-poisoned/market-data` | 4 USDC, with the same kind of note | a made-up address, `0xbad0…0bad` |
+| `GET /honest/market-data` | 0.001 wNEAR to `intented-vendor.testnet` | 0.10 USDC on NEAR to `intented-vendor.near` |
+| `GET /poisoned/market-data` | 0.01 wNEAR (10×) to `intented-attacker.testnet`, with a note telling automated clients the settlement account has changed | 1 USDC (10×) to `intented-attacker`, with the same note |
+| `GET /base/market-data` | 2 USDC on Base to the vendor's Base address, `BASE_RECIPIENT_ADDRESS` | the same |
+| `GET /base-poisoned/market-data` | 4 USDC (2×), with the same kind of note, to a made-up address, `0xbad0…0bad` | the same |
 
-The Base routes exist only when `BASE_RECIPIENT_ADDRESS` is a Base address.
+The Base routes exist only when `BASE_RECIPIENT_ADDRESS` is a Base address. On mainnet the Base routes are the real payment and the NEAR routes are the runbook's fallback if 1Click doesn't deliver. The mainnet attacker, `intented-attacker`, is a short top-level name that only the registrar could create, so nobody owns it and a transfer there fails: even a wrong `ALLOW` would leave the USDC in the wallet.
 
-Without payment, the paywall answers `402` with the terms as x402 v2 JSON, in the body and base64-encoded in the `PAYMENT-REQUIRED` header (`scheme: "exact"`, with `network` `near:testnet` or `eip155:8453`). The paid retry carries `PAYMENT-SIGNATURE`: base64 JSON whose `payload` is the proof. The paywall serves the data, with a `PAYMENT-RESPONSE` header, only once it has checked that proof itself:
+Without payment, the paywall answers `402` with the terms as x402 v2 JSON, in the body and base64-encoded in the `PAYMENT-REQUIRED` header (`scheme: "exact"`, with `network` `near:testnet`, `near:mainnet` or `eip155:8453`). The paid retry carries `PAYMENT-SIGNATURE`: base64 JSON whose `payload` is the proof. The paywall serves the data, with a `PAYMENT-RESPONSE` header, only once it has checked that proof itself:
 
-- **NEAR routes:** `payload` is `{ transaction, signer }`. The paywall fetches the transaction from testnet (`EXPERIMENTAL_tx_status`) and needs a successful `ft_transfer` of the asked token, amount and recipient.
+- **NEAR routes:** `payload` is `{ transaction, signer }`. The paywall fetches the transaction from `NEAR_NETWORK`'s RPC (`EXPERIMENTAL_tx_status`) and needs a successful `ft_transfer` of the asked token, amount and recipient.
 - **Base routes on mainnet** (`NEAR_NETWORK=mainnet`): `payload` is `{ transaction }`, the Base transaction hash. The paywall fetches its receipt (`eth_getTransactionReceipt`, from `BASE_RPC_URL`). It needs a successful transaction with a USDC `Transfer` of at least the price to the payee.
 - **Base routes on testnet:** nothing reaches Base, so `payload` is `{ transaction, deposit_address }`, the NEAR deposit's transaction and the 1Click deposit address. The paywall asks the stand-in (`ONECLICK_BASE_URL`) about the deposit. It needs all of these:
   - the delivery is reported as `SUCCESS`;
@@ -106,7 +106,7 @@ Each transaction unlocks the data once, even when two requests carrying it arriv
 2. Find the rules. `pnpm agent` reads the wallet's `mandate_hash` from `get_config` before each run. The agent then fetches that text with `GET /api/mandates/:text_hash` and checks it hashes to `mandate_hash`. If the API has no text for it, it stores the known demo text, but only if that hashes to the wallet's.
 3. Work out the payment.
    - **NEAR routes:** an `ft_transfer` on the 402's token, to its payee, for its amount.
-   - **Base routes:** `POST /api/quote` with `{ token, amount, dest_chain, dest_asset, recipient }`, paid in wNEAR. The answer is an `ft_transfer` of the quoted amount to the 1Click deposit address, expiring before the quote's deadline; the agent never picks the deposit address. A refused quote ends the run unpaid.
+   - **Base routes:** `POST /api/quote` with `{ token, amount, dest_chain, dest_asset, recipient }`, paid in wNEAR on testnet and USDC on mainnet. The answer is an `ft_transfer` of the quoted amount to the 1Click deposit address, expiring before the quote's deadline; the agent never picks the deposit address. A refused quote ends the run unpaid.
 4. `propose` it on the wallet with its own key.
 5. `POST /api/verdict` with the proposal id and the 402 body unparsed as `context`, so the judge sees it as quoted data (and the `quote_id` on Base routes).
 6. `execute` with the verdict, `DENY` included: the wallet's refusal is the proof. After a successful `execute` it reports the transaction with `POST /api/executed`.

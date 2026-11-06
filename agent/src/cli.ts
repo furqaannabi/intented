@@ -6,6 +6,7 @@
 // It pays from CONTRACT_ACCOUNT_ID with AGENT_ACCOUNT_ID's function-call key, AGENT_PRIVATE_KEY: the agent sends its
 // own propose and execute, and the API only judges.
 
+import { KNOWN_TOKENS } from "@intented/firewall-core";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +16,8 @@ import { walletAgent } from "./wallet.js";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = join(root, "..", ".env");
 if (existsSync(envPath)) process.loadEnvFile(envPath);
+/** USDC on NEAR mainnet, from firewall-core's token table, so it is the contract the judge and the wallet know. */
+const MAINNET_USDC = KNOWN_TOKENS.mainnet.find((t) => t.symbol === "USDC")!.contract;
 const env = (k: string) => process.env[k] || (() => { throw new Error(`${k} must be set`); })();
 
 // The demo wallet's original rules: stored if a fresh API has no text for the wallet's hash and this one matches it.
@@ -57,7 +60,8 @@ const result = await runAgent(`${paywallUrl}/${route}/market-data`, {
   agent: walletAgent({ key: { walletId, privateKey: env("AGENT_PRIVATE_KEY") }, rpcUrl, agentId }),
   mandateHash: await walletMandateHash(),
   seedMandate: SEED_MANDATE,
-  payWith: process.env.NEAR_NETWORK === "mainnet" ? "wrap.near" : "wrap.testnet",
+  // What the wallet pays 1Click with: USDC on NEAR mainnet (the mainnet wallet holds USDC only), wNEAR on testnet.
+  payWith: process.env.NEAR_NETWORK === "mainnet" ? MAINNET_USDC : "wrap.testnet",
   log: (line) => console.log(`[agent] ${line}`),
 });
 console.log(result.data ? "paid and served" : `not paid: ${result.status}`);
