@@ -85,6 +85,8 @@ pnpm --dir agent agent base-poisoned   # 4 USDC to 0xbad0…0bad: DENY, refused 
 
 A paid run spends a little testnet wNEAR from the wallet, and every run a little gas from the agent's account. `make redteam` runs [the red team](#red-team).
 
+**From Claude Code, Cursor or Codex.** [`mcp/`](./mcp/README.md) is an MCP server with three tools: `intented_init` makes the agent's key and the link that creates its wallet, `intented_pay` pays through the same code as `intented pay` (propose, signed verdict, the wallet's `execute`), and `intented_status` reads the wallet's rules. Testnet and wNEAR only. The coding agent chooses what it passes as context; the check on the payment itself and the caps hold either way.
+
 ## Repo map
 
 | Path | What | Owner |
@@ -94,6 +96,7 @@ A paid run spends a little testnet wNEAR from the wallet, and every run a little
 | [`api/`](./api/) | The HTTP API, proposal storage, the 1Click module | William |
 | [`web/`](./web/) | The web app | William |
 | [`agent/`](./agent/) | The demo agent and the mock x402 paywall | William |
+| [`mcp/`](./mcp/) | Intented as an MCP server for coding agents, and a Claude Code skill | Furqaan |
 | [`redteam/`](./redteam/) | Attack and benign cases and the `make redteam` runner | William |
 | [`docs/`](./docs/README.md) | The build plan, the interface spec, the glossary, decisions | Both |
 
@@ -160,6 +163,7 @@ How the run works and how a run is published: [`redteam/README.md`](./redteam/RE
 | `api` | 74 | `pnpm test` |
 | `agent` | 34 | `pnpm test` |
 | `redteam` | 16 | `pnpm test` |
+| `mcp` | 10, including that no tool output contains the private key | `pnpm test` |
 
 The status board is in [`docs/README.md`](./docs/README.md).
 

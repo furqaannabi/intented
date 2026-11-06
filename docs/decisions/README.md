@@ -67,6 +67,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-06 | [Accepted: the wallet factory, bounded proposals and the wallet's new methods enter the interface spec](./2026-11-06-accept-wallet-factory-and-bounded-proposals.md) | Furqaan, William |
 | 2026-11-06 | [The full protocol goes to mainnet, and factory wallets have cap ceilings](./2026-11-06-full-protocol-on-mainnet.md) (superseded the same day by the next record) | Furqaan, William |
 | 2026-11-06 | [Mainnet is one wallet; the product stays on testnet](./2026-11-06-one-mainnet-wallet.md) | Furqaan, William |
+| 2026-11-06 | [Intented as an MCP server and a skill, in a new mcp/ folder owned by Furqaan](./2026-11-06-mcp-folder.md) | Furqaan, William |
 
 ## Not decided yet
 
