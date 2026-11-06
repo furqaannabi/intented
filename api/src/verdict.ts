@@ -29,6 +29,8 @@ export interface VerdictDeps {
   /** Looks up a transaction by hash and signer, final; null if there is none. */
   readTx: (hash: string, signerId: string) => Promise<ChainTx | null>;
   limit?: typeof VERDICT_LIMIT;
+  /** Verdicts judged across all wallets in any 24 hours (VERDICT_DAILY_CAP), on top of `limit`. Unset, no daily cap. */
+  dailyCap?: number;
   quoteLimit?: typeof QUOTE_LIMIT;
 }
 

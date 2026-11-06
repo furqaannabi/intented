@@ -16,6 +16,7 @@ const MAX_MANDATE_CHARS = 2000;
 const CONTEXT_EXCERPT_CHARS = 500;
 /** Stored mandates per client and in all, per window: the owner sets one now and then. */
 const MANDATE_LIMIT = { perClient: 5, total: 30, windowMs: 60_000 };
+const DAY_MS = 24 * 60 * 60_000;
 
 /**
  * Accepted requests per key over a sliding window, plus one shared count for all keys.
@@ -146,6 +147,8 @@ export function createApp({
   // Requests for the same proposal at the same time share one answer, so the judge runs once.
   const judging = new Map<string, Promise<VerdictAnswer>>();
   const verdictLimit = windowLimiter(verdicts?.limit ?? VERDICT_LIMIT);
+  // One count for every wallet: it bounds what NEAR AI calls cost in a day, whoever asks.
+  const dailyLimit = verdicts?.dailyCap === undefined ? null : windowLimiter({ perClient: Infinity, total: verdicts.dailyCap, windowMs: DAY_MS });
   app.post("/api/verdict", async (c) => {
     if (!verdicts) return c.json({ error: "verdicts for other wallets are off on this API" }, 501);
     const req = checkVerdictRequest(await c.req.json().catch(() => null), verdicts);
@@ -277,7 +280,10 @@ export function createApp({
     // Counted per wallet, before the call: a failed judgement costs a NEAR AI call too.
     const retryAfter = verdictLimit.retryAfter(req.wallet_id, now());
     if (retryAfter) return { status: 429, body: { error: `too many verdicts for ${req.wallet_id}; try again in ${retryAfter}s` }, retryAfter };
+    const dayRetryAfter = dailyLimit?.retryAfter("", now());
+    if (dayRetryAfter) return { status: 429, body: { error: `this API's verdicts for the last 24 hours are used up; try again in ${dayRetryAfter}s` }, retryAfter: dayRetryAfter };
     verdictLimit.record(req.wallet_id, now());
+    dailyLimit?.record("", now());
 
     const p = store.createProposal({
       ...form, wallet_id: req.wallet_id, chain_proposal_id: req.proposal_id, ...(quote ? { cross_chain: quote.cross_chain, oneclick: quote.oneclick } : {}),

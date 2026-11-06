@@ -41,6 +41,10 @@ const quoteKey = network === "mainnet"
 // The factory whose wallets POST /api/verdict judges for, besides the API's own wallet. Mainnet has none: only the own wallet.
 const factoryId = process.env.FACTORY_ACCOUNT_ID || (network === "testnet" ? "intented.testnet" : undefined);
 
+// Verdicts across all wallets in any 24 hours, for mainnet, where each one is a paid NEAR AI call. Unset, no daily cap.
+const dailyCap = process.env.VERDICT_DAILY_CAP ? Number(process.env.VERDICT_DAILY_CAP) : undefined;
+if (dailyCap !== undefined && !(Number.isInteger(dailyCap) && dailyCap > 0)) throw new Error("VERDICT_DAILY_CAP must be a whole number above 0");
+
 const store = openStore(process.env.DATABASE_PATH || join(root, "intented.db"), walletId);
 const judge = createJudge({ apiKey: env("NEAR_AI_API_KEY"), model, network });
 const expected = { model, promptHash: createHash("sha256").update(systemPrompt(network), "utf8").digest("hex") };
@@ -74,6 +78,7 @@ const app = createApp({
     ownWalletId: walletId,
     settle: (id) => pipeline.settle(id),
     readTx: createTxReader(rpcUrl),
+    dailyCap,
   },
 });
 
@@ -82,5 +87,6 @@ const port = Number(process.env.PORT || 8787);
 serve({ fetch: app.fetch, port }, () => {
   log(`api on :${port}, ${network}, wallet ${walletId}, model ${model}`);
   log(factoryId ? `verdicts on for ${walletId} and <label>.${factoryId}` : `verdicts on for ${walletId} only: no FACTORY_ACCOUNT_ID`);
+  log(dailyCap ? `at most ${dailyCap} verdicts in any 24 hours` : "no daily verdict cap: set VERDICT_DAILY_CAP on mainnet");
   log(quoteKey ? `cross-chain on: quotes from ${process.env.ONECLICK_BASE_URL || "1Click"}, signed by ${quoteKey}` : "cross-chain off: set ONECLICK_BASE_URL and ONECLICK_STANDIN_PUBLIC_KEY (testnet stand-in)");
 });

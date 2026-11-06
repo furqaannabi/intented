@@ -31,7 +31,7 @@ function chainWallet(now: number) {
   };
 }
 
-function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable<V>["limit"] : never; factoryId?: string | null } = {}) {
+function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable<V>["limit"] : never; dailyCap?: number; factoryId?: string | null } = {}) {
   const now = Date.now();
   const store = openStore(":memory:");
   store.createMandate(RULES, RULES_HASH);
@@ -67,6 +67,7 @@ function setup(opts: { limit?: AppDeps["verdicts"] extends infer V ? NonNullable
       return t && t.signer_id === signerId ? t : null;
     },
     limit: opts.limit,
+    dailyCap: opts.dailyCap,
   };
   const app = createApp({
     store, network: "testnet", model: "m", attestationUrls: {}, redteam: () => null, verdicts, now: () => now,
@@ -149,6 +150,26 @@ describe("POST /api/verdict", () => {
     const res = await ask({ wallet_id: WALLET, proposal_id: 2, context: "" });
     expect(res.status).toBe(429);
     expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(judged).toHaveLength(2);
+    // A verdict already given isn't a new judgement, so it's still answered.
+    expect((await ask({ wallet_id: WALLET, proposal_id: 0, context: "" })).status).toBe(200);
+  });
+
+  it("judges at most `dailyCap` proposals across all wallets in 24 hours, then answers 429 with Retry-After", async () => {
+    const { ask, judged, wallets, now } = setup({ dailyCap: 2 });
+    const w = wallets.get(WALLET)!;
+    const first = w.proposals.get(0) as { action: { nonce: string } };
+    w.proposals.set(1, { ...first, action: { ...first.action, nonce: String(BigInt(first.action.nonce) + 1n) } });
+    const other = "bob.intented.testnet";
+    wallets.set(other, chainWallet(now));
+
+    expect((await ask({ wallet_id: WALLET, proposal_id: 0, context: "" })).status).toBe(200);
+    expect((await ask({ wallet_id: other, proposal_id: 0, context: "" })).status).toBe(200);
+    const res = await ask({ wallet_id: WALLET, proposal_id: 1, context: "" });
+    expect(res.status).toBe(429);
+    expect((await res.json()).error).toMatch(/24 hours/);
+    // The first of the two leaves the window a day after it was judged.
+    expect(Number(res.headers.get("retry-after"))).toBe(24 * 60 * 60);
     expect(judged).toHaveLength(2);
     // A verdict already given isn't a new judgement, so it's still answered.
     expect((await ask({ wallet_id: WALLET, proposal_id: 0, context: "" })).status).toBe(200);

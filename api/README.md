@@ -12,7 +12,7 @@ pnpm start      # http://localhost:8787
 pnpm test
 ```
 
-It reads `NEAR_NETWORK`, `NEAR_RPC_URL`, `NEAR_AI_API_KEY`, `NEAR_AI_MODEL`, `CONTRACT_ACCOUNT_ID`, `FACTORY_ACCOUNT_ID` (default `intented.testnet` on testnet; unset on mainnet, where the API judges only `CONTRACT_ACCOUNT_ID`), `WEB_ORIGINS`, `TRUST_PROXY`, `DATABASE_PATH`, `PORT`, and for 1Click `ONECLICK_JWT`, `ONECLICK_BASE_URL` and, off mainnet, `ONECLICK_STANDIN_PUBLIC_KEY`. It holds no NEAR key and sends no transactions. It logs proposal ids, statuses and transaction hashes, never keys, tokens or prompts.
+It reads `NEAR_NETWORK`, `NEAR_RPC_URL`, `NEAR_AI_API_KEY`, `NEAR_AI_MODEL`, `CONTRACT_ACCOUNT_ID`, `FACTORY_ACCOUNT_ID` (default `intented.testnet` on testnet; unset on mainnet, where the API judges only `CONTRACT_ACCOUNT_ID`), `VERDICT_DAILY_CAP` (verdicts across all wallets in any 24 hours; unset, no daily cap; set it on mainnet), `WEB_ORIGINS`, `TRUST_PROXY`, `DATABASE_PATH`, `PORT`, and for 1Click `ONECLICK_JWT`, `ONECLICK_BASE_URL` and, off mainnet, `ONECLICK_STANDIN_PUBLIC_KEY`. It holds no NEAR key and sends no transactions. It logs proposal ids, statuses and transaction hashes, never keys, tokens or prompts.
 
 ## Endpoints
 

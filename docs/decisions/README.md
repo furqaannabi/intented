@@ -69,6 +69,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-06 | [Mainnet is one wallet; the product stays on testnet](./2026-11-06-one-mainnet-wallet.md) | Furqaan, William |
 | 2026-11-06 | [The mainnet site is a second build of the web app: the network is a build setting](./2026-11-06-minimal-mainnet-with-a-network-switch.md) | William |
 | 2026-11-06 | [Intented as an MCP server and a skill, in a new mcp/ folder owned by Furqaan](./2026-11-06-mcp-folder.md) | Furqaan, William |
+| 2026-11-06 | [The API caps verdicts across all wallets in any 24 hours, set by VERDICT_DAILY_CAP](./2026-11-06-daily-verdict-cap.md) | William |
 
 ## Not decided yet
 
