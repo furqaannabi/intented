@@ -4,7 +4,7 @@ What is done after phase 1 (1–6 November), and the plan for phase 2 (7–14 No
 
 > **Where we are.** The whole flow runs on NEAR testnet. An agent proposes a payment, a model in a TEE on NEAR AI Cloud judges it against the owner's mandate and signs the verdict, and the wallet contract pays only on a valid signed `ALLOW` within its caps. The honest payment and the attack, both NEAR-native and cross-chain to Base, have transaction hashes. Anyone can make a wallet through the factory. The API holds no NEAR key. All 369 tests pass.
 >
-> **What phase 2 is.** Integration in the UI, the loose ends below, the Claude Code and Cursor integration (an MCP server and a skill, agreed 6 November, first to cut), the full protocol on mainnet on 11 November with cap ceilings ([record](./decisions/2026-11-06-full-protocol-on-mainnet.md)), then the video, the freeze and the submission.
+> **What phase 2 is.** Integration in the UI, the loose ends below, the Claude Code and Cursor integration (an MCP server and a skill, agreed 6 November, first to cut), one wallet on mainnet on 11 November for the real 1Click payment and a refused attack, while the product stays on testnet ([record](./decisions/2026-11-06-one-mainnet-wallet.md)), then the video, the freeze and the submission.
 
 ## 1. What is done
 
@@ -58,10 +58,10 @@ What the README says now, which phase 2 must not overstate:
 | Day | Work | Gate |
 | --- | --- | --- |
 | **Sat 7 Nov**, integration day | The full flow in the UI on testnet: a new wallet made from the Create page with `intented init`'s key, rules set, an honest payment and the attack, receipts in Activity. Fix the loose ends above. Settle the MCP decision (section 4) | The flow works from a fresh browser |
-| **Sun 8 Nov** | Furqaan: the cap ceilings in the wallet and the factory, test-first; then the MCP server and the skill in `mcp/`, one tool at a time. William: `intented init` and `pay` on mainnet, the mainnet API with its daily verdict limit, the notice on Create | The ceilings' spec rows agreed |
-| **Mon 9 Nov** | Check the MCP by hand in Claude Code and Cursor; record a coding agent tricked into paying and the wallet refusing. The ceilings live on the testnet factory. The read-only preflight again (first run 6 November: signer unchanged, 1Click's key verifies live quotes, mainnet prompt hash computed) | The checks pass, or a fix is planned |
+| **Sun 8 Nov** | Furqaan: the MCP server and the skill in `mcp/`, checked by hand in Claude Code. William: the mainnet API with a daily verdict cap, the "Testnet \| Mainnet" switch and the small mainnet site | |
+| **Mon 9 Nov** | Check the MCP by hand in Claude Code and Cursor; record a coding agent tricked into paying and the wallet refusing. The read-only preflight again (first run 6 November: signer unchanged, 1Click's key verifies live quotes, mainnet prompt hash computed) | The checks pass, or a fix is planned |
 | **Tue 10 Nov** | **Feature-complete on testnet.** Rerun the red team only if the prompt or model changed | Nothing new after today but fixes |
-| **Wed 11 Nov** | **Mainnet**, following [the runbook](./mainnet-runbook.md): the factory at `intented.near`, the demo wallet `demo.intented.near` made by it (no full-access key), 1Click's real key, funding within the $20–50 budget, the mainnet API and site, one allowed and one refused payment, the real $2 1Click payment (KT4), and a cap above the ceiling refused | **A yes from both owners before any step** |
+| **Wed 11 Nov** | **Mainnet**, following [the runbook](./mainnet-runbook.md): `wallet.intented.near` via `deploy-wallet.sh`, 1Click's real key, 5 USDC within the $20–50 budget, the real $2 payment to Base through 1Click (KT4) and the Base attack refused on chain, then the full-access key deleted | **A yes from both owners before any step** |
 | **Thu 12 Nov** | Video and X post (William). A final README pass with the mainnet hashes, every claim checked against the code (both) | |
 | **Fri 13 Nov** | **Feature freeze.** Fresh-clone test: clone, install, run every test and one demo from the README alone | A stranger could follow the README |
 | **Sat 14 Nov** | **Submit once**, by 20:00 IST (hard deadline 23:59 UTC). Furqaan fills in the form | Irreversible |

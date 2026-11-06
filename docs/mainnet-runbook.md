@@ -1,22 +1,24 @@
 # Mainnet runbook, 11 November
 
-Every step to put the full protocol on NEAR mainnet: the factory at `intented.near`, the demo wallet `demo.intented.near` made by it, and the mainnet API, site and agent. Then one allowed and one refused payment, with transaction hashes, and the real $2 payment through 1Click (KT4). Why the full protocol: [the record](./decisions/2026-11-06-full-protocol-on-mainnet.md).
+Every step to put one Intented wallet on NEAR mainnet and pay through it: the real $2 payment to Base through 1Click (KT4), and one attack the wallet refuses on chain, with transaction hashes. Why only one wallet: [the record](./decisions/2026-11-06-one-mainnet-wallet.md). The product stays on testnet.
 
-Owner of the runbook: Furqaan. **Nothing here runs before both Furqaan and William say yes, and a person, not an agent, runs every step that moves money.** Budget: $20–50 in all.
+Owner of the runbook: Furqaan. **Nothing here runs before both Furqaan and William say yes on the day. A person, not an agent, runs every step that moves money.** Budget: $20–50 in all.
 
-Written 6 November; rewritten the same day for the factory. The preflight first ran on 6 November (results below) and runs again on 9 November. The transaction hashes are filled in on the day.
+Written 6 November. The preflight first ran on 6 November (results below) and runs again on 9 November. The transaction hashes are filled in on the day.
 
-## 0. Before 11 November
+## 0. To settle before 11 November
 
-| Item | State | Who |
+| Item | Proposed | Who |
 | --- | --- | --- |
-| Cap ceilings in the wallet and the factory, tested, with spec rows agreed | Proposed; to build by 9 Nov | Furqaan, William's yes on the rows |
-| The ceilings' numbers (USDC and USDt 5 a payment, 20 a day; wNEAR from the day's price; NEAR 1 yocto and 100 yocto) | Proposed | Both |
-| Who holds `intented.near`'s key, and who holds `intented-owner.near`'s and `intented-vendor.near`'s | To settle; keys in the password manager | Both |
-| The mainnet mandate for the demo wallet: the vendor account, the vendor's Base address, USDC, the per-payment limit | To write, in the testnet mandate's shape | Both |
-| `intented init` and `intented pay` on mainnet (today they are testnet only) | To build | William |
-| The mainnet API: `NEAR_NETWORK=mainnet`, `FACTORY_ACCOUNT_ID=intented.near`, `CONTRACT_ACCOUNT_ID=demo.intented.near`, `ONECLICK_JWT`, no stand-in, a daily verdict limit | To build and host | William |
-| The mainnet site: the "unaudited, small amounts" notice on Create, with the ~3.8 NEAR storage cost per wallet | To build | William |
+| Accounts | `intented.near` (ours, exists, empty) creates `wallet.intented.near`. Separate accounts `intented-owner.near`, `intented-agent.near`, `intented-vendor.near` (all free on 6 November) | Both |
+| Who holds which key | `intented.near`, the owner and the vendor: the password manager. The agent's function-call key: the machine the demo agent runs on. The wallet's full-access key: deleted at step 9 | Both |
+| Token and caps | USDC on NEAR (`17208628…33a1`, 6 decimals). 5 USDC per payment, so the attack fits under the cap and is refused by the verdict, not the cap. 10 USDC per day. NEAR caps: 1 yocto per action, 100 a day | Both |
+| The mandate | Names the vendor's Base address and `intented-vendor.near`, USDC, at most 5 USDC a call, in the testnet mandate's shape | Both |
+| The cross-chain recipient list | The vendor's Base address only. The attack's receipt then shows the model's signed `DENY`, and the wallet's on-chain refusal by the list, as on testnet (`DbLMFYWs…`) | Both |
+| The payments | The honest one: 2 USDC to the vendor on Base. The attack: 4 USDC to `0xbad0…0bad` on Base, under the cap | William (the paywall), both |
+| The mainnet API | `NEAR_NETWORK=mainnet`, `CONTRACT_ACCOUNT_ID=wallet.intented.near`, `ONECLICK_JWT`, no stand-in, a daily verdict cap | William |
+| The mainnet site | The "Testnet \| Mainnet" switch; only this wallet; Create hidden; mainnet nearblocks links | William |
+| The demo agent on mainnet | `AGENT_ACCOUNT_ID=intented-agent.near` and its key, `NEAR_NETWORK=mainnet`, the mainnet API | William |
 
 ## 1. Preflight (9 November, read-only)
 
@@ -24,79 +26,57 @@ Nothing here writes to mainnet.
 
 | Check | Command | Pass |
 | --- | --- | --- |
-| Every test passes | `cargo test` in `contract/wallet` and `contract/factory`; `pnpm test` in `firewall-core`, `api`, `agent`, `redteam` | 0 failures |
+| Every test passes | `cargo test` in `contract/wallet` and `contract/factory`; `pnpm test` in `firewall-core`, `api`, `agent`, `redteam`, `mcp` | 0 failures |
 | The signer hasn't rotated | `cd firewall-core && pnpm attest` (no `--register`) | Every check passes; the signer is `0x835ab53d…aa26`, or a new one is noted. 6 Nov: verified, TDX up to date, report_data binds signer and nonce, NVIDIA GPU attestation true, same signer |
 | The mainnet prompt hash | `sha256(systemPrompt("mainnet"))`, the one-liner in `deploy-wallet.sh` | 6 Nov: `1fe49a467647885272f88f5983fab39cc43f6469225ec96033bd50e8be30706f` (testnet's is `2c738124…7f1ec6`, as on `intented-wallet.testnet`). It changes if the prompt or the mainnet token table changes |
 | 1Click's real key signs real quotes | A mainnet quote from 1Click, checked with `verifyQuote` in `firewall-core/scripts/oneclick-quote.ts` against `ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc` | 6 Nov: 2 USDC on NEAR to 2 USDC on Base, exact output, `amountIn` 2022925; the dry and the live quote both verify, and the live one's signed payload includes its `depositAddress` |
-| The builds are the tested code | `cargo near build non-reproducible-wasm` in `contract/wallet` and `contract/factory`; `shasum -a 256` of each wasm | Hashes written here: wallet `<to fill>`, factory `<to fill>` |
-| Secrets | `git log -p` searched for private keys (`ed25519:` followed by 80+ base58 characters) and the JWT's prefix | None in history |
+| The build is the tested code | `cd contract/wallet && cargo near build non-reproducible-wasm && shasum -a 256 target/near/intented_wallet.wasm` | Hash written here: `<to fill>` |
+| Secrets | `git log -p` searched for private keys (`ed25519:` and 80+ base58 characters) and the JWT's prefix | None in history |
 
-## 2. Accounts (both say yes first)
+## 2. Accounts and NEAR (both say yes first)
 
-1. `intented.near` exists and is ours, with no contract and no balance. Fund it with about **4 NEAR**: about 3.4 NEAR to store the wallet code (330 KB), plus its own code and state.
-2. Create `intented-owner.near` (the demo wallet's owner) with about **5 NEAR**: the demo wallet's deposit of about 3.8 NEAR, plus gas and token storage. Create `intented-vendor.near` with a little NEAR for storage.
+1. Fund `intented.near` and create `wallet.intented.near` from it with about **4 NEAR**: about 3.4 NEAR to store the code (330 KB), plus state.
+2. Create `intented-owner.near` with about 1 NEAR for gas and token storage, `intented-agent.near` with about 0.5 NEAR for gas, and `intented-vendor.near` with a little.
 3. Keys go to the keychain and the password manager. Nothing goes in the repo.
+4. **Once step 9 deletes the wallet's full-access key, its storage NEAR can't be recovered.** `withdraw` returns only NEAR above what storage needs.
 
-## 3. Deploy the factory
+## 3. Deploy and configure
 
 ```sh
-cd contract/wallet && cargo near build non-reproducible-wasm
-cd ../factory && cargo near build non-reproducible-wasm
-near contract deploy intented.near use-file target/near/intented_factory.wasm \
-  with-init-call new json-args "$(printf '{"code":"%s","ceilings":%s}' \
-    "$(base64 < ../wallet/target/near/intented_wallet.wasm | tr -d '\n')" "$CEILINGS_JSON")" \
-  prepaid-gas '300 Tgas' attached-deposit '0 NEAR' network-config mainnet sign-with-keychain send
+WALLET_ID=wallet.intented.near OWNER_ID=intented-owner.near AGENT_ID=intented-agent.near \
+MODEL=Qwen/Qwen3.8-27B NETWORK=mainnet CONFIRM_MAINNET=yes \
+TOKEN_ID=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1 \
+TOKEN_PER_TX=5000000 TOKEN_DAILY=10000000 \
+MANDATE_TEXT="<the mainnet mandate from section 0>" \
+contract/wallet/scripts/deploy-wallet.sh
 ```
 
-`CEILINGS_JSON` holds the numbers from section 0. The `new` arguments are the ceilings design's; they follow the spec rows once those are agreed.
+It builds, deploys with `new`, sets the mainnet prompt hash, the USDC token and caps, the receiver allowlist, the NEAR caps and the mandate. It then verifies the model's attestation off chain and registers its signer (`pnpm attest --register`).
 
 Check:
-- `get_code_hash` equals base58 of the wallet wasm's sha256 from step 1.
-- The ceilings view shows the agreed numbers.
-- `get_min_deposit` is about 3.8 NEAR.
+- `get_config` shows the model, the prompt hash from step 1, the mandate hash, the signer and the NEAR caps.
+- `get_token` shows USDC and its caps.
+- The account's `code_hash` is base58 of the wasm hash from step 1.
 
-## 4. Create the demo wallet
-
-1. On the machine the demo agent runs on: `pnpm intented init demo` (mainnet). It saves the agent's key there and prints the public key and the Create link.
-2. The owner opens the link on the mainnet site and signs `create`, or signs it with near-cli:
+## 4. Cross-chain settings (owner)
 
 ```sh
-near contract call-function as-transaction intented.near create json-args '{
-  "name": "demo", "model_id": "Qwen/Qwen3.8-27B",
-  "setup": { "signer": "0x835ab53d20294ef795906dff21ae4c045336aa26",
-             "prompt_hash": "<mainnet prompt hash from step 1>",
-             "mandate_hash": "<sha256 of the mainnet mandate>",
-             "token_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
-             "token": { "symbol": "USDC", "decimals": 6, "caps": { "per_tx": "2000000", "daily": "5000000" } },
-             "near_caps": { "per_tx": "1", "daily": "100" } },
-  "agent_key": "ed25519:<from intented init>", "agent_allowance": "500000000000000000000000" }' \
-  prepaid-gas '300 Tgas' attached-deposit '<get_min_deposit> yoctoNEAR' \
-  sign-as intented-owner.near network-config mainnet sign-with-keychain send
-```
-
-Check:
-- `get_wallets({"owner_id": "intented-owner.near"})` lists `demo.intented.near`.
-- `list-keys demo.intented.near` shows only the agent's function-call key, and no full-access key.
-- The account's `code_hash` equals the factory's.
-- `get_config` shows the signer, the mainnet prompt hash, the mandate hash, the caps and the ceilings.
-
-Before registering the signer through `new_with`, the attestation is checked off chain. Step 1's `pnpm attest` is that check.
-
-## 5. Cross-chain settings (owner)
-
-```sh
-W=demo.intented.near; O=intented-owner.near
+W=wallet.intented.near; O=intented-owner.near
 call() { near contract call-function as-transaction $W "$1" json-args "$2" prepaid-gas '30 Tgas' attached-deposit '0 NEAR' sign-as $O network-config mainnet sign-with-keychain send; }
 call set_one_click_key '{"public_key":"ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc"}'
 call set_cross_chain '{"enabled":true}'
 call allow_cross_chain_recipient '{"address":"<the vendor Base address, lowercase>"}'
 ```
 
-Check: `get_config` shows 1Click's real key, cross-chain on and the one recipient.
+Check: `get_config` shows 1Click's real key, cross-chain on, and the one recipient.
+
+## 5. The agent's key
+
+On the machine the demo agent runs on, make a key pair. Add only its public key to `intented-agent.near` as a function-call key for `propose` and `execute` on `wallet.intented.near`; `deploy-wallet.sh` prints the command at the end. The private key never leaves that machine.
 
 ## 6. Token storage and funding
 
-1. Register `demo.intented.near` and `intented-vendor.near` on USDC: `storage_deposit` with `{"account_id": "<id>", "registration_only": true}` and 0.00125 NEAR attached, signed by the owner.
+1. Register `wallet.intented.near` and `intented-vendor.near` on USDC: `storage_deposit` with `{"account_id": "<id>", "registration_only": true}` and 0.00125 NEAR attached, signed by the owner.
 2. The owner sends the wallet **5 USDC**.
 3. Check: `ft_balance_of` for the wallet returns `5000000`.
 
@@ -104,35 +84,45 @@ Check: `get_config` shows 1Click's real key, cross-chain on and the one recipien
 
 1. William starts the mainnet API and site with the settings from section 0.
 2. Store the mandate text with `POST /api/mandate`, then check that `GET /api/mandates/<hash>` hashes to the wallet's `mandate_hash`.
-3. Check that the Create page shows the notice and the storage cost.
+3. Check that the switch shows the mainnet wallet's rules, and that its links go to mainnet nearblocks.
 
 ## 8. The payments
 
-Run the demo agent against `demo.intented.near` and the mainnet API, with the paywall.
+`pnpm agent base` and `pnpm agent base-poisoned`, against the mainnet wallet and API.
 
 | # | Payment | Expected | Hash |
 | --- | --- | --- | --- |
-| 1 | Honest, NEAR-native: 0.10 USDC to `intented-vendor.near` | `ALLOW`; the vendor's USDC rises by 100000 | `<to fill>` |
-| 2 | Poisoned: 10× to an attacker account, under the cap | `DENY`; `execute` refused, "verdict is not ALLOW"; no transfer | `<to fill>` |
-| 3 | Honest through 1Click (KT4): 2 USDC to the vendor's Base address | `ALLOW`; the transfer to 1Click's deposit address; 1Click reports `SUCCESS` with a Base transaction | `<to fill>`, Base `<to fill>` |
-| 4 | Poisoned through 1Click, to an address the mandate doesn't name | `DENY`, or refused by the recipient list; no transfer | `<to fill>` |
-| 5 | Ceiling: the owner tries `set_token` with a per-payment cap above the ceiling | Refused by the wallet | `<to fill>` |
+| 1 | Honest through 1Click (KT4): 2 USDC to the vendor's Base address | `ALLOW`; about 2.02 USDC to 1Click's deposit address; 1Click reports `SUCCESS` with a Base transaction; the vendor's Base USDC rises by 2 | `<to fill>`, Base `<to fill>` |
+| 2 | The attack: 4 USDC to `0xbad0…0bad` on Base, under the cap | `DENY`; `execute` refused on chain; no transfer | `<to fill>` |
 
-Check after each: the receipt in Activity shows the reason, the signer, the signature and the transaction. Payment 3 is the first real 1Click delivery. If 1Click fails to deliver, the README says so plainly, and payments 1 and 2 carry the demo.
+**Fallback, only if 1Click doesn't deliver:** `pnpm agent honest` (0.10 USDC to `intented-vendor.near`) and `pnpm agent poisoned`. Same checks. The README then says plainly that the 1Click delivery failed.
 
-## 9. Record it
+After each payment, check its receipt on the mainnet site: the reason, the signer, the signature and the transaction.
 
-1. Write a decision record, `docs/decisions/2026-11-11-mainnet.md`: the accounts, both wasm hashes, the ceilings, the signer, every transaction hash, and what was spent.
-2. Update the README's Status with the mainnet hashes and the ceilings as the contract enforces them. Change "Not done: the first real payment on mainnet, through 1Click itself" to what actually happened.
+## 9. Delete the wallet's full-access key
+
+Only after steps 3–8 are checked, and both say yes:
+
+```sh
+near account list-keys wallet.intented.near network-config mainnet now
+near account delete-keys wallet.intented.near public-keys '<the full-access public key>' network-config mainnet sign-with-keychain send
+near account list-keys wallet.intented.near network-config mainnet now   # no full-access key left
+```
+
+After this nobody can replace the wallet's contract. The owner keeps every owner method, `freeze` and `withdraw`. A bug means withdraw and deploy a new wallet.
+
+## 10. Record it
+
+1. Write a decision record, `docs/decisions/2026-11-11-mainnet.md`: the accounts, the wasm hash, the signer, every transaction hash, and what was spent.
+2. Update the README's Status with the mainnet transactions. Change "Not done: the first real payment on mainnet, through 1Click itself" to what actually happened. It says one wallet is on mainnet, not that the product is.
 3. If the signer changed, publish the attestation report in `docs/attestations/`.
 
 ## If something fails
 
 | At | Do |
 | --- | --- |
-| Factory deploy (3) | The factory keeps its key: fix and redeploy, or `set_code`. No user wallets exist yet |
-| Wallet creation (4) | A failed batch refunds the deposit to the owner. Fix and create again with a new name |
+| Deploy or configure (3–4) | The full-access key still exists: fix and redeploy, or `freeze` while deciding |
 | Funding (6) | `withdraw` returns tokens to the owner, and it works while frozen |
-| A payment does the wrong thing (8) | `freeze` at once, then `withdraw`. Stop and write it up before anything else. Never try to fix it live. The demo wallet's code can't be changed; make a new wallet with fixed factory code |
-| 1Click doesn't deliver (8.3) | Keep the deposit hash and 1Click's status. Ask in 1Click's channel. The refund goes to the wallet, the quote's `refundTo` |
-| The factory has a bug after users create wallets | `set_code` fixes it for new wallets only. Existing owners `freeze` and `withdraw`; the README and site say so |
+| A payment does the wrong thing (8) | `freeze` at once, then `withdraw`. Stop and write it up before anything else. Never try to fix it live |
+| 1Click doesn't deliver (8.1) | Keep the deposit hash and 1Click's status, and ask in 1Click's channel. The refund goes to the wallet, the quote's `refundTo`. Run the fallback |
+| After step 9 | No redeploy is possible: withdraw, and deploy a new wallet if needed |
