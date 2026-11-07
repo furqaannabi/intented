@@ -1,0 +1,54 @@
+---
+title: "Refusals and errors"
+description: "Every message the wallet refuses with, what it means and what to do."
+---
+
+When the wallet refuses, the transaction fails with `Smart contract panicked: <message>`, and nothing moves. These are the messages, from the contract's source.
+
+## The ones you'll see
+
+| Message | Meaning | What to do |
+| --- | --- | --- |
+| `verdict is not ALLOW` | the model signed `DENY` | nothing: this is the wallet doing its job. Don't retry or reword the payment |
+| `over the per-transaction cap` | the payment is over the wallet's per-payment limit | pay less, or the owner raises the cap |
+| `over the daily cap` | today's payments (UTC) would pass the daily limit | wait for the next UTC day, or the owner raises the cap |
+| `wallet is frozen` | the owner froze it | the owner unfreezes |
+| `receiver is not allowlisted` | the agent called a contract the wallet doesn't allow, such as a token it doesn't hold | the owner allowlists it with `allow_receiver` |
+| `no caps set for this token` | the wallet has no limits for that token | the owner sets them with `set_token` |
+| `action has expired` | the proposal's `expiry_ms` passed before `execute` | propose again |
+| `nonce already used` | this nonce already executed | use a new nonce |
+| `proposal is not pending` | it already executed, failed or was pruned | propose again |
+| `32 proposals are pending; prune expired ones first` | too many open proposals | call `prune` with expired ones |
+| `signer is not allowlisted` | the verdict was signed by a key the owner hasn't allowlisted | check the API judges with the wallet's model; the owner registers the signer only after checking its attestation |
+| `recipient is not on the cross-chain recipient list` | a Base payment to an address the owner didn't list | the owner adds it, if the rules name it |
+| `cross-chain payments are off` | the owner's cross-chain switch is off | the owner calls `set_cross_chain(true)` |
+| `agent only` | `propose` or `execute` came from another account | sign with the agent's key on the wallet |
+| `owner only` | an owner method came from another account | sign as the owner |
+
+## The request doesn't match
+
+These mean the verdict was for something other than this proposal, under these rules, from this judge. The Intented API never produces them for a proposal it read from the chain; they show a verdict being replayed or tampered with.
+
+`request mandate is not the registered mandate` · `request system prompt is not the registered prompt` · `request model is not the wallet's model` · `request action is not the proposal's action` · `request args are not the proposal's args` · `request amount is not the wallet's formatting of args.amount` · `request response_format is not the verdict schema for this action` · `request temperature must be 0` · `request must not stream` · `request must turn thinking off` · `request must have exactly two messages: system, then user` · `request is not the firewall core's shape` · `verdict is for a different action` · `verdict is not valid JSON {reason, verdict, action}` · `verdict reason is over 280 characters` · `response must have exactly one choice` · `bad signature` · `mandate not set` · `prompt hash not set`
+
+## Proposals
+
+`args_json is longer than 2048 bytes` · `method is longer than 64 characters` · `method must be an identifier` · `an action may not call the wallet itself` · `expiry_ms is more than an hour ahead` · `args are not JSON` · `no such proposal` · `token transfer amount must be a decimal string` · `token transfer amount is over u128`
+
+## Payments on Base
+
+`a cross-chain payment must be an ft_transfer` · `cross_chain.recipient must be lowercase 0x plus 40 hex characters` · `the action's expiry_ms must be earlier than cross_chain.deadline_ms` · `no 1Click key is set` · `1Click signature does not verify with the registered 1Click key` · `signed quote is dry` · `signed quote swapType is not EXACT_OUTPUT` · `signed quote recipientType is not DESTINATION_CHAIN` · `signed quote has a depositMemo` · `signed quote recipient is not cross_chain.recipient` · `signed quote destinationAsset is not cross_chain.dest_asset` · `signed quote originAsset is not the token being sent` · `signed quote amountIn is not args.amount` · `signed quote refundTo is not this wallet`
+
+## Owner calls
+
+`amount is more than the wallet's NEAR above its storage` · `amount must be positive` · `allowance must be positive` · `daily cap must be at least the per-transaction cap` · `decimals must be at most 38` · `eth_address must be 0x followed by 40 hex characters` · `public_key must be ed25519: plus a base58 32-byte key` · `text_hash must be 64 lowercase hex characters` · `model_id must be non-empty with no ':'` · `prune at most 64 proposals per call`
+
+## Gas and keys
+
+These come from NEAR, not the contract. The `intented` package turns them into plain sentences:
+
+| NEAR says | Means |
+| --- | --- |
+| `NotEnoughBalance`, `LackBalanceForState` | the wallet has no NEAR left for gas. The owner sends it NEAR |
+| `NotEnoughAllowance` | the agent's key has used up its gas allowance. The owner adds the key again with a new allowance |
+| `AccessKeyDoesNotExist` | the agent's key isn't on the wallet. The owner adds it, or run `intented init` for a new one |

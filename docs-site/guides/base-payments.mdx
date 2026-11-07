@@ -1,0 +1,42 @@
+---
+title: "Pay on Base"
+description: "Pay a USDC address on Base from a NEAR wallet, through 1Click."
+---
+
+A wallet can pay an address on Base in USDC through [1Click](https://docs.near-intents.org), NEAR Intents' cross-chain swap service. The judge sees the real Base recipient and amount, and the wallet checks 1Click's signed quote before paying.
+
+## How it works
+
+<Steps>
+  <Step title="Quote">
+    The agent asks `POST /api/quote` for what the recipient should receive: token, amount, `dest_chain: "base"`, the Base USDC asset and the recipient's address. The API gets an exact-output quote from 1Click and keeps it. It returns the deposit address and the amount to send.
+  </Step>
+  <Step title="Propose">
+    The agent proposes an `ft_transfer` of exactly that amount to the deposit address, expiring before the quote's deadline. It never picks the deposit address itself.
+  </Step>
+  <Step title="Verdict">
+    The agent asks `POST /api/verdict` with the `quote_id`. The judge request carries `cross_chain`, built by the API from its stored quote, never from the agent: the Base recipient, the amount received, the deadline and 1Click's signed quote. The judge checks the **Base recipient** against the rules, not the deposit address. One quote serves one proposal.
+  </Step>
+  <Step title="Execute">
+    Besides the usual checks, the wallet requires: cross-chain payments switched on by the owner, the recipient on its cross-chain list if the list isn't empty, and 1Click's signature on the quote verifying with the 1Click key the owner set. The signed quote ties the deposit address to the recipient, asset and amount, so the deposit address isn't the API's word.
+  </Step>
+  <Step title="Delivery">
+    1Click delivers USDC on Base. The receipt shows the delivery status and, once done, the Base transaction.
+  </Step>
+</Steps>
+
+## Set it up (owner)
+
+- `set_cross_chain(true)`: off by default.
+- `allow_cross_chain_recipient(address)`: the vendor's Base address, lowercase. With the list empty, any recipient the model allows can be paid.
+- `set_one_click_key(public_key)`: 1Click's quote-signing key.
+- Name the Base address and the token in the [rules](/concepts/rules), such as *pay 0x2ef2…49ef on Base, in USDC, at most 5 USDC per call*.
+
+## What is and isn't checked
+
+- **Checked by the wallet:** that 1Click signed this quote, for this deposit address, recipient, asset and amount, with a refund to the wallet itself.
+- **Trusted:** that 1Click then delivers on Base. The wallet can't prove delivery. It is checkable afterwards through 1Click's status for the deposit address, and a deposit to an expired quote is refunded to the wallet.
+
+<Note>
+  1Click runs on mainnet only. On testnet a stand-in plays its part, and every delivery it reports is labelled **simulated**: nothing reaches Base. The first real payment through 1Click is planned on mainnet for 11 November 2026.
+</Note>

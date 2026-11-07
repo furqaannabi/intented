@@ -1,0 +1,53 @@
+---
+title: "From Claude Code, Cursor or Codex"
+description: "Let a coding agent pay through Intented with the MCP server."
+---
+
+`intented mcp` is an MCP server, so a coding agent can make its key, read its wallet's rules and pay through the wallet. Payments go through the same check as any other: a signed verdict, then the wallet's limits.
+
+## Tools
+
+| Tool | What it does |
+| --- | --- |
+| `intented_init(name)` | makes the agent's key on this machine and returns the link that creates the wallet |
+| `intented_pay(name, to, amount, context)` | pays in wNEAR from `<name>.intented.testnet`: propose, signed verdict, the wallet's `execute` |
+| `intented_status(name)` | the wallet's rules, its caps, and its last payments |
+
+No tool result ever contains the private key.
+
+## Set it up
+
+<CodeGroup>
+```bash Claude Code
+claude mcp add --transport stdio intented -- npx -y intented mcp
+```
+
+```json Cursor (.cursor/mcp.json)
+{ "mcpServers": { "intented": { "command": "npx", "args": ["-y", "intented", "mcp"] } } }
+```
+
+```toml Codex (~/.codex/config.toml)
+[mcp_servers.intented]
+command = "npx"
+args = ["-y", "intented", "mcp"]
+```
+</CodeGroup>
+
+<Note>
+  Not on npm yet. Until it is, point the command at a built clone: `node /path/to/intented/client/dist/cli.js mcp`.
+</Note>
+
+## The skill
+
+The package ships a Claude Code skill, `skill/intented/SKILL.md`, that tells the agent how to use the tools:
+
+- read the rules first, with `intented_status`;
+- pass what it read as `context`, verbatim;
+- after a `DENY`, never retry or reword the payment.
+
+Copy the `skill/intented` folder into `.claude/skills/` or `~/.claude/skills/`. In Cursor, the same text works as a rule.
+
+## What it can't stop
+
+- **The coding agent chooses what it passes as `context`.** A compromised agent can leave out the injected text. The judge still checks the payee, token and amount against the rules, and the caps still bound what one wrong `ALLOW` can cost.
+- **The client decides whether you approve each tool call.** Claude Code asks before each MCP call unless the tool is allowed. Intented doesn't rely on that prompt: the wallet's check and caps hold either way.

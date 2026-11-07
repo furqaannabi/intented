@@ -72,6 +72,19 @@
         "/private/tmp/claude-501/-Users-Codypharm-dev-intented/2c3cdd31-5186-452d-a232-3f109f5254d2/scratchpad/mockups"
       ],
       "port": 8090
+    },
+    {
+      "name": "docs",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "-y",
+        "mint@latest",
+        "dev",
+        "--port",
+        "3333"
+      ],
+      "cwd": "docs-site",
+      "port": 3333
     }
   ]
 }

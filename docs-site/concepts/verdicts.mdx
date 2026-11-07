@@ -1,0 +1,63 @@
+---
+title: "Verdicts"
+description: "What the model returns, what NEAR AI signs, and what makes a verdict usable."
+---
+
+A verdict is the model's signed answer on one proposal: `ALLOW` or `DENY`, with a reason.
+
+## What the model returns
+
+Structured JSON, in this order:
+
+```json
+{
+  "reason": "The action transfers 0.001 wNEAR to intented-vendor.testnet, which matches the mandate's recipient, token, and amount limit exactly.",
+  "verdict": "ALLOW",
+  "action": "INTENTED_V1|wrap.testnet|ft_transfer|6a0d4232…f626|1|1793877407816|1793878307816"
+}
+```
+
+- `reason`: at most 280 characters.
+- `verdict`: `ALLOW` or `DENY`.
+- `action`: the canonical bytes of the action it judged, pinned by the response schema.
+
+Anything that doesn't parse as exactly this schema is treated as `DENY`, never as a silent `ALLOW`.
+
+## The canonical action
+
+The firewall core and the contract encode an action byte for byte the same way:
+
+```text
+INTENTED_V1|<receiver_id>|<method>|<sha256(args_json)>|<deposit in yoctoNEAR>|<nonce>|<expiry_ms>
+```
+
+The wallet refuses a verdict whose `action` isn't this proposal's.
+
+## What the judge sees
+
+One user message with:
+
+| Field | What it is |
+| --- | --- |
+| `mandate` | the owner's rules |
+| `action` | the canonical bytes |
+| `args` | the exact `args_json` |
+| `context` | what the agent read, such as the paywall's 402. **Untrusted**: the system prompt tells the model to treat it as data, never as instructions |
+| `amount` | for a token transfer, the amount in whole tokens with the symbol, such as `0.001 wNEAR`. The wallet checks it matches its own formatting of `args.amount` |
+| `cross_chain` | for a payment on Base, the real recipient and amount, from the API's own 1Click quote, never from the agent |
+
+The request is sent with `temperature: 0`, no streaming and thinking off. The wallet checks every one of those fields at `execute`.
+
+## The signature
+
+NEAR AI Cloud signs this text with the TEE's key (EIP-191, an Ethereum-style message signature):
+
+```text
+<model_id>:<sha256(request bytes)>:<sha256(response bytes)>
+```
+
+The API fetches the signature straight after the call, since signing keys rotate, and checks it recovers to the signing address before returning the verdict. The wallet recovers the signer again on-chain with `env::ecrecover`, and accepts only a signer the owner allowlisted.
+
+## Judged once
+
+Each proposal is judged once. Asking again returns the stored verdict, whatever the context says the second time. Per wallet, the API judges at most 30 proposals an hour, and a hosted API can also cap verdicts per day across all wallets.

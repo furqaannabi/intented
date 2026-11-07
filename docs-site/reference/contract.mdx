@@ -1,0 +1,60 @@
+---
+title: "Wallet contract"
+description: "Every method of the Intented wallet contract, who may call it, and what execute checks."
+---
+
+The wallet is a NEAR smart contract written with near-sdk-rs. Source: [`contract/wallet`](https://github.com/furqaannabi/intented/tree/main/contract/wallet).
+
+## Methods
+
+| Method | Who may call |
+| --- | --- |
+| `propose(action, args_json) -> proposal_id` | the agent's function-call key |
+| `execute(proposal_id, req_bytes, resp_bytes, sig_65)` | the agent's function-call key |
+| `set_mandate(text_hash)` · `set_prompt_hash(text_hash)` · `set_model_id(model_id)` | owner |
+| `register_signer(eth_address)` · `revoke_signer(eth_address)` | owner |
+| `allow_receiver(receiver_id)` · `disallow_receiver(receiver_id)` | owner |
+| `set_token(token_id, { symbol, decimals, caps: { per_tx, daily } })` · `set_near_caps({ per_tx, daily })` | owner |
+| `set_cross_chain(enabled)` · `allow_cross_chain_recipient(address)` · `disallow_cross_chain_recipient(address)` · `set_one_click_key(public_key)` | owner |
+| `freeze()` · `unfreeze()` | owner |
+| `withdraw(token_id?, amount)` | owner. Unjudged; works while frozen |
+| `add_agent_key(public_key, allowance)` · `remove_agent_key(public_key)` | owner |
+| `prune(proposal_ids)` | anyone for executed, failed or expired-pending proposals; the owner also for any pending one; at most 64 ids |
+| `get_config()` · `get_token(token_id)` · `get_proposal(proposal_id)` | anyone (views) |
+| `new(owner_id, agent_id, model_id)` · `new_with(owner_id, agent_id, model_id, setup)` | init, once |
+
+`add_agent_key` adds a function-call key on the wallet's own account, scoped to `propose` and `execute`, with a positive gas allowance. Never a full-access key. `withdraw` with no `token_id` sends NEAR above what the wallet's storage needs.
+
+## propose
+
+Requires `sha256(args_json) == action.args_sha256`. Refuses `args_json` over 2,048 bytes, a method over 64 characters, an action whose `receiver_id` is the wallet itself, an `expiry_ms` more than an hour ahead, and a proposal while 32 are pending.
+
+## execute
+
+Succeeds only when every check passes:
+
+1. The caller is the agent and the proposal is pending.
+2. The wallet is not frozen.
+3. The receiver is on the allowlist.
+4. The nonce is unused.
+5. The action has not expired.
+6. The request is exactly the firewall core's judge request: no other fields, no duplicate keys, the wallet's `model_id`, the registered prompt hash, the owner's mandate hash, this proposal's canonical bytes and args, and for a token transfer the wallet's own formatting of the amount. A request with `cross_chain` also needs the [cross-chain checks](#cross-chain-checks).
+7. The verdict is exact JSON for this action, and it is `ALLOW`.
+8. `model_id + ":" + sha256(req) + ":" + sha256(resp)` (EIP-191, recovered with `env::ecrecover`) recovers an allowlisted signer.
+9. The NEAR deposit is within its per-transaction and daily caps; for `ft_transfer` and `ft_transfer_call`, the token has caps set and the amount is within them. The daily window is the UTC day.
+
+A callback then marks the proposal `executed` or `failed`.
+
+### Cross-chain checks
+
+- the method is `ft_transfer`, and `cross_chain.deposit_address` equals `args.receiver_id`;
+- `cross_chain.recipient` is lowercase `0x` plus 40 hex characters;
+- `expiry_ms` is earlier than `cross_chain.deadline_ms`;
+- the owner's cross-chain switch is on (off by default);
+- if the owner's cross-chain recipient list is not empty, the recipient is on it;
+- the owner has set a 1Click key, and `signed_quote.signature` verifies over `base58(sha256(signed_quote.payload))` with it;
+- the payload is not dry, is `EXACT_OUTPUT` to `DESTINATION_CHAIN`, has no `depositMemo`, its deposit address, recipient, destination asset, origin asset and `amountIn` match the proposal, and `refundTo` is the wallet itself.
+
+## Wallet factory (testnet)
+
+`intented.testnet` makes `<name>.intented.testnet` in one `create` call with a deposit of at least `get_min_deposit()` (about 3.8 NEAR on 7 November 2026): it creates the account, deploys the stored code, calls `new_with` with the caller as owner, and adds the agent's key if given. It adds no full-access key. If the batch fails, the deposit is refunded. `get_code_hash()` returns the code's hash in the form NEAR shows as an account's `code_hash`, so you can check a wallet runs the published code.

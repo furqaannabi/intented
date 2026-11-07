@@ -1,0 +1,50 @@
+---
+title: "How it works"
+description: "The agent proposes, a model in a TEE judges, the contract checks everything before paying."
+---
+
+Four parts take part in every payment: the **agent**, the **Intented API**, **NEAR AI Cloud**, and the **wallet contract**.
+
+<Steps>
+  <Step title="The agent proposes">
+    The agent calls `propose(action, args_json)` on its wallet with its own function-call key. That key can call only `propose` and `execute` on the wallet, so the agent can't move funds directly. The proposal is stored on-chain and gets a `proposal_id`.
+  </Step>
+
+  <Step title="The API asks the judge">
+    The agent sends `POST /api/verdict` with the `proposal_id` and what it read, the `context`. The API reads the proposal **from the chain**, not from the agent, and builds the judge request: the owner's rules, the exact action and arguments, the context quoted as untrusted data, and for a token transfer the amount in whole tokens. It sends this to a model running in a TEE on NEAR AI Cloud.
+  </Step>
+
+  <Step title="The model signs a verdict">
+    The model returns structured JSON: a `reason` of at most 280 characters, `ALLOW` or `DENY`, and the action it judged. NEAR AI Cloud signs `model:sha256(request):sha256(response)` with the TEE's key. The API fetches that signature straight away and checks it before answering. Anything that doesn't parse as the verdict schema is a `DENY`.
+  </Step>
+
+  <Step title="The wallet checks everything">
+    The agent calls `execute(proposal_id, req_bytes, resp_bytes, sig_65)`. The wallet pays only if every check passes on-chain:
+
+    - **The signature** recovers a signer the owner allowlisted.
+    - **The request** is exactly what the firewall core sends: the owner's rules (by hash), Intented's system prompt (by hash), this action and arguments, and the amount as the wallet itself formats it. A genuine `ALLOW` obtained with different rules, a different prompt or a different amount is refused.
+    - **The verdict** is `ALLOW`, for this action.
+    - **The wallet's own limits** hold: the nonce is unused, the action hasn't expired, the receiver is allowlisted, the per-payment and daily caps hold, and the wallet isn't frozen.
+  </Step>
+
+  <Step title="It pays, or refuses on-chain">
+    On `ALLOW` within the limits, the wallet makes the call, such as an `ft_transfer` to the vendor. On `DENY` the agent still sends `execute`, and the wallet refuses it with "verdict is not ALLOW". The refusal is a transaction anyone can look up.
+  </Step>
+</Steps>
+
+## Who holds what
+
+| Part | Holds | Can't |
+| --- | --- | --- |
+| The agent | a function-call key for `propose` and `execute` on its wallet | transfer funds directly, or change the rules or limits |
+| The Intented API | the NEAR AI key, and the text of the rules | sign or send any NEAR transaction: it holds no NEAR key |
+| NEAR AI Cloud | the TEE signing key | change what the wallet allows: the owner allowlists the signer |
+| The owner | their own NEAR account | have the agent's key: it stays on the agent's machine |
+
+## Paying on Base
+
+A payment to an address on Base goes through [1Click](/guides/base-payments). The API asks 1Click for a quote, the agent proposes a transfer to 1Click's deposit address, and the judge sees the real Base recipient and amount. The wallet also checks 1Click's signature on the quote, so the deposit address is tied to that recipient and amount.
+
+## Why the model isn't the last word
+
+The model can be wrong, and the agent's context is attacker-controlled. So the model can only **tighten** what the contract permits. The caps, the allowlist and the freeze switch live in the contract and hold whatever the verdict says. See [Hard limits](/concepts/limits) and the [trust model](/concepts/trust-model).

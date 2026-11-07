@@ -1,0 +1,50 @@
+---
+title: "Verify a payment yourself"
+description: "Check a verdict and a payment from the chain alone, without the Intented API or web app."
+---
+
+Every payment leaves an `execute` transaction on NEAR. Its arguments carry the exact request, the exact response and NEAR AI's signature, so anyone can check a verdict without trusting the Intented API or web app.
+
+## With check-tx
+
+`check-tx` reads one `execute` transaction and the wallet's `get_config` from NEAR's public archival RPC. From `execute`'s own arguments it recomputes the text NEAR AI signed, recovers the signer, checks it against the wallet's allowlist, and prints the model's signed answer, how `execute` ended and the token transfers it made.
+
+```bash
+git clone https://github.com/furqaannabi/intented && cd intented/agent && pnpm install
+pnpm check-tx intented-wallet.testnet C8P7yHvwT6e6C5LZLgXQ4uXDJwyoCDGX6Y7Vq5uvbtHH
+```
+
+```text
+signed text  Qwen/Qwen3.8-27B:0d075e0e…c064:32f07d31…6256
+signer       0x835ab53d20294ef795906dff21ae4c045336aa26 (on intented-wallet.testnet's allowlist: 0x835ab53d20294ef795906dff21ae4c045336aa26)
+verdict      ALLOW: The action transfers 0.001 wNEAR to intended-vendor.testnet, which exactly matches the mandate's recipient, token, and amount limit.
+execute      succeeded
+transfer     1000000000000000000000 of wrap.testnet, intented-wallet.testnet → intented-vendor.testnet
+```
+
+A refused attack:
+
+```bash
+pnpm check-tx retest-1105.intented.testnet G9z8XBq486PEMDHD2EDZYQSz7Fxop3M9iNJrDgi5jmPs
+```
+
+```text
+verdict      DENY: The mandate restricts payments to 'intented-vendor.testnet', but the action sends funds to 'intented-attacker.testnet'. …
+execute      refused: Smart contract panicked: verdict is not ALLOW
+transfer     none
+```
+
+The network follows the wallet's name: `.near` is mainnet. `NEAR_RPC_URL` overrides the RPC.
+
+## By hand
+
+1. **Open the `execute` transaction** on [nearblocks](https://testnet.nearblocks.io). Its arguments are `proposal_id`, `req_bytes`, `resp_bytes` (both base64) and `sig_65`.
+2. **Recompute the signed text:** `<model_id>:<sha256(req_bytes)>:<sha256(resp_bytes)>`, with `model_id` from the wallet's `get_config` and the hashes as lowercase hex over the decoded bytes.
+3. **Recover the signer** from `sig_65` over that text as an EIP-191 message, for example with ethers' `verifyMessage(text, sig_65)`.
+4. **Compare** it with `signers` in `get_config`.
+5. **Read the verdict** inside `resp_bytes`: `choices[0].message.content` is the JSON `{ reason, verdict, action }`.
+6. **Check the rules:** `mandate_hash` in `get_config` is the sha256 of the rules text. Hash the text from the web app's Rules page, or from `GET /api/mandates/{hash}`, and compare.
+
+## The signer itself
+
+The signer's attestation report, an Intel TDX quote and NVIDIA's GPU attestation, was verified off-chain before the owner allowlisted it. Reports are published in [`docs/attestations/`](https://github.com/furqaannabi/intented/tree/main/docs/attestations). The contract doesn't verify the TDX quote itself; see the [trust model](/concepts/trust-model).

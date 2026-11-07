@@ -1,0 +1,342 @@
+openapi: 3.1.0
+info:
+  title: Intented API
+  version: 0.1.0
+  description: >
+    Stores the owner's rules, gets 1Click quotes, and asks NEAR AI Cloud for a signed verdict on a
+    proposal the wallet's agent made on-chain. The API never sends a transaction and holds no wallet
+    key: the agent hands the verdict to the wallet's execute, and the wallet checks it.
+servers:
+  - url: http://localhost:8787
+    description: Local, until the hosted API is up
+paths:
+  /api/mandate:
+    post:
+      summary: Store the rules text
+      description: >
+        Stores the text exactly as given (never trimmed) and returns its sha256, which the owner sets on
+        the wallet with set_mandate. Posting a text already stored returns its stored mandate_id and
+        isn't counted against the rate limit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        "200":
+          description: Stored, or already stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mandate_id: { type: string }
+                  text_hash: { $ref: "#/components/schemas/Hash" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/TooMany" }
+  /api/mandates/{text_hash}:
+    get:
+      summary: Read the rules text by its hash
+      description: >
+        The stored text whose sha256 is text_hash, byte for byte, so anyone can compare it with the
+        wallet's mandate_hash. When several share it, the newest.
+      parameters:
+        - name: text_hash
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Hash" }
+      responses:
+        "200":
+          description: The text
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mandate_id: { type: string }
+                  text: { type: string }
+                  text_hash: { $ref: "#/components/schemas/Hash" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/quote:
+    post:
+      summary: Get a 1Click quote for a payment on Base
+      description: >
+        Before the agent proposes a payment through 1Click. The agent then proposes an ft_transfer of
+        amount_in of token to deposit_address, expiring before deadline_ms, and asks POST /api/verdict
+        with quote_id. A recipient off the wallet's cross-chain list is still quoted: the model judges it
+        and the wallet refuses it at execute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wallet_id, intent]
+              properties:
+                wallet_id: { type: string }
+                intent:
+                  type: object
+                  required: [token, amount, dest_chain, dest_asset, recipient]
+                  properties:
+                    token:
+                      type: string
+                      description: The NEAR token contract the wallet pays with.
+                    amount:
+                      type: string
+                      description: What the recipient receives, in the destination asset's smallest unit (USDC has 6 decimals).
+                    dest_chain: { type: string, enum: [base] }
+                    dest_asset:
+                      type: string
+                      enum: ["nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near"]
+                    recipient:
+                      type: string
+                      pattern: "^0x[0-9a-fA-F]{40}$"
+      responses:
+        "200":
+          description: The quote
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote_id: { type: string, pattern: "^q_[0-9a-f]{16}$" }
+                  deposit_address: { type: string }
+                  token: { type: string }
+                  amount_in: { type: string }
+                  deadline_ms: { type: integer }
+                  amount_out: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: The wallet has cross-chain payments off, or accepts quotes signed by another 1Click key
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: Past 30 quotes per wallet, or 120 in all, per hour
+          headers: { Retry-After: { schema: { type: integer } } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "501":
+          description: This API has no 1Click client
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "502":
+          description: The wallet or 1Click couldn't be read, or 1Click's quote didn't verify
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/verdict:
+    post:
+      summary: Get a signed verdict on a proposal
+      description: >
+        For a proposal the wallet's own agent made with propose. The API reads its action and args from
+        the chain, never from the body, and judges it under the wallet's current rules. Judged once per
+        proposal: a repeat gets the stored answer. The response is ready for
+        execute(proposal_id, req_bytes, resp_bytes, signature).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wallet_id, proposal_id, context]
+              properties:
+                wallet_id:
+                  type: string
+                  description: The API's own wallet, or <name>.intented.testnet where there is a factory.
+                proposal_id:
+                  type: integer
+                  minimum: 0
+                  description: The id propose returned.
+                context:
+                  type: string
+                  maxLength: 20000
+                  description: What the agent read that asked for this payment, verbatim. It goes to the model quoted, as data. May be empty.
+                quote_id:
+                  type: string
+                  pattern: "^q_[0-9a-f]{16}$"
+                  description: For a payment through 1Click, the id from POST /api/quote. A quote serves one proposal.
+      responses:
+        "200":
+          description: The verdict, ALLOW or DENY, with the bytes the wallet checks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, description: "The API's id for this proposal." }
+                  verdict: { type: string, enum: [ALLOW, DENY] }
+                  reason: { type: string }
+                  model: { type: string }
+                  chat_id: { type: string }
+                  signer: { type: string, description: "The Ethereum address that signed." }
+                  signature: { type: string, description: "65 bytes, hex." }
+                  req_bytes: { type: string, format: byte }
+                  resp_bytes: { type: string, format: byte }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: >
+            The wallet is frozen; its model or prompt hash isn't this API's; its rules text isn't stored
+            here; the proposal isn't pending with at least 60 seconds left; or, with quote_id, the quote
+            is unknown, used, past its deadline, for another wallet, or doesn't match the proposal
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: Past 30 verdicts per wallet per hour, or past the API's daily cap across all wallets
+          headers: { Retry-After: { schema: { type: integer } } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "501":
+          description: Verdicts for other wallets are off on this API
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "502":
+          description: The chain or NEAR AI Cloud couldn't be reached
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/executed:
+    post:
+      summary: Report the execute transaction
+      description: >
+        Sent by the agent after execute. The API looks the transaction up: a call to that wallet's
+        execute with that proposal_id, signed by the wallet's agent, that succeeded, or for a DENY that
+        the wallet refused. For a payment through 1Click it then tells 1Click about the deposit and
+        follows it. Optional: the status is settled from the wallet's record either way.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wallet_id, proposal_id, near_tx_hash]
+              properties:
+                wallet_id: { type: string }
+                proposal_id: { type: integer, minimum: 0 }
+                near_tx_hash: { type: string }
+      responses:
+        "200":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: The transaction isn't that call, or didn't succeed on an ALLOW
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "502":
+          description: The chain couldn't be read
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/proposals:
+    get:
+      summary: List proposals
+      parameters:
+        - name: since
+          in: query
+          description: Only proposals changed after this time, in milliseconds since the epoch.
+          schema: { type: integer, minimum: 0 }
+        - name: wallet
+          in: query
+          description: Only this wallet's proposals.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The proposals
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Proposal" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /api/proposals/{id}:
+    get:
+      summary: Read one proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The proposal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Proposal" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/redteam/latest:
+    get:
+      summary: The latest published red-team run
+      responses:
+        "200":
+          description: The run's counts and cases
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  attacks_blocked: { type: integer }
+                  attacks_total: { type: integer }
+                  benign_denied: { type: integer }
+                  benign_total: { type: integer }
+                  cases: { type: array, items: {} }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  schemas:
+    Hash:
+      type: string
+      pattern: "^[0-9a-f]{64}$"
+      description: sha256, lowercase hex.
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+    Proposal:
+      type: object
+      properties:
+        id: { type: string }
+        wallet_id: { type: string }
+        created_at: { type: integer, description: "Milliseconds since the epoch." }
+        updated_at: { type: integer, description: "Milliseconds since the epoch." }
+        action:
+          type: object
+          description: The canonical action the wallet signed off on.
+          properties:
+            receiver_id: { type: string }
+            method: { type: string }
+            args_sha256: { type: string }
+            deposit: { type: string }
+            nonce: { type: string }
+            expiry_ms: { type: string }
+        args: { type: string, description: "The exact JSON the wallet sends." }
+        context_excerpt: { type: string, description: "The first 500 characters of the context." }
+        status: { type: string, enum: [pending, allowed, denied, executed, failed] }
+        verdict: { type: [string, "null"], enum: [ALLOW, DENY, null] }
+        reason: { type: [string, "null"] }
+        model: { type: [string, "null"] }
+        chat_id: { type: [string, "null"] }
+        signature: { type: [string, "null"] }
+        signer: { type: [string, "null"] }
+        attestation_url:
+          type: [string, "null"]
+          description: The signer's published, verified attestation report, or null.
+        near_tx_hash: { type: string, description: "Present once the agent reports its execute." }
+        oneclick:
+          type: object
+          description: Present for a payment through 1Click.
+          properties:
+            deposit_address: { type: string }
+            dest_chain: { type: string }
+            recipient: { type: string }
+            amount_out: { type: string }
+            status: { type: string }
+            dest_tx_hash: { type: string }
+            simulated: { type: boolean }
+  responses:
+    BadRequest:
+      description: A malformed body or parameter; error says which field
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Not found
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    TooMany:
+      description: Over the rate limit
+      headers: { Retry-After: { schema: { type: integer } } }
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }

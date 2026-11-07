@@ -135,6 +135,7 @@ If 1Click doesn't deliver, this section will say so, and a NEAR-native payment, 
 | [`agent/`](./agent/) | The demo agent and the mock x402 paywall | William |
 | [`client/`](./client/) | The `intented` package: the CLI, the `pay()` library and the MCP server, and a Claude Code skill | Furqaan |
 | [`redteam/`](./redteam/) | Attack and benign cases and the `make redteam` runner | William |
+| [`docs-site/`](./docs-site/) | The developer docs (Mintlify): quickstart, guides, the contract, refusal and HTTP API references. Preview with `npx mint dev` in that folder | William; Furqaan reviews his lane's pages |
 | [`docs/`](./docs/README.md) | The build plan, the interface spec, the glossary, decisions | Both |
 
 ## Status
