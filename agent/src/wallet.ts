@@ -54,7 +54,7 @@ export function outOfGas(e: unknown, walletId: string): string | null {
   const said = `${e.name} ${e.message}`;
   if (/NotEnoughBalance|LackBalanceForState/.test(said)) return `${walletId} has no NEAR left for gas. Ask its owner to send NEAR to ${walletId}.`;
   if (/NotEnoughAllowance/.test(said)) return `This agent's key has used up its gas limit on ${walletId}. Ask its owner to add the key again with a new limit.`;
-  if (/AccessKeyDoesNotExist/.test(said)) return `This agent's key isn't on ${walletId}. Ask its owner to add it, or run pnpm intented init for a new one.`;
+  if (/AccessKeyDoesNotExist/.test(said)) return `This agent's key isn't on ${walletId}. Ask its owner to add it, or run intented init for a new one.`;
   return null;
 }
 

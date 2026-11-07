@@ -78,7 +78,7 @@ export interface AgentKey {
  */
 export function loadAgentKey({ walletId, home }: { walletId: string; home: string }): AgentKey {
   const path = join(home, "testnet", `${walletId}.json`);
-  if (!existsSync(path)) throw new Error(`no key saved for ${walletId} in ${join(home, "testnet")}; run: pnpm intented init ${walletId.replace(`.${FACTORY_ID}`, "")}`);
+  if (!existsSync(path)) throw new Error(`no key saved for ${walletId} in ${join(home, "testnet")}; run: intented init ${walletId.replace(`.${FACTORY_ID}`, "")}`);
   if (statSync(path).mode & 0o077) throw new Error(`${path} is readable by others; run chmod 600 on it, or make a new key`);
 
   const saved = JSON.parse(readFileSync(path, "utf8")) as { account_id?: unknown; public_key?: unknown; private_key?: unknown };

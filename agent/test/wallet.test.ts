@@ -46,7 +46,7 @@ describe("outOfGas", () => {
 
   it("says the key isn't on the wallet", () => {
     expect(outOfGas(named("AccessKeyDoesNotExistError"), wallet)).toBe(
-      `This agent's key isn't on ${wallet}. Ask its owner to add it, or run pnpm intented init for a new one.`,
+      `This agent's key isn't on ${wallet}. Ask its owner to add it, or run intented init for a new one.`,
     );
   });
 
