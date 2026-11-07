@@ -9,6 +9,8 @@ This package is the client side: it makes the agent's key, and it pays.
 - **A library:** `import { pay } from "intented"`.
 - **An MCP server**, so Claude Code, Cursor or Codex can pay.
 
+Needs Node 22.22 or later, the version `near-api-js` needs. Checked on Node 22.23 and 24.19.
+
 The rules, the verdict and the caps are enforced by the wallet contract and the Intented API, not by this package. Source: [`client/`](https://github.com/furqaannabi/intented/tree/main/client) in the Intented repo. **Owner: Furqaan.** Why it is built this way: [the record](https://github.com/furqaannabi/intented/blob/main/docs/decisions/2026-11-07-npm-package-intented.md).
 
 ## Quickstart
@@ -87,9 +89,9 @@ Environment variables, all optional:
 | Name | Default |
 | --- | --- |
 | `INTENTED_API_URL` | `http://localhost:8787` until the hosted API is up |
-| `INTENTED_WEB_URL` | `http://localhost:3000`, for the Create link |
+| `INTENTED_WEB_URL` | `http://localhost:3000`, for the Create link, until the hosted site is set |
 | `INTENTED_HOME` | `~/.intented`, where keys are kept |
-| `NEAR_RPC_URL` | testnet's public RPC |
+| `NEAR_RPC_URL` | `https://test.rpc.fastnear.com` |
 
 `pay` also takes `apiUrl`, `rpcUrl` and `home` per call, and `onStep` to follow each step.
 

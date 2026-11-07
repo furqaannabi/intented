@@ -15,11 +15,15 @@ import { KNOWN_TOKENS } from "../../firewall-core/src/tokens.js";
 
 export type { InitResult, PayResult, PayStep };
 
-/** Where things are, unless a call says otherwise. Environment variables override the built-in defaults. */
+/**
+ * Where things are, unless a call says otherwise. Environment variables override the built-in defaults.
+ * The API and site defaults are localhost until the hosted ones are up; `npm publish` refuses to ship them (check-publish.mjs).
+ */
 export const defaults = {
   apiUrl: process.env.INTENTED_API_URL || "http://localhost:8787",
   webUrl: process.env.INTENTED_WEB_URL || "http://localhost:3000",
-  rpcUrl: process.env.NEAR_RPC_URL || "https://rpc.testnet.near.org",
+  // The provider the web app and check-tx use; rpc.testnet.near.org is rate-limited.
+  rpcUrl: process.env.NEAR_RPC_URL || "https://test.rpc.fastnear.com",
   home: process.env.INTENTED_HOME || join(homedir(), ".intented"),
 };
 

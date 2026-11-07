@@ -8,7 +8,7 @@ const shared = {
   bundle: true,
   platform: "node",
   format: "esm",
-  target: "node24",
+  target: "node22",
   external: ["near-api-js", "near-api-js/*", "@modelcontextprotocol/sdk", "@modelcontextprotocol/sdk/*", "zod", "zod/*"],
   alias: { "@intented/firewall-core": "./src/firewall-core-shim.ts" },
   legalComments: "none",

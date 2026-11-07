@@ -4,20 +4,17 @@
 // stdout carries the MCP protocol, so nothing else may print to it. Keys stay in ~/.intented/testnet/;
 // no tool result contains a private key.
 //
-// Settings (environment, all optional): INTENTED_HOME (default ~/.intented), INTENTED_API_URL (default
-// http://localhost:8787), INTENTED_WEB_URL (default http://localhost:3000), NEAR_RPC_URL (default testnet's).
+// Settings (environment, all optional): INTENTED_HOME, INTENTED_API_URL, INTENTED_WEB_URL and NEAR_RPC_URL, with the
+// library's defaults (index.ts), so the CLI, the library and the MCP server always agree.
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { defaults } from "./index.js";
 import { initTool, payTool, statusTool } from "./tools.js";
 
-const home = process.env.INTENTED_HOME || join(homedir(), ".intented");
-const apiUrl = process.env.INTENTED_API_URL || "http://localhost:8787";
-const webUrl = (process.env.INTENTED_WEB_URL || "http://localhost:3000").replace(/\/+$/, "");
-const rpcUrl = process.env.NEAR_RPC_URL || "https://rpc.testnet.near.org";
+const { home, apiUrl, rpcUrl } = defaults;
+const webUrl = defaults.webUrl.replace(/\/+$/, "");
 
 const name = z
   .string()
