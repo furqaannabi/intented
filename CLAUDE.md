@@ -4,7 +4,7 @@
 
 **Human is architect. Agent is senior engineer.**
 
-- **Two owners, two lanes.** Furqaan owns the security-critical core: `contract/`, `firewall-core/`, attestation, `mcp/` (agreed 6 November), mainnet deploys and the submission form. William owns the frontend, the demo and the backend around the core: `api/`, `web/`, `agent/`, `redteam/`, the video and the X post. A session works in its owner's folders only. If the work needs something from the other lane, write it up for the other owner instead of building it.
+- **Two owners, two lanes.** Furqaan owns the security-critical core: `contract/`, `firewall-core/`, attestation, `client/` (the `intented` npm package and MCP server; `mcp/` until 7 November, agreed 6 November), mainnet deploys and the submission form. William owns the frontend, the demo and the backend around the core: `api/`, `web/`, `agent/`, `redteam/`, the video and the X post. A session works in its owner's folders only. If the work needs something from the other lane, write it up for the other owner instead of building it.
 - **The interface spec is the one shared artifact.** It lives in `docs/interface-spec.md`. Code against it; never widen it quietly. A change needs both owners' agreement, a revision row, and a dated record in `docs/decisions/` when behaviour changes.
 - **No spec ceremony.** This is a fourteen-day hackathon. `docs/Intented hackathon plan.pdf` is the brief; its day-by-day table is the build order.
 - **Grill before building against an unsettled requirement.** Invoke `grill-me`: developer questions, one at a time, each with a recommended answer. The queue is "Not decided yet" in `docs/decisions/README.md`. Not before every feature; before every guess.

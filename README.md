@@ -103,7 +103,13 @@ pnpm --dir agent agent base-poisoned   # 4 USDC to 0xbad0…0bad: DENY, refused 
 
 A paid run spends a little testnet wNEAR from the wallet, and every run a little gas from the agent's account. `make redteam` runs [the red team](#red-team).
 
-**From Claude Code, Cursor or Codex.** [`mcp/`](./mcp/README.md) is an MCP server with three tools: `intented_init` makes the agent's key and the link that creates its wallet, `intented_pay` pays through the same code as `intented pay` (propose, signed verdict, the wallet's `execute`), and `intented_status` reads the wallet's rules. Testnet and wNEAR only. The coding agent chooses what it passes as context; the check on the payment itself and the caps hold either way.
+**From your own agent, or from Claude Code, Cursor or Codex.** [`client/`](./client/README.md) is the `intented` package:
+
+- `intented init` makes the agent's key and the link that creates its wallet.
+- `intented pay` and `import { pay } from "intented"` pay through the wallet: propose, the signed verdict, the wallet's `execute`.
+- `intented mcp` is an MCP server with the same as tools.
+
+Testnet only. **It isn't on npm yet.** Until it is, run it from the clone: `pnpm --dir client install && pnpm --dir client build`, then `node client/dist/cli.js` in place of `npx intented`. The agent chooses what it passes as context; the check on the payment itself and the caps hold either way.
 
 ## On mainnet
 
@@ -127,7 +133,7 @@ If 1Click doesn't deliver, this section will say so, and a NEAR-native payment, 
 | [`api/`](./api/) | The HTTP API, proposal storage, the 1Click module | William |
 | [`web/`](./web/) | The web app | William |
 | [`agent/`](./agent/) | The demo agent and the mock x402 paywall | William |
-| [`mcp/`](./mcp/) | Intented as an MCP server for coding agents, and a Claude Code skill | Furqaan |
+| [`client/`](./client/) | The `intented` package: the CLI, the `pay()` library and the MCP server, and a Claude Code skill | Furqaan |
 | [`redteam/`](./redteam/) | Attack and benign cases and the `make redteam` runner | William |
 | [`docs/`](./docs/README.md) | The build plan, the interface spec, the glossary, decisions | Both |
 
@@ -198,7 +204,7 @@ How the run works and how a run is published: [`redteam/README.md`](./redteam/RE
 | `api` | 92 | `pnpm test` |
 | `agent` | 62, including `check-tx` on two real testnet transactions | `pnpm test` |
 | `redteam` | 16 | `pnpm test` |
-| `mcp` | 10, including that no tool output contains the private key | `pnpm test` |
+| `client` | 18, including exact token amounts, refusals before anything is proposed, and that no tool output contains the private key; `pnpm typecheck` also checks the published types against the code | `pnpm test` |
 
 The status board is in [`docs/README.md`](./docs/README.md).
 

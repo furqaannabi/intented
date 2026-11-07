@@ -58,7 +58,7 @@ What the README says now, which phase 2 must not overstate:
 | Day | Work | Gate |
 | --- | --- | --- |
 | **Sat 7 Nov**, integration day | The full flow in the UI on testnet: a new wallet made from the Create page with `intented init`'s key, rules set, an honest payment and the attack, receipts in Activity. Fix the loose ends above. Settle the MCP decision (section 4) | The flow works from a fresh browser |
-| **Sun 8 Nov** | Furqaan: the MCP server and the skill in `mcp/`, checked by hand in Claude Code. William: the mainnet API with a daily verdict cap, the "Testnet \| Mainnet" switch and the small mainnet site | |
+| **Sun 8 Nov** | Furqaan: the `intented` npm package in `client/` (CLI, `pay()`, MCP server and skill), the API on EC2 ([steps](./hosting-ec2.md)), a hand check in Claude Code. William: the mainnet API with a daily verdict cap, the "Testnet \| Mainnet" switch and the small mainnet site | |
 | **Mon 9 Nov** | Check the MCP by hand in Claude Code and Cursor; record a coding agent tricked into paying and the wallet refusing. The read-only preflight again (first run 6 November: signer unchanged, 1Click's key verifies live quotes, mainnet prompt hash computed) | The checks pass, or a fix is planned |
 | **Tue 10 Nov** | **Feature-complete on testnet.** Rerun the red team only if the prompt or model changed | Nothing new after today but fixes |
 | **Wed 11 Nov** | **Mainnet**, following [the runbook](./mainnet-runbook.md): `wallet.intented.near` via `deploy-wallet.sh`, 1Click's real key, 5 USDC within the $20–50 budget, the real $2 payment to Base through 1Click (KT4) and the Base attack refused on chain, then the full-access key deleted | **A yes from both owners before any step** |

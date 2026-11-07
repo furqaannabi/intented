@@ -1,0 +1,50 @@
+{
+  "name": "intented",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pay from an Intented wallet on NEAR: the wallet pays only on a TEE-signed ALLOW for the owner's rules. CLI, library and MCP server.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/furqaannabi/intented.git",
+    "directory": "client"
+  },
+  "type": "module",
+  "bin": {
+    "intented": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "skill",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "prepack": "node build.mjs",
+    "start": "tsx src/cli.ts mcp",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "near-api-js": "7.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@intented/agent": "link:../agent",
+    "@types/node": "^24.19.2",
+    "esbuild": "0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "5.0.5"
+  }
+}
