@@ -12,6 +12,26 @@
       "port": 8787
     },
     {
+      "name": "api-mainnet",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NEAR_NETWORK=mainnet",
+        "CONTRACT_ACCOUNT_ID=intented-wallet.near",
+        "NEAR_RPC_URL=https://rpc.mainnet.fastnear.com",
+        "PORT=8788",
+        "DATABASE_PATH=intented-mainnet.db",
+        "VERDICT_DAILY_CAP=50",
+        "ONECLICK_BASE_URL=",
+        "ONECLICK_STANDIN_PUBLIC_KEY=",
+        "FACTORY_ACCOUNT_ID=",
+        "pnpm",
+        "--dir",
+        "api",
+        "start"
+      ],
+      "port": 8788
+    },
+    {
       "name": "paywall",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
@@ -49,7 +69,7 @@
       "runtimeExecutable": "env",
       "runtimeArgs": [
         "NEXT_PUBLIC_NEAR_NETWORK=mainnet",
-        "NEXT_PUBLIC_WALLET_ID=wallet.intented.near",
+        "NEXT_PUBLIC_WALLET_ID=intented-wallet.near",
         "NEXT_PUBLIC_TESTNET_URL=http://localhost:3000",
         "NEXT_DIST_DIR=.next-mainnet",
         "API_URL=http://localhost:8788",

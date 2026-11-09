@@ -113,12 +113,12 @@ Testnet only. **It isn't on npm yet.** Until it is, run it from the clone: `pnpm
 
 ## On mainnet
 
-**Not done yet.** Planned for 11 November ([runbook](./docs/mainnet-runbook.md)): one wallet, `wallet.intented.near`, makes one real 2 USDC payment to the vendor's Base address through 1Click, and refuses one attack. The product itself stays on testnet; mainnet is one wallet, not a deployment for anyone ([record](./docs/decisions/2026-11-06-one-mainnet-wallet.md)). Its transactions will be listed here. Until they are, nothing in this section has happened.
+**Not done yet.** Planned for 11 November ([runbook](./docs/mainnet-runbook.md)): one wallet, `intented-wallet.near`, makes one real 2 USDC payment to the vendor's Base address through 1Click, and refuses one attack. The product itself stays on testnet; mainnet is one wallet, not a deployment for anyone ([record](./docs/decisions/2026-11-06-one-mainnet-wallet.md)). Its transactions will be listed here. Until they are, nothing in this section has happened.
 
 How to check them, without our API or web app:
 
-1. **The wallet.** On [nearblocks](https://nearblocks.io/address/wallet.intented.near), its only key should be the agent's function-call key for `propose` and `execute`. Its full-access key is deleted after setup, so nobody can replace its contract.
-2. **Each verdict.** `pnpm --dir agent check-tx wallet.intented.near <execute tx hash>`, as in [step 6](#try-it). It recovers the signer from the transaction and checks it against the wallet's allowlist.
+1. **The wallet.** On [nearblocks](https://nearblocks.io/address/intented-wallet.near), it has the agent's function-call key for `propose` and `execute`, and a full-access key. **The full-access key is kept**, so the NEAR locked for the wallet's storage can be recovered when it's taken down after judging. Whoever holds that key (William) could replace the contract and bypass every check, so this wallet's checks rest on that key not being used. Check its `code_hash` against `cargo near build reproducible-wasm` in `contract/wallet`.
+2. **Each verdict.** `pnpm --dir agent check-tx intented-wallet.near <execute tx hash>`, as in [step 6](#try-it). It recovers the signer from the transaction and checks it against the wallet's allowlist.
 3. **The paid payment.** `execute` succeeded, and its one transfer is USDC from the wallet to 1Click's deposit address. 1Click then pays the vendor on Base: on [basescan](https://basescan.org), that is a USDC transfer of 2 USDC to the vendor's address. The wallet checked 1Click's signed quote, so the deposit address is tied to that recipient and amount. It can't prove the delivery itself: that part is 1Click's.
 4. **The refused attack.** The model signed `DENY`, `execute` was refused on-chain, and nothing was transferred.
 

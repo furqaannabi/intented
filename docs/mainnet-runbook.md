@@ -10,13 +10,13 @@ Written 6 November. The preflight first ran on 6 November (results below) and ru
 
 | Item | Proposed | Who |
 | --- | --- | --- |
-| Accounts | `intented.near` (ours, exists, empty) creates `wallet.intented.near`. Separate accounts `intented-owner.near`, `intented-agent.near`, `intented-vendor.near` (all free on 6 November) | Both |
+| Accounts | `intented-wallet.near`, a top-level account William creates (William doesn't have `intented.near`'s key; [record](./decisions/2026-11-09-mainnet-wallet-intented-wallet-near.md)). Separate accounts `intented-owner.near`, `intented-agent.near`, `intented-vendor.near` (all free on 6 November) | Both |
 | Who holds which key | `intented.near`, the owner and the vendor: the password manager. The agent's function-call key: the machine the demo agent runs on. The wallet's full-access key: deleted at step 9 | Both |
 | Token and caps | USDC on NEAR (`17208628…33a1`, 6 decimals). 5 USDC per payment, so the attack fits under the cap and is refused by the verdict, not the cap. 10 USDC per day. NEAR caps: 1 yocto per action, 100 a day | Both |
-| The mandate | Names the vendor's Base address and `intented-vendor.near`, USDC, at most 5 USDC a call, in the testnet mandate's shape | Both |
+| The mandate | Agreed by William on 9 November: `Buy market data from intented-vendor.near, paid in USDC, at most 0.10 USDC per call, or from 0x2ef2fed3f9b3d5385499008051031320b1fb49ef on Base, paid in USDC, at most 5 USDC per call.` The Base address is William's, lowercase as the wallet requires | Both |
 | The cross-chain recipient list | The vendor's Base address only. The attack's receipt then shows the model's signed `DENY`, and the wallet's on-chain refusal by the list, as on testnet (`DbLMFYWs…`) | Both |
 | The payments | The honest one: 2 USDC to the vendor on Base. The attack: 4 USDC to `0xbad0…0bad` on Base, under the cap | William (the paywall), both |
-| The mainnet API | `NEAR_NETWORK=mainnet`, `CONTRACT_ACCOUNT_ID=wallet.intented.near`, `ONECLICK_JWT`, no stand-in, a daily verdict cap | William |
+| The mainnet API | `NEAR_NETWORK=mainnet`, `CONTRACT_ACCOUNT_ID=intented-wallet.near`, `ONECLICK_JWT`, no stand-in, a daily verdict cap | William |
 | The mainnet site | The "Testnet \| Mainnet" switch; only this wallet; Create hidden; mainnet nearblocks links | William |
 | The demo agent on mainnet | `AGENT_ACCOUNT_ID=intented-agent.near` and its key, `NEAR_NETWORK=mainnet`, the mainnet API | William |
 
@@ -35,15 +35,15 @@ Nothing here writes to mainnet.
 
 ## 2. Accounts and NEAR (both say yes first)
 
-1. Fund `intented.near` and create `wallet.intented.near` from it with about **4 NEAR**: about 3.4 NEAR to store the code (330 KB), plus state.
-2. Create `intented-owner.near` with about 1 NEAR for gas and token storage, `intented-agent.near` with about 0.5 NEAR for gas, and `intented-vendor.near` with a little.
+1. Create `intented-wallet.near` with about **3.6 NEAR**: about 3.3 NEAR to store the code (327 KB), plus state.
+2. Create `intented-owner.near` with about 0.3 NEAR for gas and token storage, `intented-agent.near` with about 0.3 NEAR for gas, and `intented-vendor.near` with about 0.1.
 3. Keys go to the keychain and the password manager. Nothing goes in the repo.
-4. **Once step 9 deletes the wallet's full-access key, its storage NEAR can't be recovered.** `withdraw` returns only NEAR above what storage needs.
+4. The wallet's full-access key is **kept** (step 9 is skipped), so after judging the owner withdraws the USDC and the account is deleted, returning its storage NEAR. Always withdraw tokens before deleting an account: deleting one that holds tokens loses them.
 
 ## 3. Deploy and configure
 
 ```sh
-WALLET_ID=wallet.intented.near OWNER_ID=intented-owner.near AGENT_ID=intented-agent.near \
+WALLET_ID=intented-wallet.near OWNER_ID=intented-owner.near AGENT_ID=intented-agent.near \
 MODEL=Qwen/Qwen3.8-27B NETWORK=mainnet CONFIRM_MAINNET=yes \
 TOKEN_ID=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1 \
 TOKEN_PER_TX=5000000 TOKEN_DAILY=10000000 \
@@ -61,7 +61,7 @@ Check:
 ## 4. Cross-chain settings (owner)
 
 ```sh
-W=wallet.intented.near; O=intented-owner.near
+W=intented-wallet.near; O=intented-owner.near
 call() { near contract call-function as-transaction $W "$1" json-args "$2" prepaid-gas '30 Tgas' attached-deposit '0 NEAR' sign-as $O network-config mainnet sign-with-keychain send; }
 call set_one_click_key '{"public_key":"ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc"}'
 call set_cross_chain '{"enabled":true}'
@@ -72,13 +72,13 @@ Check: `get_config` shows 1Click's real key, cross-chain on, and the one recipie
 
 ## 5. The agent's key
 
-On the machine the demo agent runs on, make a key pair. Add only its public key to `intented-agent.near` as a function-call key for `propose` and `execute` on `wallet.intented.near`; `deploy-wallet.sh` prints the command at the end. The private key never leaves that machine.
+On the machine the demo agent runs on, make a key pair. Add only its public key to `intented-agent.near` as a function-call key for `propose` and `execute` on `intented-wallet.near`; `deploy-wallet.sh` prints the command at the end. The private key never leaves that machine.
 
 ## 6. Token storage and funding
 
-1. Register `wallet.intented.near` and `intented-vendor.near` on USDC: `storage_deposit` with `{"account_id": "<id>", "registration_only": true}` and 0.00125 NEAR attached, signed by the owner.
-2. The owner sends the wallet **5 USDC**.
-3. Check: `ft_balance_of` for the wallet returns `5000000`.
+1. Register `intented-wallet.near` and `intented-vendor.near` on USDC: `storage_deposit` with `{"account_id": "<id>", "registration_only": true}` and 0.00125 NEAR attached, signed by the owner.
+2. The owner sends the wallet **3 USDC**: about 2.03 for the payment, the rest for one retry. The refused attack moves nothing.
+3. Check: `ft_balance_of` for the wallet returns `3000000`.
 
 ## 7. The mainnet API and site
 
@@ -101,12 +101,12 @@ After each payment, check its receipt on the mainnet site: the reason, the signe
 
 ## 9. Delete the wallet's full-access key
 
-Only after steps 3–8 are checked, and both say yes:
+**Skipped for `intented-wallet.near`**: the key is kept so its storage NEAR can be recovered after judging ([record](./decisions/2026-11-09-mainnet-wallet-intented-wallet-near.md)). For a wallet meant to stay, only after steps 3–8 are checked, and both say yes:
 
 ```sh
-near account list-keys wallet.intented.near network-config mainnet now
-near account delete-keys wallet.intented.near public-keys '<the full-access public key>' network-config mainnet sign-with-keychain send
-near account list-keys wallet.intented.near network-config mainnet now   # no full-access key left
+near account list-keys intented-wallet.near network-config mainnet now
+near account delete-keys intented-wallet.near public-keys '<the full-access public key>' network-config mainnet sign-with-keychain send
+near account list-keys intented-wallet.near network-config mainnet now   # no full-access key left
 ```
 
 After this nobody can replace the wallet's contract. The owner keeps every owner method, `freeze` and `withdraw`. A bug means withdraw and deploy a new wallet.

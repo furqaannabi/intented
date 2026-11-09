@@ -55,7 +55,7 @@ describe("paywall on NEAR mainnet", () => {
   // A finished ft_transfer of 0.10 USDC from the mainnet wallet to the vendor, in EXPERIMENTAL_tx_status's shape.
   const usdcTx = (receiver: string, amount: string) => ({
     receipts: [{
-      receipt_id: "r1", predecessor_id: "wallet.intented.near", receiver_id: USDC,
+      receipt_id: "r1", predecessor_id: "intented-wallet.near", receiver_id: USDC,
       receipt: { Action: { actions: [{ FunctionCall: { method_name: "ft_transfer", args: Buffer.from(JSON.stringify({ receiver_id: receiver, amount })).toString("base64") } }] } },
     }],
     receipts_outcome: [{ id: "r1", outcome: { status: { SuccessValue: "" } } }],
@@ -76,7 +76,7 @@ describe("paywall on NEAR mainnet", () => {
       headers: { "PAYMENT-SIGNATURE": encode({ x402Version: 2, payload: { transaction: MAINNET_HASH, signer: "intented-agent.near" } }) },
     });
     expect(res.status).toBe(200);
-    expect(decode(res.headers.get("PAYMENT-RESPONSE")!)).toMatchObject({ success: true, network: "near:mainnet", payer: "wallet.intented.near" });
+    expect(decode(res.headers.get("PAYMENT-RESPONSE")!)).toMatchObject({ success: true, network: "near:mainnet", payer: "intented-wallet.near" });
   });
 });
 
