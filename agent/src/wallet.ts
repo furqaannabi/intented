@@ -46,15 +46,22 @@ export interface SignedVerdict {
 }
 
 /**
- * NEAR's errors for a wallet that can't pay its agent's gas, said plainly with what to do; null for anything else.
+ * NEAR's errors for an agent that can't pay its gas, said plainly with what to do; null for anything else.
+ * `signerId` is the account the agent's key is on, which pays the gas: the wallet itself, or the demo wallets'
+ * own agent account. The wallet pays its own storage either way.
  * Matched by name and by the outcome's text, since a transaction can be refused before it runs or fail while it runs.
  */
-export function outOfGas(e: unknown, walletId: string): string | null {
+export function outOfGas(e: unknown, walletId: string, signerId = walletId): string | null {
   if (!(e instanceof Error)) return null;
   const said = `${e.name} ${e.message}`;
-  if (/NotEnoughBalance|LackBalanceForState/.test(said)) return `${walletId} has no NEAR left for gas. Ask its owner to send NEAR to ${walletId}.`;
-  if (/NotEnoughAllowance/.test(said)) return `This agent's key has used up its gas limit on ${walletId}. Ask its owner to add the key again with a new limit.`;
-  if (/AccessKeyDoesNotExist/.test(said)) return `This agent's key isn't on ${walletId}. Ask its owner to add it, or run intented init for a new one.`;
+  if (/LackBalanceForState/.test(said)) return `${walletId} doesn't have enough NEAR for its storage. Ask its owner to send NEAR to ${walletId}.`;
+  if (/NotEnoughBalance/.test(said)) {
+    return signerId === walletId
+      ? `${walletId} doesn't have enough NEAR for gas. Ask its owner to send NEAR to ${walletId}.`
+      : `${signerId}, which pays this agent's gas, doesn't have enough NEAR for it. Send NEAR to ${signerId}.`;
+  }
+  if (/NotEnoughAllowance/.test(said)) return `This agent's key has used up its gas limit on ${signerId}. Ask its owner to add the key again with a new limit.`;
+  if (/AccessKeyDoesNotExist/.test(said)) return `This agent's key isn't on ${signerId}. Ask its owner to add it, or run intented init for a new one.`;
   return null;
 }
 
@@ -64,7 +71,7 @@ export function walletAgent({ key, rpcUrl, agentId = key.walletId }: { key: Pick
   const chain = createChainClient({ rpcUrl, walletId: key.walletId, agentId, agentPrivateKey: key.privateKey });
   // Out of gas, out of limit, or no key: one plain sentence instead of NEAR's error, with the original kept as the cause.
   const plain = (e: unknown): never => {
-    const said = outOfGas(e, key.walletId);
+    const said = outOfGas(e, key.walletId, agentId);
     throw said ? new Error(said, { cause: e }) : e;
   };
 
@@ -79,7 +86,7 @@ export function walletAgent({ key, rpcUrl, agentId = key.walletId }: { key: Pick
     /** Hands the wallet the verdict. It pays only on a valid ALLOW within its caps; a DENY is refused on chain, as the record. */
     async execute(proposalId: number, v: SignedVerdict) {
       const o = await chain.executeOnChain(proposalId, Buffer.from(v.req_bytes, "base64"), Buffer.from(v.resp_bytes, "base64"), v.signature).catch(plain);
-      const gas = o.error === undefined ? null : outOfGas(new Error(o.error), key.walletId);
+      const gas = o.error === undefined ? null : outOfGas(new Error(o.error), key.walletId, agentId);
       return gas ? { ...o, error: gas } : o;
     },
   };

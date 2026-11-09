@@ -49,6 +49,7 @@ These come from NEAR, not the contract. The `intented` package turns them into p
 
 | NEAR says | Means |
 | --- | --- |
-| `NotEnoughBalance`, `LackBalanceForState` | the wallet has no NEAR left for gas. The owner sends it NEAR |
+| `NotEnoughBalance` | the wallet doesn't have enough NEAR for gas. The owner sends it NEAR |
+| `LackBalanceForState` | the wallet doesn't have enough NEAR for its storage. The owner sends it NEAR |
 | `NotEnoughAllowance` | the agent's key has used up its gas allowance. The owner adds the key again with a new allowance |
 | `AccessKeyDoesNotExist` | the agent's key isn't on the wallet. The owner adds it, or run `intented init` for a new one |

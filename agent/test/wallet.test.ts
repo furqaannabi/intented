@@ -32,9 +32,24 @@ describe("outOfGas", () => {
   const wallet = "shop-bot.intented.testnet";
   const named = (name: string, message = "") => Object.assign(new Error(message), { name });
 
-  it("says the wallet is out of NEAR, in words the agent's user can act on", () => {
-    for (const e of [named("NotEnoughBalanceError"), named("LackBalanceForStateActionError"), new Error('propose failed: {"ActionError":{"kind":{"LackBalanceForState":{}}}}')]) {
-      expect(outOfGas(e, wallet)).toBe(`${wallet} has no NEAR left for gas. Ask its owner to send NEAR to ${wallet}.`);
+  it("says the wallet hasn't enough NEAR for gas, in words the agent's user can act on", () => {
+    expect(outOfGas(named("NotEnoughBalanceError"), wallet)).toBe(`${wallet} doesn't have enough NEAR for gas. Ask its owner to send NEAR to ${wallet}.`);
+  });
+
+  // The demo wallets: the agent's key is on its own account, which pays the gas (mainnet, 9 Nov: intented-agent.near).
+  it("names the agent's own account when that account pays the gas", () => {
+    const agent = "intented-agent.near";
+    expect(outOfGas(named("NotEnoughBalanceError"), "intented-wallet.near", agent)).toBe(
+      `${agent}, which pays this agent's gas, doesn't have enough NEAR for it. Send NEAR to ${agent}.`,
+    );
+    expect(outOfGas(named("AccessKeyNotEnoughAllowanceActionError"), "intented-wallet.near", agent)).toBe(
+      `This agent's key has used up its gas limit on ${agent}. Ask its owner to add the key again with a new limit.`,
+    );
+  });
+
+  it("says the wallet hasn't enough NEAR for its storage", () => {
+    for (const e of [named("LackBalanceForStateActionError"), new Error('propose failed: {"ActionError":{"kind":{"LackBalanceForState":{}}}}')]) {
+      expect(outOfGas(e, wallet, "intented-agent.testnet")).toBe(`${wallet} doesn't have enough NEAR for its storage. Ask its owner to send NEAR to ${wallet}.`);
     }
   });
 
@@ -44,7 +59,7 @@ describe("outOfGas", () => {
     );
   });
 
-  it("says the key isn't on the wallet", () => {
+  it("says the key isn't on the account that signs", () => {
     expect(outOfGas(named("AccessKeyDoesNotExistError"), wallet)).toBe(
       `This agent's key isn't on ${wallet}. Ask its owner to add it, or run intented init for a new one.`,
     );

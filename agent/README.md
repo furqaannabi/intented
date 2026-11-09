@@ -42,7 +42,7 @@ On a factory wallet the agent sends its own `propose` and `execute`, signed with
 
 - `loadAgentKey({ walletId, home })` reads the saved key. It refuses a file that is missing, readable by others, or whose private key doesn't match its public key.
 - `walletAgent({ key, rpcUrl })` signs through the firewall core's `createChainClient`, the code the API uses for the demo wallet, with the wallet itself as the signer. `propose(payment)` records an `ft_transfer` as pending and returns its `proposal_id`; `execute(proposal_id, verdict)` hands the wallet the signed verdict, which it pays on only if every check holds.
-- When the wallet can't pay the agent's gas, `propose` and `execute` say so in one sentence with what to do, instead of NEAR's error: the wallet has no NEAR left for gas, the key has used up its gas limit, or the key isn't on the wallet. NEAR's own error stays as the `cause`.
+- When the wallet can't pay the agent's gas, `propose` and `execute` say so in one sentence with what to do, instead of NEAR's error: the account that pays the gas (the wallet, or a demo wallet's own agent account) doesn't have enough NEAR, the wallet can't pay its storage, the key has used up its gas limit, or the key isn't on that account. NEAR's own error stays as the `cause`.
 - The verdict comes from `POST /api/verdict` on the API.
 
 ## Paying: `intented pay`
