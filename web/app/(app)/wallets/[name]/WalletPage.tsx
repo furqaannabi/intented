@@ -242,10 +242,6 @@ function WalletPage({ walletId }: { walletId: string }) {
         </div>
       )}
 
-      <div className="mb-6">
-        <RecentPayments walletId={walletId} />
-      </div>
-
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <div className="grid gap-6">
           <Card
@@ -294,6 +290,7 @@ function WalletPage({ walletId }: { walletId: string }) {
             )}
           </Card>
 
+          <RecentPayments walletId={walletId} />
         </div>
 
         <div className="grid gap-6">
@@ -593,12 +590,10 @@ export function WalletSkeleton({ walletId }: { walletId: string | null }) {
             <Skeleton className="mt-6 h-[220px] w-full rounded-[14px]" />
           </Card>
         </div>
-        <div className="mb-6">
-          <Card title="Recent payments">{lines("w-1/2", "w-full", "w-full", "w-4/5")}</Card>
-        </div>
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
           <div className="grid gap-6">
             <Card title="Rules">{lines("w-1/3", "w-[96%]", "w-[88%]", "w-1/2")}</Card>
+            <Card title="Recent payments">{lines("w-1/2", "w-full", "w-full", "w-4/5")}</Card>
           </div>
           <div className="grid gap-6">
             <Card title="Hard limits">{lines("w-full", "w-full", "w-4/5", "w-3/5")}</Card>
