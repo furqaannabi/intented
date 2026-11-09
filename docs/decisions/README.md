@@ -73,7 +73,8 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-06 | [The API caps verdicts across all wallets in any 24 hours, set by VERDICT_DAILY_CAP](./2026-11-06-daily-verdict-cap.md) | William |
 | 2026-11-07 | [A docs site for developers in `docs-site/`, on Mintlify](./2026-11-07-docs-site-on-mintlify.md) | Furqaan, William |
 | 2026-11-09 | [William runs the mainnet runbook](./2026-11-09-william-runs-the-mainnet-runbook.md) | Furqaan, William |
-| 2026-11-09 | [The mainnet wallet is `intented-wallet.near`, and keeps its full-access key until it's taken down](./2026-11-09-mainnet-wallet-intented-wallet-near.md) | William |
+| 2026-11-09 | [The mainnet wallet is `intented-wallet.near`, and keeps its full-access key until it's taken down](./2026-11-09-mainnet-wallet-intented-wallet-near.md) (accepted by [this record](./2026-11-09-accept-mainnet-wallet-intented-wallet-near.md)) | William |
+| 2026-11-09 | [Accepted: the mainnet wallet is `intented-wallet.near`, and keeps its full-access key until it's taken down](./2026-11-09-accept-mainnet-wallet-intented-wallet-near.md) | Furqaan, William |
 | 2026-11-09 | [On mainnet: one real 2 USDC payment to Base through 1Click, and one refused attack](./2026-11-09-mainnet.md) | William |
 
 ## Not decided yet
