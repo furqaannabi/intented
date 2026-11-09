@@ -14,6 +14,7 @@ import { rememberWallet, walletFromPath } from "../../../lib/myWallets";
 import { useNearWallet } from "../../../lib/useNearWallet";
 import { useProposals } from "../../../lib/useProposals";
 import { call, ED25519_KEY, fundActions, transfer, WITHDRAW_GAS, type FunctionCall, type Transfer } from "../../../lib/walletActions";
+import type { Proposal } from "../../../lib/proposal";
 import { loadWallet, type WalletState } from "../../../lib/walletState";
 import { Pill } from "../MyWallets";
 
@@ -54,6 +55,8 @@ export function WalletRoute() {
 
 function WalletPage({ walletId }: { walletId: string }) {
   const near = useNearWallet();
+  // The wallet's payments, live: polled every 3 seconds for both the chart and Recent payments.
+  const { proposals, online } = useProposals(walletId);
   const [state, setState] = useState<WalletState | null | "loading" | "error">("loading");
   const [factoryCode, setFactoryCode] = useState<string | null>(null);
   const [tx, setTx] = useState<Tx>(null);
@@ -237,7 +240,7 @@ function WalletPage({ walletId }: { walletId: string }) {
             lead={`${tokens[0].token.symbol} per day (UTC), last 14 days: what the wallet paid, what the verdict refused, and what failed.`}
             link={<Link href={walletId === WALLET_ID ? "/activity" : `/activity?wallet=${walletId}`}>Open its activity →</Link>}
           >
-            <PaymentsChart walletId={walletId} tokenId={tokens[0].id} token={tokens[0].token} />
+            <PaymentsChart proposals={proposals} online={online} tokenId={tokens[0].id} token={tokens[0].token} />
           </Card>
         </div>
       )}
@@ -290,7 +293,7 @@ function WalletPage({ walletId }: { walletId: string }) {
             )}
           </Card>
 
-          <RecentPayments walletId={walletId} />
+          <RecentPayments walletId={walletId} proposals={proposals} online={online} />
         </div>
 
         <div className="grid gap-6">
@@ -654,8 +657,7 @@ function GasTile({ account, agentKeys }: { account: WalletState["account"]; agen
 const RECENT = 5;
 
 /** The wallet's last few payments, live: what the agent proposed, the verdict's reason and where each stands. */
-function RecentPayments({ walletId }: { walletId: string }) {
-  const { proposals, online } = useProposals(walletId);
+function RecentPayments({ walletId, proposals, online }: { walletId: string; proposals: Proposal[] | null; online: boolean }) {
   const page = activityPage(walletId);
   return (
     <Card title="Recent payments" link={<Link href={page}>See all →</Link>}>

@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { allProposals, dailyPayments, OUTCOMES, type ChartOutcome, type Day } from "../lib/dailyPayments";
+import { dailyPayments, OUTCOMES, type ChartOutcome, type Day } from "../lib/dailyPayments";
 import { formatUnits, type WalletToken } from "../lib/near";
+import type { Proposal } from "../lib/proposal";
 import { Loading, Skeleton } from "./Skeleton";
 
 const DAYS = 14;
 const HEIGHT = 220;
 const PAD = { left: 52, right: 10, top: 22, bottom: 28 };
-const RETRY_MS = 3000;
 
 /** The app's own outcome colours: lime only for paid, coral only for refused. Checked for colourblind separation. */
 const FILL: Record<ChartOutcome, string> = { paid: "var(--lime)", refused: "var(--coral)", failed: "#6b6b6b" };
@@ -18,30 +18,11 @@ const dayLabel = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateStrin
 
 /**
  * The wallet's payments per UTC day for the last two weeks, in one token, against the daily cap the contract enforces.
- * Each wallet's come from the verdicts its agent asked the API for.
+ * Each wallet's come from the verdicts its agent asked the API for, and update as they change.
  */
-export function PaymentsChart({ walletId, tokenId, token }: { walletId: string; tokenId: string; token: WalletToken }) {
-  const [days, setDays] = useState<Day[] | null | "error">(null);
-
-  // Read once; while the API can't be reached, try again every few seconds, as Activity does.
-  useEffect(() => {
-    let live = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const load = () =>
-      allProposals(walletId).then(
-        (ps) => live && setDays(dailyPayments(ps, tokenId, DAYS)),
-        () => {
-          if (!live) return;
-          setDays("error");
-          timer = setTimeout(load, RETRY_MS);
-        },
-      );
-    void load();
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [walletId, tokenId]);
+export function PaymentsChart({ proposals, online, tokenId, token }: { proposals: Proposal[] | null; online: boolean; tokenId: string; token: WalletToken }) {
+  // Live: the page polls the API every 3 seconds and passes the wallet's proposals down.
+  const days: Day[] | null | "error" = proposals ? dailyPayments(proposals, tokenId, DAYS) : online ? null : "error";
 
   if (days === "error") return <p className="mt-4 text-sm text-mute">Can&apos;t reach the API for this wallet&apos;s payments. Retrying every 3 seconds.</p>;
   if (days === null)
