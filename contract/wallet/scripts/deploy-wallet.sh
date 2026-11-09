@@ -55,7 +55,9 @@ owner_call() {
 }
 
 echo "1. build"
-(cd "$wallet_dir" && cargo near build non-reproducible-wasm >/dev/null)
+# Reproducible: the pinned image in Cargo.toml, so anyone can rebuild this wasm and match its hash.
+# It refuses to run on an uncommitted tree.
+(cd "$wallet_dir" && cargo near build reproducible-wasm >/dev/null)
 
 echo "2. deploy $WALLET_ID with new(owner=$OWNER_ID, agent=$AGENT_ID, model=$MODEL)"
 near contract deploy "$WALLET_ID" use-file "$wallet_dir/target/near/intented_wallet.wasm" \
