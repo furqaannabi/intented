@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowUpRight, Check, ChevronDown, Cross } from "../../../components/icons";
+import { activityPage, PaymentRow } from "../../../components/PaymentRow";
 import { PaymentsChart } from "../../../components/PaymentsChart";
 import { RulesEditor } from "../../../components/RulesEditor";
 import { Loading, Skeleton } from "../../../components/Skeleton";
@@ -11,6 +12,7 @@ import { REPO } from "../../../components/SiteHeader";
 import { decimalInput, FACTORY_ID, formatUnits, freeNear, nearblocksAccount, nearblocksTx, NETWORK_NAME, parseUnits, TOKENS, viewOn, WALLET_ID } from "../../../lib/near";
 import { rememberWallet, walletFromPath } from "../../../lib/myWallets";
 import { useNearWallet } from "../../../lib/useNearWallet";
+import { useProposals } from "../../../lib/useProposals";
 import { call, ED25519_KEY, fundActions, transfer, WITHDRAW_GAS, type FunctionCall, type Transfer } from "../../../lib/walletActions";
 import { loadWallet, type WalletState } from "../../../lib/walletState";
 import { Pill } from "../MyWallets";
@@ -239,6 +241,10 @@ function WalletPage({ walletId }: { walletId: string }) {
           </Card>
         </div>
       )}
+
+      <div className="mb-6">
+        <RecentPayments walletId={walletId} />
+      </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <div className="grid gap-6">
@@ -587,6 +593,9 @@ export function WalletSkeleton({ walletId }: { walletId: string | null }) {
             <Skeleton className="mt-6 h-[220px] w-full rounded-[14px]" />
           </Card>
         </div>
+        <div className="mb-6">
+          <Card title="Recent payments">{lines("w-1/2", "w-full", "w-full", "w-4/5")}</Card>
+        </div>
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
           <div className="grid gap-6">
             <Card title="Rules">{lines("w-1/3", "w-[96%]", "w-[88%]", "w-1/2")}</Card>
@@ -644,6 +653,41 @@ function GasTile({ account, agentKeys }: { account: WalletState["account"]; agen
       low={low && agentKeys.length > 0}
       s={low && agentKeys.length > 0 ? <><b className="font-bold text-coral">{fix}</b> {why}</> : why}
     />
+  );
+}
+
+const RECENT = 5;
+
+/** The wallet's last few payments, live: what the agent proposed, the verdict's reason and where each stands. */
+function RecentPayments({ walletId }: { walletId: string }) {
+  const { proposals, online } = useProposals(walletId);
+  const page = activityPage(walletId);
+  return (
+    <Card title="Recent payments" link={<Link href={page}>See all →</Link>}>
+      <p className="mt-1 inline-flex items-center gap-2 text-[13px] text-mute" aria-live="polite">
+        <span className={`act-ping ${online ? "" : "act-offline"}`} aria-hidden="true" />
+        {online ? "Live · each payment as the agent proposes it, with the judge's reason" : "Can't reach the API. Retrying every 3 seconds."}
+      </p>
+      {proposals === null ? (
+        online && (
+          <Loading label="Loading payments">
+            <div className="mt-4 grid gap-3">
+              {["w-3/5", "w-1/2", "w-2/3"].map((w) => (
+                <Skeleton key={w} className={`h-10 ${w}`} />
+              ))}
+            </div>
+          </Loading>
+        )
+      ) : proposals.length === 0 ? (
+        <p className="mt-4 border-t border-line pt-4 text-sm text-mute">No payments yet. They appear here as soon as the agent proposes one.</p>
+      ) : (
+        <ul className="mt-4 border-t border-line [&>li]:border-b [&>li]:border-line [&>li:last-child]:border-b-0 [&_a:hover]:bg-ink">
+          {proposals.slice(0, RECENT).map((p) => (
+            <PaymentRow key={p.id} proposal={p} page={page} />
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
