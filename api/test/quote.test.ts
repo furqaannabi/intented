@@ -32,7 +32,7 @@ export function quoteSetup(opts: { limit?: { perClient: number; total: number; w
     quoteKey: QUOTE_KEY,
     pay: async (p) => {
       asked.push(p);
-      const quote = { amountIn: "808000000000000000000", amountOut: p.amount, deadline: new Date(now + 30 * 60_000).toISOString() };
+      const quote = { amountIn: "808000000000000000000", amountOut: p.amount, amountOutFormatted: "0.4", deadline: new Date(now + 30 * 60_000).toISOString() };
       return { deposit_address: DEPOSIT, quote: quote as never, signed_quote: signQuote(JSON.stringify({ depositAddress: DEPOSIT, ...quote })) };
     },
   };

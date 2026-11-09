@@ -35,8 +35,9 @@ describe("buildCrossChain: the transfer to the deposit address, from the quote",
   const now = 1_800_000_000_000;
   const DEPOSIT = "intented-1click.testnet";
   const quote = { amountIn: "808000000000000000000", amountOut: "400000", deadline: new Date(now + 30 * 60_000).toISOString() };
-  const signed_quote = { payload: `{"depositAddress":"${DEPOSIT}"}`, signature: "ed25519:sig" };
-  const build = (q: Partial<typeof quote> = {}) => buildCrossChain(intent, { deposit_address: DEPOSIT, quote: { ...quote, ...q }, signed_quote }, { now, simulated: true });
+  const signed = (amountOutFormatted: unknown) => ({ payload: JSON.stringify({ depositAddress: DEPOSIT, amountOutFormatted }), signature: "ed25519:sig" });
+  const signed_quote = signed("0.4");
+  const build = (q: Partial<typeof quote> = {}, sq = signed_quote) => buildCrossChain(intent, { deposit_address: DEPOSIT, quote: { ...quote, ...q }, signed_quote: sq }, { now, simulated: true });
 
   it("transfers the quoted input to the deposit address, on the token the wallet pays with", () => {
     const r = build();
@@ -53,6 +54,20 @@ describe("buildCrossChain: the transfer to the deposit address, from the quote",
       cross_chain: { deposit_address: DEPOSIT, dest_chain: "base", dest_asset: BASE_USDC, recipient: VENDOR, amount_out: "0.4 USDC", deadline_ms: String(now + 30 * 60_000), signed_quote },
       oneclick: { deposit_address: DEPOSIT, recipient: VENDOR, amount_out: "0.4 USDC", status: "PENDING_DEPOSIT", simulated: true },
     });
+  });
+
+  // Live 1Click writes a whole amount as "2.0"; the wallet requires amount_out to start with exactly that (mainnet, 9 Nov).
+  it("writes amount_out with 1Click's signed amountOutFormatted, as the wallet requires", () => {
+    const r = build({ amountOut: "2000000" }, signed("2.0"));
+    expect(r).toMatchObject({ cross_chain: { amount_out: "2.0 USDC" }, oneclick: { amount_out: "2.0 USDC" } });
+  });
+
+  it.each([
+    ["no amountOutFormatted", undefined],
+    ["an amountOutFormatted that isn't amountOut", "0.5"],
+    ["an amountOutFormatted that isn't a decimal", "0.4 USDC"],
+  ])("refuses a signed quote with %s", (_, f) => {
+    expect(build({}, signed(f))).toHaveProperty("error");
   });
 
   it("expires well before a short quote's deadline", () => {

@@ -73,11 +73,23 @@ export interface OneClickState {
   simulated: boolean;
 }
 
-/** In whole tokens with the symbol, trailing zeros trimmed: "400000", 6, "USDC" -> "0.4 USDC". */
-function formatUnits(raw: string, decimals: number, symbol: string): string {
-  const digits = raw.padStart(decimals + 1, "0");
-  const fraction = digits.slice(digits.length - decimals).replace(/0+$/, "");
-  return `${digits.slice(0, digits.length - decimals)}${fraction ? `.${fraction}` : ""} ${symbol}`;
+/** 1Click's `amountOutFormatted`, from the payload it signed: the wallet requires amount_out to start with it. */
+function signedAmountOutFormatted(payload: string): string | undefined {
+  try {
+    const v = (JSON.parse(payload) as Record<string, unknown>).amountOutFormatted;
+    return typeof v === "string" ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A plain decimal in whole tokens, in the smallest unit: "2.0", 6 -> 2000000n. Undefined for anything else. */
+function toUnits(formatted: string, decimals: number): bigint | undefined {
+  const m = /^([0-9]+)(?:\.([0-9]+))?$/.exec(formatted);
+  if (!m) return undefined;
+  const fraction = (m[2] ?? "").replace(/0+$/, "");
+  if (fraction.length > decimals) return undefined;
+  return BigInt(m[1] + fraction.padEnd(decimals, "0"));
 }
 
 /**
@@ -107,7 +119,13 @@ export function buildCrossChain(
     expiry_ms: String(Math.min(opts.now + EXPIRY_MS, deadline - DEADLINE_MARGIN_MS)),
   };
   const dest = DEST_ASSETS[intent.dest_asset]!;
-  const amount_out = formatUnits(quote.amountOut, dest.decimals, dest.symbol);
+  // 1Click's own text, as it signed it ("2.0", not "2"): the wallet checks amount_out starts with it and a space.
+  // It must say the same amount as amountOut, so the judge isn't told a different figure from the one 1Click delivers.
+  const formatted = signedAmountOutFormatted(paid.signed_quote.payload);
+  if (formatted === undefined || toUnits(formatted, dest.decimals) !== BigInt(quote.amountOut)) {
+    return { error: "the signed quote's amountOutFormatted is not its amountOut" };
+  }
+  const amount_out = `${formatted} ${dest.symbol}`;
   return {
     action,
     args,
