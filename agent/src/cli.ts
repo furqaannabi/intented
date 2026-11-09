@@ -1,7 +1,7 @@
 // Runs the demo agent once against the mock paywall.
 //
 // Usage: pnpm agent honest|poisoned|base|base-poisoned   (reads ../.env; the API and the paywall must be running,
-// and for the Base routes on testnet, the 1Click stand-in)
+// and for the Base routes on testnet, the 1Click stand-in; on mainnet, STORAGE_SPONSOR_ID registers 1Click's deposit address)
 //
 // It pays from CONTRACT_ACCOUNT_ID with AGENT_ACCOUNT_ID's function-call key, AGENT_PRIVATE_KEY: the agent sends its
 // own propose and execute, and the API only judges.
@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAgent } from "./agent.js";
+import { storageSponsor } from "./storage.js";
 import { walletAgent } from "./wallet.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -63,5 +64,10 @@ const result = await runAgent(`${paywallUrl}/${route}/market-data`, {
   // What the wallet pays 1Click with: USDC on NEAR mainnet (the mainnet wallet holds USDC only), wNEAR on testnet.
   payWith: process.env.NEAR_NETWORK === "mainnet" ? MAINNET_USDC : "wrap.testnet",
   log: (line) => console.log(`[agent] ${line}`),
+  // On mainnet, 1Click's deposit address must be registered on USDC before the wallet can pay it. STORAGE_SPONSOR_ID
+  // pays that registration, signed by the near CLI from the keychain (agent/src/storage.ts).
+  prepareDeposit: process.env.STORAGE_SPONSOR_ID
+    ? storageSponsor({ rpcUrl, sponsorId: process.env.STORAGE_SPONSOR_ID, network: process.env.NEAR_NETWORK || "testnet", log: (line) => console.log(`[agent] ${line}`) })
+    : undefined,
 });
 console.log(result.data ? "paid and served" : `not paid: ${result.status}`);

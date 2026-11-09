@@ -42,6 +42,20 @@
       "port": 8402
     },
     {
+      "name": "paywall-mainnet",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NEAR_NETWORK=mainnet",
+        "NEAR_RPC_URL=https://rpc.mainnet.fastnear.com",
+        "PAYWALL_PORT=8404",
+        "pnpm",
+        "--dir",
+        "agent",
+        "paywall"
+      ],
+      "port": 8404
+    },
+    {
       "name": "oneclick",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [

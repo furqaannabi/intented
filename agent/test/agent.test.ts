@@ -46,9 +46,9 @@ function setup(statuses: OneClick[], base: Omit<BaseConfig, "vendor">, verdict: 
     propose: async (p: Payment) => (proposed.push(p), { proposal_id: 3, near_tx_hash: "ProposeTx" }),
     execute: async (id: number) => (executed.push(id), { near_tx_hash: DEPOSIT_TX, ok: verdict === "ALLOW" }),
   };
-  const run = (route = "base") =>
+  const run = (route = "base", prepareDeposit?: (token: string, depositAddress: string) => Promise<void>) =>
     runAgent(`http://paywall/${route}/market-data`, {
-      apiUrl: "http://api", walletId: "intented-wallet.testnet", agentId: "intented-agent.testnet", agent, mandateHash: HASH, log: () => {}, pollMs: 1,
+      apiUrl: "http://api", walletId: "intented-wallet.testnet", agentId: "intented-agent.testnet", agent, mandateHash: HASH, log: () => {}, pollMs: 1, prepareDeposit,
     });
   return { sent, proposed, executed, proofs, run };
 }
@@ -95,6 +95,21 @@ describe("agent: a 402 on Base, paid through 1Click", () => {
     expect(proposed).toEqual([]);
     expect(proofs).toEqual([]);
     expect(r).toMatchObject({ status: "failed", verdict: null, reason: expect.stringMatching(/409 0xbad isn't on/), data: null });
+  });
+
+  it("has the deposit address made ready for the token before it proposes, when asked to", async () => {
+    const { proposed, run } = setup([oneclick("SUCCESS")], { lookupDelivery: delivered });
+    const calls: string[] = [];
+    await run("base", async (token, address) => { calls.push(`${token} ${address} proposed=${proposed.length}`); });
+    expect(calls).toEqual([`wrap.testnet ${DEPOSIT} proposed=0`]);
+    expect(proposed).toHaveLength(1);
+  });
+
+  it("proposes nothing if the deposit address can't be made ready", async () => {
+    const { proposed, run } = setup([oneclick("SUCCESS")], { lookupDelivery: delivered });
+    const r = await run("base", async () => { throw new Error("storage_deposit failed"); });
+    expect(proposed).toEqual([]);
+    expect(r).toMatchObject({ status: "failed", verdict: null, reason: expect.stringMatching(/storage_deposit failed/), data: null });
   });
 
   it("hands a DENY to the wallet too, and never asks 1Click or the paywall", async () => {

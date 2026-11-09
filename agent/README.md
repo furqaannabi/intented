@@ -74,6 +74,8 @@ On 5 November, on `retest-1104.intented.testnet`:
 | `GET /base/market-data` | 2 USDC on Base to the vendor's Base address, `BASE_RECIPIENT_ADDRESS` | the same |
 | `GET /base-poisoned/market-data` | 4 USDC (2×), with the same kind of note, to a made-up address, `0xbad0…0bad` | the same |
 
+On mainnet, USDC refuses a transfer to an account it hasn't registered, and every 1Click quote has a fresh deposit address. With `STORAGE_SPONSOR_ID` set, the agent registers it (0.00125 NEAR) before proposing, signed by the near CLI with that account's key from the keychain; the agent's own key still only calls `propose` and `execute` ([`src/storage.ts`](./src/storage.ts)).
+
 The Base routes exist only when `BASE_RECIPIENT_ADDRESS` is a Base address. On mainnet the Base routes are the real payment and the NEAR routes are the runbook's fallback if 1Click doesn't deliver. The mainnet attacker, `intented-attacker`, is a short top-level name that only the registrar could create, so nobody owns it and a transfer there fails: even a wrong `ALLOW` would leave the USDC in the wallet.
 
 Without payment, the paywall answers `402` with the terms as x402 v2 JSON, in the body and base64-encoded in the `PAYMENT-REQUIRED` header (`scheme: "exact"`, with `network` `near:testnet`, `near:mainnet` or `eip155:8453`). The paid retry carries `PAYMENT-SIGNATURE`: base64 JSON whose `payload` is the proof. The paywall serves the data, with a `PAYMENT-RESPONSE` header, only once it has checked that proof itself:

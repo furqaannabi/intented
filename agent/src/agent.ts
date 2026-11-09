@@ -29,6 +29,11 @@ export interface AgentConfig {
   payWith?: string;
   /** How long to wait for 1Click to deliver after the wallet has paid. Default 10 minutes. */
   deliveryTimeoutMs?: number;
+  /**
+   * Run after a 1Click quote and before anything is proposed: makes the quote's deposit address able to receive the
+   * token (on mainnet, USDC refuses an ft_transfer to an account it hasn't registered). Throwing stops the payment.
+   */
+  prepareDeposit?: (token: string, depositAddress: string) => Promise<void>;
 }
 
 /** A payment through 1Click, as the API shows it on the proposal. */
@@ -147,6 +152,16 @@ export async function runAgent(url: string, cfg: AgentConfig): Promise<AgentResu
       return { proposal_id: "", status: "failed", verdict: null, reason, near_tx_hash: null, oneclick: null, data: null };
     }
     log(`1Click quote ${q.quote_id}: ${q.amount_in} of ${q.token} to ${q.deposit_address}, for ${q.amount_out}`);
+    if (cfg.prepareDeposit) {
+      try {
+        await cfg.prepareDeposit(q.token, q.deposit_address);
+      } catch (e) {
+        // Nothing has been proposed yet, so nothing was signed by the agent and nothing can move.
+        const reason = e instanceof Error ? e.message : String(e);
+        log(`deposit address not ready: ${reason}`);
+        return { proposal_id: "", status: "failed", verdict: null, reason, near_tx_hash: null, oneclick: null, data: null };
+      }
+    }
     const now = Date.now();
     payment = { token: q.token, to: q.deposit_address, amount: q.amount_in, expiresAt: Math.min(now + EXPIRY_MS, Number(q.deadline_ms) - DEADLINE_MARGIN_MS) };
     quoteId = q.quote_id;
