@@ -113,16 +113,19 @@ Testnet only. **It isn't on npm yet.** Until it is, run it from the clone: `pnpm
 
 ## On mainnet
 
-**Not done yet.** Planned for 11 November ([runbook](./docs/mainnet-runbook.md)): one wallet, `intented-wallet.near`, makes one real 2 USDC payment to the vendor's Base address through 1Click, and refuses one attack. The product itself stays on testnet; mainnet is one wallet, not a deployment for anyone ([record](./docs/decisions/2026-11-06-one-mainnet-wallet.md)). Its transactions will be listed here. Until they are, nothing in this section has happened.
+**Done on 9 November** ([record](./docs/decisions/2026-11-09-mainnet.md)). One wallet, `intented-wallet.near`, made one real 2 USDC payment to the vendor's Base address through 1Click, and refused one attack. The product itself stays on testnet; mainnet is one wallet, not a deployment for anyone ([record](./docs/decisions/2026-11-06-one-mainnet-wallet.md)).
+
+- **The payment.** The model signed `ALLOW`, and the wallet paid 2.022867 USDC to 1Click's deposit address: [`GwNWg7fD…`](https://nearblocks.io/txns/GwNWg7fDFnoCm4X9xaVm2m9M5gS7tXkhhppU1RZ2EXCR). 1Click delivered 2.0 USDC to `0x2ef2fed3f9b3d5385499008051031320b1fb49ef` on Base about 25 minutes later: [`0xc6c35973…`](https://basescan.org/tx/0xc6c359738fd97a544edaf23901a543d100a9d242ae4629103853634e25203782). It refunded the unused 0.02 USDC of its slippage buffer to the wallet.
+- **The attack.** A poisoned paywall asked for 4 USDC to `0xbad000…00bad` on Base. The model signed `DENY`, and the wallet refused the `execute` on-chain with "recipient is not on the cross-chain recipient list". Nothing moved: [`EM1HSCom…`](https://nearblocks.io/txns/EM1HSComsm8wMXUnpJQ4qptqNdNZ133pyLCxcGKpKnt8).
+- Two earlier attempts at the payment moved no USDC: the agent's account was short of gas, then the wallet refused an `amount_out` the API had formatted differently from 1Click's signed quote. Both are fixed and [recorded](./docs/decisions/2026-11-09-mainnet.md).
 
 How to check them, without our API or web app:
 
-1. **The wallet.** On [nearblocks](https://nearblocks.io/address/intented-wallet.near), it has the agent's function-call key for `propose` and `execute`, and a full-access key. **The full-access key is kept**, so the NEAR locked for the wallet's storage can be recovered when it's taken down after judging. Whoever holds that key (William) could replace the contract and bypass every check, so this wallet's checks rest on that key not being used. Check its `code_hash` against `cargo near build reproducible-wasm` in `contract/wallet`.
-2. **Each verdict.** `pnpm --dir agent check-tx intented-wallet.near <execute tx hash>`, as in [step 6](#try-it). It recovers the signer from the transaction and checks it against the wallet's allowlist.
-3. **The paid payment.** `execute` succeeded, and its one transfer is USDC from the wallet to 1Click's deposit address. 1Click then pays the vendor on Base: on [basescan](https://basescan.org), that is a USDC transfer of 2 USDC to the vendor's address. The wallet checked 1Click's signed quote, so the deposit address is tied to that recipient and amount. It can't prove the delivery itself: that part is 1Click's.
-4. **The refused attack.** The model signed `DENY`, `execute` was refused on-chain, and nothing was transferred.
-
-If 1Click doesn't deliver, this section will say so, and a NEAR-native payment, 0.10 USDC to `intented-vendor.near`, carries the demo instead.
+1. **The wallet.** On [nearblocks](https://nearblocks.io/address/intented-wallet.near), its only key is a full-access key. **It is kept**, so the NEAR locked for the wallet's storage can be recovered when it's taken down after judging. Whoever holds that key (William) could replace the contract and bypass every check, so this wallet's checks rest on that key not being used. Its `code_hash`, `ACiQacTBTZBJSbgqgLjS28ZzqyCesSDXGMduiuANETFw`, matches `cargo near build reproducible-wasm` in `contract/wallet` at commit `686315b`, the commit its `contract_source_metadata` names.
+2. **The agent's key.** On [`intented-agent.near`](https://nearblocks.io/address/intented-agent.near), a function-call key that may call only `propose` and `execute` on the wallet. The wallet accepts those calls only from that account.
+3. **Each verdict.** `pnpm --dir agent check-tx intented-wallet.near <execute tx hash>`, as in [step 6](#try-it). It recovers the signer, `0x835ab53d20294ef795906dff21ae4c045336aa26`, from the transaction and checks it against the wallet's allowlist.
+4. **The payment.** `execute` succeeded, and its one transfer is USDC from the wallet to 1Click's deposit address. On Base, the transaction above is a USDC transfer of 2.0 USDC to the vendor's address. The wallet checked 1Click's signed quote, so the deposit address is tied to that recipient and amount. It can't prove the delivery itself: that part is 1Click's.
+5. **The attack.** The model's `DENY` is in the signed response that `check-tx` prints. The wallet checks its cross-chain recipient list before the verdict, so here the list refused it; testnet's [`GYQKNHhZ…`](https://testnet.nearblocks.io/txns/GYQKNHhZbhxrqNzi8rYs7wJaoD3Hif4LSKZVDFXYfn8P) shows the verdict check refusing on its own, with the list empty.
 
 ## Repo map
 
@@ -140,7 +143,7 @@ If 1Click doesn't deliver, this section will say so, and a NEAR-native payment, 
 
 ## Status
 
-7 November 2026. Everything runs on NEAR testnet; the mainnet deploy is planned for 11 November.
+9 November 2026. The product runs on NEAR testnet. One wallet is on mainnet, where it made one real payment to Base through 1Click and refused one attack ([On mainnet](#on-mainnet)).
 
 **Working on testnet**, on the wallet `intented-wallet.testnet`:
 
@@ -163,7 +166,7 @@ If 1Click doesn't deliver, this section will say so, and a NEAR-native payment, 
 - The wallet checks the recipient against its cross-chain recipient list and the signed 1Click quote against the 1Click key it holds. On testnet that key is the stand-in's.
 - The API quotes the payment and tells the agent the deposit address and amount to propose; the agent never picks the deposit address. The judge gets `cross_chain` from the API's stored quote, never from the agent, and one quote serves one proposal.
 - 1Click runs only on mainnet. On testnet a stand-in quotes, signs and reports delivery, and every delivery it reports is simulated and labelled so: nothing reaches Base.
-- Not done: the first real payment on mainnet, through 1Click itself.
+- On mainnet, through 1Click itself, one real payment: 2.0 USDC delivered to the vendor's Base address on 9 November ([On mainnet](#on-mainnet)).
 
 **New wallets: testnet through a factory, mainnet by script** ([record](./docs/decisions/2026-11-04-factory-as-built.md)).
 
