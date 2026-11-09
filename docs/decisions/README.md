@@ -72,6 +72,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-07 | [One npm package, `intented`: the CLI, the library and the MCP server; the API hosted on EC2](./2026-11-07-npm-package-intented.md) (proposed) | Furqaan |
 | 2026-11-06 | [The API caps verdicts across all wallets in any 24 hours, set by VERDICT_DAILY_CAP](./2026-11-06-daily-verdict-cap.md) | William |
 | 2026-11-07 | [A docs site for developers in `docs-site/`, on Mintlify](./2026-11-07-docs-site-on-mintlify.md) | Furqaan, William |
+| 2026-11-09 | [William runs the mainnet runbook](./2026-11-09-william-runs-the-mainnet-runbook.md) | Furqaan, William |
 
 ## Not decided yet
 
