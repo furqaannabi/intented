@@ -88,8 +88,8 @@ Environment variables, all optional:
 
 | Name | Default |
 | --- | --- |
-| `INTENTED_API_URL` | `http://localhost:8787` until the hosted API is up |
-| `INTENTED_WEB_URL` | `http://localhost:3000`, for the Create link, until the hosted site is set |
+| `INTENTED_API_URL` | `https://hack.furqaannabi.com`, the hosted testnet API |
+| `INTENTED_WEB_URL` | `https://intented-near.vercel.app`, for the Create link |
 | `INTENTED_HOME` | `~/.intented`, where keys are kept |
 | `NEAR_RPC_URL` | `https://test.rpc.fastnear.com` |
 

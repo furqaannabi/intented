@@ -17,11 +17,11 @@ export type { InitResult, PayResult, PayStep };
 
 /**
  * Where things are, unless a call says otherwise. Environment variables override the built-in defaults.
- * The API and site defaults are localhost until the hosted ones are up; `npm publish` refuses to ship them (check-publish.mjs).
+ * The API and site defaults are the hosted testnet ones; `npm publish` refuses a build that defaults to localhost (check-publish.mjs).
  */
 export const defaults = {
-  apiUrl: process.env.INTENTED_API_URL || "http://localhost:8787",
-  webUrl: process.env.INTENTED_WEB_URL || "http://localhost:3000",
+  apiUrl: process.env.INTENTED_API_URL || "https://hack.furqaannabi.com",
+  webUrl: process.env.INTENTED_WEB_URL || "https://intented-near.vercel.app",
   // The provider the web app and check-tx use; rpc.testnet.near.org is rate-limited.
   rpcUrl: process.env.NEAR_RPC_URL || "https://test.rpc.fastnear.com",
   home: process.env.INTENTED_HOME || join(homedir(), ".intented"),
