@@ -1,149 +1,100 @@
-# Hosting the API on EC2 (testnet)
+# Hosting the API on EC2
 
-How the Intented API (`api/`) runs on an AWS EC2 instance for testnet, so the `intented` package, the MCP server and the site have an API to call. Decision: [the record](./decisions/2026-11-07-npm-package-intented.md). The mainnet API can run on the same instance as a second service, with its own settings ([runbook](./mainnet-runbook.md), section 0).
+How the Intented API (`api/`) runs on AWS EC2, as of 10 November 2026. Decision: [the record](./decisions/2026-11-10-accept-npm-package-and-hosting.md).
 
-**No secret goes in this repo or in this file.** The NEAR AI key is copied from the shared password manager into a root-only file on the instance. The instance needs no AWS credentials and no NEAR key.
+| | Testnet | Mainnet |
+| --- | --- | --- |
+| URL | `https://hack.furqaannabi.com` | `https://mainnet.hack.furqaannabi.com` (next) |
+| pm2 process | `intented-api` | `intented-api-mainnet` |
+| Port, local only | 3001 | 8788 |
+| Settings | `~/intented/.env` | `/etc/intented/api-mainnet.env` |
+| Database | `/root/intented-data/testnet.db` | `/var/lib/intented/mainnet.db` |
+| Site | `https://intented-near.vercel.app` | `https://intented-near-mainnet.vercel.app` (next) |
+
+**No secret goes in this repo or this file.** The NEAR AI key, and on mainnet the 1Click JWT, are pasted from the shared password manager into root-only (`600`) settings files on the instance. The API holds no NEAR key and no AWS credentials.
 
 ## The instance
 
-| Setting | Value |
-| --- | --- |
-| AMI | Ubuntu Server 24.04 LTS, 64-bit |
-| Type | `t3.small` (2 GB). `t3.micro` (1 GB, free-tier eligible) works, but `pnpm install` is slow on it |
-| Storage | 20 GB gp3 EBS. It survives reboots, so SQLite needs nothing extra |
-| Elastic IP | yes, so the address and the DNS record don't change on a stop and start |
-| Security group | inbound 22 from your own IP only, 80 and 443 from anywhere. **Not 8787**: the API listens on every interface, so only the proxy may reach it |
-| Key pair | yours, kept outside the repo |
+- **Machine:** Ubuntu 24.04, public IP `44.221.26.202` (keep it as an Elastic IP, so DNS survives a stop and start).
+- **Security group:** port 22 from the owners' IPs only, 80 and 443 from anywhere. Ports 3001 and 8788 stay closed: the API listens on every interface, so only nginx may reach it.
+- **HTTPS:** nginx proxies each hostname to its local port, with Let's Encrypt certificates from certbot.
+- **Runs as root today.** Before the submission it should move to a non-root user and to Node 24, which `api/` declares. The box has Node 22.22.
 
-**HTTPS** needs a hostname. Point an A record, e.g. `api.<your domain>`, at the Elastic IP. Without a domain, `<ip with dashes>.sslip.io` resolves to the IP and can get a certificate too. Caddy below gets and renews the certificate itself.
-
-## Set up (once, over SSH)
+## Testnet
 
 ```sh
-# Node 24 and pnpm 11
-curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-sudo apt-get install -y nodejs git caddy
-sudo corepack enable && sudo corepack prepare pnpm@11.9.0 --activate
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-
-# A user with no login shell runs the API; its data lives in /var/lib/intented
-sudo useradd --system --home /opt/intented --shell /usr/sbin/nologin intented
-sudo git clone https://github.com/furqaannabi/intented.git /opt/intented
-sudo mkdir -p /var/lib/intented /etc/intented
-sudo chown -R intented:intented /opt/intented /var/lib/intented
-sudo -u intented COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm --dir /opt/intented/firewall-core install --frozen-lockfile
-sudo -u intented COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm --dir /opt/intented/api install --frozen-lockfile
+git clone https://github.com/furqaannabi/intented.git ~/intented
+cd ~/intented
+pnpm --dir firewall-core install --frozen-lockfile
+pnpm --dir api install --frozen-lockfile
+mkdir -p /root/intented-data
+# ~/intented/.env: copied from the password manager (names as in .env.example), chmod 600; PORT=3001,
+# DATABASE_PATH=/root/intented-data/testnet.db, TRUST_PROXY=1, WEB_ORIGINS=https://intented-near.vercel.app, VERDICT_DAILY_CAP=200
+cd ~/intented/api
+pm2 start node_modules/tsx/dist/cli.mjs --name intented-api -- src/server.ts
+pm2 save && pm2 startup systemd
 ```
 
-Installing Caddy from Ubuntu's own package is fine. Caddy's apt repository has newer releases, if needed.
+pm2 runs tsx's own entry file. pnpm's `node_modules/.bin/tsx` is a shell script, which pm2 would run as JavaScript. The API reads `~/intented/.env` itself at start.
 
-## Settings: `/etc/intented/api-testnet.env`
+## Mainnet
 
-Root-owned, mode `600`. Names as in [`.env.example`](../.env.example):
+The mainnet API is the same code, started with the mainnet settings in its environment. **One catch:** the API also loads `~/intented/.env` (testnet) and fills in every variable that is *unset*. So the mainnet file sets `FACTORY_ACCOUNT_ID`, `ONECLICK_BASE_URL` and `ONECLICK_STANDIN_PUBLIC_KEY` to empty. Left out, `FACTORY_ACCOUNT_ID` would become `intented.testnet`.
+
+`/etc/intented/api-mainnet.env`, root-only:
 
 ```sh
-NEAR_NETWORK=testnet
+NEAR_NETWORK=mainnet
 NEAR_AI_MODEL=Qwen/Qwen3.8-27B
 NEAR_AI_API_KEY=<from the password manager>
-CONTRACT_ACCOUNT_ID=intented-wallet.testnet
-FACTORY_ACCOUNT_ID=intented.testnet
-DATABASE_PATH=/var/lib/intented/testnet.db
-PORT=8787
+ONECLICK_JWT=<from the password manager>
+CONTRACT_ACCOUNT_ID=intented-wallet.near
+NEAR_RPC_URL=https://rpc.mainnet.fastnear.com
+DATABASE_PATH=/var/lib/intented/mainnet.db
+PORT=8788
 TRUST_PROXY=1
-WEB_ORIGINS=https://intented-near.vercel.app
-VERDICT_DAILY_CAP=200
-# Only with a hosted 1Click stand-in (below); without them, Base payments get 501:
-# ONECLICK_BASE_URL=http://127.0.0.1:8403
-# ONECLICK_STANDIN_PUBLIC_KEY=<the stand-in's public key>
+WEB_ORIGINS=https://intented-near-mainnet.vercel.app
+VERDICT_DAILY_CAP=50
+FACTORY_ACCOUNT_ID=
+ONECLICK_BASE_URL=
+ONECLICK_STANDIN_PUBLIC_KEY=
 ```
 
 ```sh
-sudo chmod 600 /etc/intented/api-testnet.env && sudo chown root:root /etc/intented/api-testnet.env
+mkdir -p /var/lib/intented        # then copy William's mainnet database to /var/lib/intented/mainnet.db
+cd ~/intented/api
+set -a; . /etc/intented/api-mainnet.env; set +a
+pm2 start node_modules/tsx/dist/cli.mjs --name intented-api-mainnet -- src/server.ts
+pm2 save
 ```
 
-## The service: `/etc/systemd/system/intented-api-testnet.service`
+**DNS and HTTPS:** an A record for `mainnet.hack.furqaannabi.com` pointing at `44.221.26.202`; an nginx server block proxying it to `127.0.0.1:8788`; then `certbot --nginx -d mainnet.hack.furqaannabi.com`.
 
-```ini
-[Unit]
-Description=Intented API (testnet)
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=intented
-WorkingDirectory=/opt/intented/api
-EnvironmentFile=/etc/intented/api-testnet.env
-# tsx directly, as `pnpm start` does: pnpm through corepack would try to write to the read-only home at start
-ExecStart=/opt/intented/api/node_modules/.bin/tsx src/server.ts
-Restart=always
-RestartSec=3
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/var/lib/intented
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-```
+## Checks
 
 ```sh
-sudo systemctl daemon-reload && sudo systemctl enable --now intented-api-testnet
-journalctl -u intented-api-testnet -f    # expect: api on :8787, testnet, wallet intented-wallet.testnet, model Qwen/Qwen3.8-27B
+pm2 logs intented-api --lines 10 --nostream            # api on :3001, testnet, wallet intented-wallet.testnet, model Qwen/Qwen3.8-27B
+pm2 logs intented-api-mainnet --lines 10 --nostream    # api on :8788, mainnet, wallet intented-wallet.near
+curl -s https://hack.furqaannabi.com/api/redteam/latest | head -c 120
+curl -s https://mainnet.hack.furqaannabi.com/api/proposals | head -c 120
 ```
 
-## HTTPS: `/etc/caddy/Caddyfile`
+From outside, ports 3001 and 8788 must not answer.
 
-```
-api.<your domain> {
-	reverse_proxy 127.0.0.1:8787
-}
-```
+**Mandate texts.** Verdicts are refused for a wallet whose mandate text isn't stored. Store it with `POST /api/mandate`, then check that `GET /api/mandates/<hash>` matches the wallet's on-chain `mandate_hash`. On testnet, these are stored as of 10 November:
+- `eb43080e…`: `demo`, `demo2`, `retest-1104`, `retest-1105`
+- `feab2cb4…`: `intented-wallet.testnet`
+- `a9e48e7a…`, `a089a37c…` and `f4f4b1f7…`: `demo-wallet`, `it-1107` and `william-test-1104`
 
-```sh
-sudo systemctl reload caddy
-```
-
-Caddy sets `X-Forwarded-For`, which `TRUST_PROXY=1` reads for the rate limits.
-
-## After the first start
-
-1. **Check it answers:**
-   - `curl https://api.<your domain>/api/redteam/latest` returns the red-team numbers;
-   - `curl https://api.<your domain>/api/proposals` returns `[]`;
-   - `curl http://<elastic ip>:8787/` from outside times out, because the security group closes 8787.
-2. **Store the mandate texts.** Verdicts are refused for a wallet whose text isn't stored. Store each live wallet's text with `POST /api/mandate {"text": …}`, then check that `GET /api/mandates/<hash>` returns it and that the hash equals the wallet's on-chain `mandate_hash`. On 6 November these were:
-   - `feab2cb4…` for `intented-wallet.testnet`;
-   - `eb43080e…` for `demo`, `demo2` and `retest-1104`.
-
-   Wallets made from the hosted Create page store their own.
-3. **Point the clients at it:**
-   - the site's `API_URL` on Vercel;
-   - the `intented` package's default API URL (in `client/src/index.ts`), in the next published version;
-   - meanwhile, `INTENTED_API_URL` for anyone using the package.
-4. **Run one honest payment and the attack** against it with the package's `pay`. Check that both receipts show on the site.
+Wallets made from the site store their own.
 
 ## Updating
 
 ```sh
-cd /opt/intented && sudo -u intented git pull --ff-only
-sudo -u intented COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm --dir firewall-core install --frozen-lockfile
-sudo -u intented COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm --dir api install --frozen-lockfile
-sudo systemctl restart intented-api-testnet
+cd ~/intented && git pull --ff-only
+pnpm --dir firewall-core install --frozen-lockfile && pnpm --dir api install --frozen-lockfile
+pm2 restart intented-api
+set -a; . /etc/intented/api-mainnet.env; set +a; pm2 restart intented-api-mainnet --update-env
 ```
 
-There's no auto-deploy: `main` reaches the instance only when someone runs this. The SQLite file stays where it is. For a backup, take an EBS snapshot or copy `/var/lib/intented/testnet.db` while the service is stopped.
-
-## The 1Click stand-in (optional)
-
-The Base payments on testnet need `agent/`'s stand-in, `pnpm oneclick`, as a second systemd service on the same instance:
-- listening on `127.0.0.1:8403`, never opened in the security group;
-- `ONECLICK_STANDIN_KEY` and `ONECLICK_STANDIN_DEPOSIT` in its own root-only env file;
-- `agent/`'s dependencies installed.
-
-Then set the two commented settings above and restart the API. Without it, everything but the Base payments works.
-
-## What the instance holds
-
-- **Secrets:** the NEAR AI key, in a root-only file. **No NEAR key**, and no AWS credentials.
-- **Data:** proposals, verdicts, mandate texts and quotes, in SQLite under `/var/lib/intented`. All of it is public anyway through `GET /api/proposals` and `GET /api/mandates/:hash`.
-- **Logs:** in the journal; proposal ids, statuses and transaction hashes, never keys or prompts.
+There's no auto-deploy. The databases stay where they are. To back them up, take an EBS snapshot, or copy the `.db` files while their processes are stopped.

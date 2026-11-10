@@ -119,7 +119,7 @@ transfer     1000000000000000000000 of wrap.testnet, intented-wallet.testnet →
 
 A refused attack prints the signed `DENY`, `execute refused: Smart contract panicked: verdict is not ALLOW` and `transfer none`: try `pnpm check-tx retest-1105.intented.testnet G9z8XBq486PEMDHD2EDZYQSz7Fxop3M9iNJrDgi5jmPs`.
 
-**7. Make your own wallet.** On testnet, anyone can. `intented init <name>`, from the [`intented` package](./client/README.md), makes the agent's key on your machine and prints a link to the Create wallet page. There you sign one `create` call with your own NEAR wallet, with your rules and limits, and the factory makes `<name>.intented.testnet` with that key limited to `propose` and `execute`. `intented pay <name> …` then pays through it. Made this way on 5 November, `retest-1105.intented.testnet` paid the vendor ([`AHCrqfxh…`](https://testnet.nearblocks.io/txns/AHCrqfxh7D6Y9Tkineih2z3W4zM6TAUuPU54TjAGP6om)) and refused the attack (`G9z8XBq4…` above). The package isn't on npm yet: build it from the clone, as in [Run it yourself](#run-it-yourself).
+**7. Make your own wallet.** On testnet, anyone can. `intented init <name>`, from the [`intented` package](./client/README.md), makes the agent's key on your machine and prints a link to the Create wallet page. There you sign one `create` call with your own NEAR wallet, with your rules and limits, and the factory makes `<name>.intented.testnet` with that key limited to `propose` and `execute`. `intented pay <name> …` then pays through it. Made this way on 5 November, `retest-1105.intented.testnet` paid the vendor ([`AHCrqfxh…`](https://testnet.nearblocks.io/txns/AHCrqfxh7D6Y9Tkineih2z3W4zM6TAUuPU54TjAGP6om)) and refused the attack (`G9z8XBq4…` above). The package is on npm: `npx intented init <name>`.
 
 ### Run it yourself
 
@@ -155,7 +155,7 @@ The same agent runs on mainnet with `NEAR_NETWORK=mainnet` and the mainnet walle
 - `intented pay` and `import { pay } from "intented"` pay through the wallet: propose, the signed verdict, the wallet's `execute`.
 - `intented mcp` is an MCP server with the same as tools.
 
-Testnet only. **It isn't on npm yet.** Until it is, run it from the clone: `pnpm --dir client install && pnpm --dir client build`, then `node client/dist/cli.js` in place of `npx intented`, or `npm link` in `client/` for an `intented` command. The agent chooses what it passes as context; the check on the payment itself and the caps hold either way.
+Testnet only. On npm as [`intented`](https://www.npmjs.com/package/intented) 0.1.0: `npx intented init <name>`, `npm install intented`, or `npx -y intented mcp` as an MCP server. The agent chooses what it passes as context; the check on the payment itself and the caps hold either way.
 
 ## On mainnet
 
@@ -220,7 +220,7 @@ How to check them, without our API or web app:
 - Shown with `demo.intented.testnet`: its code hash equals the factory's published one, its only key is the agent's, an honest payment executed ([`HNRq1HiX…`](https://testnet.nearblocks.io/txns/HNRq1HiXRVgPyevDKBZgRsEZQM9xDjRKRmY4aF7fPqw9)) and the poisoned one was refused ([`9WAKGzuM…`](https://testnet.nearblocks.io/txns/9WAKGzuMq6EGoh3rdUJj9Z71SdYr91tJRiJ9C6YVa7A6)).
 - On mainnet, wallets are deployed with [`contract/wallet/scripts/deploy-wallet.sh`](./contract/wallet/scripts/deploy-wallet.sh); a mainnet factory is not built.
 
-**Integration check, 7 November: a new wallet, end to end, through the `intented` package.** Run from the clone (the package isn't on npm yet) against the API and web app running locally.
+**Integration check, 7 November: a new wallet, end to end, through the `intented` package.** Run from the clone (the package wasn't on npm yet) against the API and web app running locally.
 
 - `intented init it-1107` made the agent's key. The owner opened the link it printed in a fresh browser, created `it-1107.intented.testnet` from the Create page with their own testnet account, set its rules and funded it with 0.02 wNEAR.
 - `intented pay` paid the vendor 0.001 wNEAR on a signed `ALLOW`: [`9G5SQZ9u…`](https://testnet.nearblocks.io/txns/9G5SQZ9uXnYxkniw5Kbd2WLN8W4HebKahgPG3TAT25pQ).

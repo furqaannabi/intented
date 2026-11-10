@@ -2,13 +2,7 @@
 
 Pay from an Intented wallet on NEAR. The wallet pays only when a model in a TEE on NEAR AI Cloud has judged the payment against the owner's plain-English rules and signed `ALLOW`, and only within the wallet's caps. On a `DENY` the wallet refuses on chain and nothing moves. **NEAR testnet only, for now.**
 
-> **Not on npm yet.** Until it is published, build it from a clone of the repo:
->
-> ```sh
-> cd client && pnpm install && pnpm build && npm link
-> ```
->
-> `npm link` puts `intented` on your PATH, so use `intented` wherever this page says `npx intented` or `npx -y intented`. Undo it with `npm unlink -g intented`. It uses the hosted testnet API and site by default ([Settings](#settings)).
+On npm as [`intented`](https://www.npmjs.com/package/intented) (0.1.0, 10 November). It uses the hosted testnet API and site by default ([Settings](#settings)).
 
 This package is the client side: it makes the agent's key, and it pays.
 - **A command:** `npx intented`.
