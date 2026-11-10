@@ -8,7 +8,7 @@ Pay from an Intented wallet on NEAR. The wallet pays only when a model in a TEE 
 > cd client && pnpm install && pnpm build && npm link
 > ```
 >
-> `npm link` puts `intented` on your PATH, so use `intented` wherever this page says `npx intented` or `npx -y intented`. Undo it with `npm unlink -g intented`. You'll also need the API and the web app running locally, at the defaults under [Settings](#settings).
+> `npm link` puts `intented` on your PATH, so use `intented` wherever this page says `npx intented` or `npx -y intented`. Undo it with `npm unlink -g intented`. It uses the hosted testnet API and site by default ([Settings](#settings)).
 
 This package is the client side: it makes the agent's key, and it pays.
 - **A command:** `npx intented`.

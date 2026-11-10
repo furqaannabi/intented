@@ -6,7 +6,7 @@ description: "The Intented API: rules, quotes, verdicts and the proposal record.
 The API stores the owner's rules, gets 1Click quotes, and asks NEAR AI Cloud for a signed verdict on a proposal the wallet's agent has already made on-chain. It never sends a transaction and holds no wallet key: the agent hands the verdict to the wallet's `execute`, and the wallet checks it. A compromised API can refuse to judge, but it can't make the wallet pay: `execute` needs a signature from the allowlisted NEAR AI key over this exact proposal.
 
 <Note>
-The hosted API isn't up yet. Until it is, run it from the repo: `pnpm --dir api start`, on `http://localhost:8787`. The repo's README lists the settings it needs.
+The hosted testnet API is at `https://hack.furqaannabi.com`. To run your own, start it from the repo with `pnpm --dir api start`, on `http://localhost:8787`. The repo's README lists the settings it needs.
 </Note>
 
 ## The flow

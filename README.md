@@ -6,6 +6,8 @@ An AI agent's NEAR wallet contract executes an action only when it carries a TEE
 
 Built at the NEAR Hackathon, 1–14 November 2026. Tracks: **AI Security & Defense** (agent security, function-call keys, TEE attestation), **Agent Economy**, **Privacy & Private AI**.
 
+**Live (testnet):** the web app at [intented-near.vercel.app](https://intented-near.vercel.app), and the API at `https://hack.furqaannabi.com`.
+
 ## Evidence
 
 Every row links to something you can check without our API or web app.
@@ -201,7 +203,7 @@ How to check them, without our API or web app:
   - Create wallet: the owner signs one `create` call on the factory, with the agent's key from `intented init`;
   - My wallets, and a page for each wallet: its balance, rules, hard limits and agent key, and its payments, live: a chart per day against the daily cap, and the latest five with the judge's reason. The owner can fund, withdraw, freeze, change the rules and add or remove the agent key, each by signing with their own NEAR wallet.
 
-  The web app holds no key. A second build of it, behind a "Testnet | Mainnet" switch, shows only the mainnet wallet ([record](./docs/decisions/2026-11-06-minimal-mainnet-with-a-network-switch.md)). Both builds run locally; neither is hosted yet.
+  The web app holds no key. A second build of it, behind a "Testnet | Mainnet" switch, shows only the mainnet wallet ([record](./docs/decisions/2026-11-06-minimal-mainnet-with-a-network-switch.md)). The testnet build is live at [intented-near.vercel.app](https://intented-near.vercel.app); the mainnet build runs locally only.
 - **The agent follows the live rules.** It reads the wallet's `mandate_hash` before each run and fetches that exact text.
 
 **The cross-chain payment to Base through 1Click works on testnet, with simulated delivery** ([record](./docs/decisions/2026-11-03-cross-chain-through-1click.md)).

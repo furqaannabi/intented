@@ -7,8 +7,10 @@ info:
     proposal the wallet's agent made on-chain. The API never sends a transaction and holds no wallet
     key: the agent hands the verdict to the wallet's execute, and the wallet checks it.
 servers:
+  - url: https://hack.furqaannabi.com
+    description: Hosted, testnet
   - url: http://localhost:8787
-    description: Local, until the hosted API is up
+    description: Local, from the repo (pnpm --dir api start)
 paths:
   /api/mandate:
     post:
