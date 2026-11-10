@@ -2,7 +2,7 @@
 
 The web app: what the agent proposed, what the judge said and signed, and what the wallet did, plus the owner's own controls. **Owner: William.** It holds no private key: every change to a wallet is a transaction the owner signs in their own NEAR wallet, through [`@hot-labs/near-connect`](https://www.npmjs.com/package/@hot-labs/near-connect).
 
-The testnet build is live at [intented-near.vercel.app](https://intented-near.vercel.app), on Vercel, with `API_URL` set to the hosted testnet API. The mainnet build runs locally only.
+The testnet build is live at [intented-near.vercel.app](https://intented-near.vercel.app), on Vercel, with `API_URL` set to the hosted testnet API. The mainnet build is live at [intented-near-mainnet.vercel.app](https://intented-near-mainnet.vercel.app), with `API_URL=https://hack.furqaannabi.com/mainnet`. Deploy it from a fresh clone of `main`, never a working folder, so no `.env` is uploaded with it.
 
 ## Pages
 

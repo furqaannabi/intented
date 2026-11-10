@@ -2,7 +2,7 @@
 
 The HTTP API the web app and the demo agent use, proposal storage, and the 1Click module. **Owner: William.** Hono and node:sqlite ([record](../docs/decisions/2026-11-01-api-hono-and-node-sqlite.md)); the pipeline's behaviour is in [this record](../docs/decisions/2026-11-01-api-pipeline-behaviour.md), the cross-chain design in [this one](../docs/decisions/2026-11-03-cross-chain-through-1click.md).
 
-The testnet API is hosted at `https://hack.furqaannabi.com`, on EC2 ([how](../docs/hosting-ec2.md)). The mainnet API runs locally only.
+The testnet API is hosted at `https://hack.furqaannabi.com`, on EC2 ([how](../docs/hosting-ec2.md)). The mainnet API is at `https://hack.furqaannabi.com/mainnet`, on the same box.
 
 ## Run
 
