@@ -2,7 +2,7 @@
 
 Pay from an Intented wallet on NEAR. The wallet pays only when a model in a TEE on NEAR AI Cloud has judged the payment against the owner's plain-English rules and signed `ALLOW`, and only within the wallet's caps. On a `DENY` the wallet refuses on chain and nothing moves. **NEAR testnet only, for now.**
 
-On npm as [`intented`](https://www.npmjs.com/package/intented) (0.1.0, 10 November). It uses the hosted testnet API and site by default ([Settings](#settings)).
+Part of [Intented](https://github.com/furqaannabi/intented): see a wallet's payments and refusals at [intented-near.vercel.app](https://intented-near.vercel.app). This package uses that site and the hosted testnet API by default ([Settings](#settings)).
 
 This package is the client side: it makes the agent's key, and it pays.
 - **A command:** `npx intented`.
@@ -11,7 +11,7 @@ This package is the client side: it makes the agent's key, and it pays.
 
 Needs Node 22.22 or later, the version `near-api-js` needs. Checked on Node 22.23 and 24.19.
 
-The rules, the verdict and the caps are enforced by the wallet contract and the Intented API, not by this package. Source: [`client/`](https://github.com/furqaannabi/intented/tree/main/client) in the Intented repo. **Owner: Furqaan.** Why it is built this way: [the record](https://github.com/furqaannabi/intented/blob/main/docs/decisions/2026-11-07-npm-package-intented.md).
+The rules, the verdict and the caps are enforced by the wallet contract and the Intented API, not by this package, so a modified copy of it can't pay outside them.
 
 ## Quickstart
 
@@ -22,7 +22,7 @@ npx intented init my-agent
 This makes the agent's key for `my-agent.intented.testnet` on your machine and prints a link. The private key stays in `~/.intented/testnet/`, readable by you only, and is never printed.
 
 1. Open the link, connect a NEAR testnet wallet, write the rules your agent must follow, set its limits, and sign. The factory makes the wallet with the agent's key, which can only call `propose` and `execute`.
-2. Fund the wallet with a little testnet wNEAR or USDC.
+2. Fund the wallet from its page on the site: **Fund** wraps testnet NEAR into wNEAR and sends it, in one approval. Testnet USDC works too.
 3. Pay from your agent's code:
 
 ```ts
@@ -46,7 +46,7 @@ npx intented pay my-agent --to intented-vendor.testnet --amount 0.001 --context 
 
 `pay` proposes the payment with the agent's key, asks the Intented API for the signed verdict on exactly that proposal, and hands the verdict to the wallet. A `DENY` is handed over too, so the wallet's refusal is on chain as the record. The command exits 0 only when the payment was made.
 
-**Tokens** are the ones the firewall knows on testnet: wNEAR (`wrap.testnet`), USDC (`3e2210e1…b8af`) and USDC.e (`usdc.fakes.testnet`). Any other token is refused before anything is proposed. Amounts are converted exactly to each token's decimals.
+**Tokens** are the ones the firewall knows on testnet: wNEAR (`wrap.testnet`), USDC (`3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af`) and USDC.e (`usdc.fakes.testnet`). Any other token is refused before anything is proposed. Amounts are converted exactly to each token's decimals.
 
 ## From Claude Code, Cursor or Codex
 
@@ -103,10 +103,11 @@ Environment variables, all optional:
 
 ## Develop
 
+From a clone of the [Intented repo](https://github.com/furqaannabi/intented), in `client/`. The build bundles code from the repo's `agent/` and `firewall-core/`.
+
 ```sh
 pnpm install
 pnpm test        # 18 tests: the library and the MCP tools, with the chain and the API faked
 pnpm typecheck   # also checks types/index.d.ts against the implementation
-pnpm build       # dist/: bundles agent/'s init, pay and wallet and the firewall core's chain client and token table
-npm pack         # the tarball, to install in an empty folder and run before publishing
+pnpm build       # dist/
 ```
