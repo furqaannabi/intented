@@ -1,6 +1,6 @@
 // Bundles the package into dist/: our code (this folder, agent/'s init, pay and wallet, base58 from api/, and the
 // firewall core's chain client and token table) in, third-party packages left as dependencies.
-import { copyFileSync, rmSync } from "node:fs";
+import { chmodSync, copyFileSync, rmSync } from "node:fs";
 import { build } from "esbuild";
 
 rmSync("dist", { recursive: true, force: true });
@@ -16,5 +16,7 @@ const shared = {
 };
 await build({ ...shared, entryPoints: ["src/index.ts"], outfile: "dist/index.js" });
 await build({ ...shared, entryPoints: ["src/cli.ts"], outfile: "dist/cli.js", banner: { js: "#!/usr/bin/env node" } });
+// Executable, so `npm link` (which links straight to dist/cli.js) keeps working after a rebuild. npm sets this on install.
+chmodSync("dist/cli.js", 0o755);
 copyFileSync("types/index.d.ts", "dist/index.d.ts");
 console.log("built dist/index.js, dist/cli.js, dist/index.d.ts");
