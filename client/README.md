@@ -2,7 +2,7 @@
 
 Pay from an Intented wallet on NEAR. The wallet pays only when a model in a TEE on NEAR AI Cloud has judged the payment against the owner's plain-English rules and signed `ALLOW`, and only within the wallet's caps. On a `DENY` the wallet refuses on chain and nothing moves. **NEAR testnet only, for now.**
 
-Part of [Intented](https://github.com/furqaannabi/intented): see a wallet's payments and refusals at [intented-near.vercel.app](https://intented-near.vercel.app). This package uses that site and the hosted testnet API by default ([Settings](#settings)).
+Part of [Intented](https://github.com/furqaannabi/intented): see a wallet's payments and refusals at [intented-near.vercel.app](https://intented-near.vercel.app). This package uses that site and the hosted testnet API by default ([Settings](#settings)). Guides and references: [intented-near.vercel.app/docs](https://intented-near.vercel.app/docs).
 
 This package is the client side: it makes the agent's key, and it pays.
 - **A command:** `npx intented`.

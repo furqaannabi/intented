@@ -28,7 +28,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable} antialiased`}>
+    // "dark": the site is dark only, and the docs' components (Fumadocs) read their dark styles from this class.
+    <html lang="en" className={`dark ${sans.variable} ${mono.variable} antialiased`}>
       <body>{children}</body>
     </html>
   );

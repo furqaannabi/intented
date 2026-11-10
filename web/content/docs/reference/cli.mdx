@@ -1,0 +1,59 @@
+---
+title: "CLI"
+description: "npx intented: init, pay and mcp."
+---
+
+```text
+intented init <name>
+intented pay <wallet> --to <account> --amount <amount> [--token <contract>] [--context <text> | --context-file <path>]
+intented mcp
+```
+
+NEAR testnet only. Node 22.22 or later.
+
+## init
+
+```bash
+npx intented init my-agent
+```
+
+Makes the agent's key for `my-agent.intented.testnet`, keeps the private key in `~/.intented/testnet/` (readable by you only, never printed), and prints the public key and the link that creates the wallet. If a key is already saved for that name, it's used unchanged.
+
+## pay
+
+```bash
+npx intented pay my-agent --to intented-vendor.testnet --amount 0.001 \
+  --context "HTTP 402: market data costs 0.001 wNEAR"
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `<wallet>` | the wallet, or just its name: `my-agent` means `my-agent.intented.testnet` |
+| `--to` | the NEAR account to pay |
+| `--amount` | in whole tokens, such as `0.001` |
+| `--token` | the token contract; `wrap.testnet` (wNEAR) by default |
+| `--context` | what the agent read that asked for this payment, verbatim |
+| `--context-file` | the same, read from a file, for a long response body |
+
+It proposes, gets the signed verdict, and hands it to the wallet, printing each step. It exits `0` only when the payment was made.
+
+## mcp
+
+```bash
+npx intented mcp
+```
+
+Starts the MCP server on stdin and stdout. See [From Claude Code, Cursor or Codex](/docs/guides/mcp).
+
+## check-tx (from the repo)
+
+Not in the package: `pnpm check-tx <wallet> <tx hash>` in the repo's `agent/` folder checks an `execute` transaction from the chain alone. See [Verify a payment](/docs/guides/verify-a-payment).
+
+## Settings
+
+| Variable | Default |
+| --- | --- |
+| `INTENTED_API_URL` | `https://hack.furqaannabi.com`, the hosted testnet API |
+| `INTENTED_WEB_URL` | `https://intented-near.vercel.app`, the web app, for the Create link |
+| `INTENTED_HOME` | `~/.intented` |
+| `NEAR_RPC_URL` | `https://test.rpc.fastnear.com` |

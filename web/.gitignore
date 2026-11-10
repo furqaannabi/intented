@@ -17,6 +17,8 @@
 /.next/
 /.next-mainnet/
 /out/
+# Fumadocs' generated collections
+/.source/
 
 # production
 /build

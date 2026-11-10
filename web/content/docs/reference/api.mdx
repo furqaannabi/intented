@@ -1,0 +1,48 @@
+---
+title: "HTTP API"
+description: "The Intented API: rules, quotes, verdicts and the proposal record."
+---
+
+The API stores the owner's rules, gets 1Click quotes, and asks NEAR AI Cloud for a signed verdict on a proposal the wallet's agent has already made on-chain. It never sends a transaction and holds no wallet key: the agent hands the verdict to the wallet's `execute`, and the wallet checks it. A compromised API can refuse to judge, but it can't make the wallet pay: `execute` needs a signature from the allowlisted NEAR AI key over this exact proposal.
+
+<Note>
+The hosted testnet API is at `https://hack.furqaannabi.com`. To run your own, start it from the repo with `pnpm --dir api start`, on `http://localhost:8787`. The repo's README lists the settings it needs.
+</Note>
+
+## The flow
+
+1. The agent calls the wallet's `propose(action, args_json)` and gets a `proposal_id`.
+2. `POST /api/verdict` with `{ wallet_id, proposal_id, context }`. The API reads the action from the chain, judges it under the wallet's current rules, and returns the signed request and response.
+3. The agent calls `execute(proposal_id, req_bytes, resp_bytes, signature)`. The wallet pays only on a valid `ALLOW`.
+4. Optionally, `POST /api/executed` with the transaction hash, so the record links it.
+
+For a payment on Base, `POST /api/quote` comes first; see [Pay on Base](/docs/guides/base-payments).
+
+## Errors
+
+Every error is JSON, `{ "error": "<plain sentence>" }`, with the status:
+
+| Status | Means |
+| --- | --- |
+| `400` | a malformed body or parameter; the message names the field |
+| `404` | no such mandate, proposal or red-team run |
+| `409` | the request is well formed but the wallet's state rules it out: frozen, the proposal isn't pending, a rules text that isn't stored, a quote that doesn't match |
+| `429` | over a rate limit. `Retry-After` says how many seconds to wait |
+| `501` | this API has that feature switched off |
+| `502` | NEAR, NEAR AI Cloud or 1Click couldn't be reached, or answered with something unusable |
+
+## Limits
+
+| What | Limit |
+| --- | --- |
+| Verdicts | 30 per wallet per hour; and, where the operator sets `VERDICT_DAILY_CAP`, that many across all wallets in any 24 hours |
+| Quotes | 30 per wallet, 120 in all, per hour |
+| Rules text | 2,000 characters |
+| `context` | 20,000 characters |
+| The proposal | pending, with at least 60 seconds before `expiry_ms` |
+
+A verdict is judged once per proposal; asking again returns the stored answer and doesn't count.
+
+## Reading the record
+
+`GET /api/proposals` and `GET /api/proposals/{id}` are public. They're the API's record, not the source of truth: the status comes from the wallet's `get_proposal`, and every verdict can be checked from the chain alone. See [Verify a payment yourself](/docs/guides/verify-a-payment).

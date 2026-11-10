@@ -1,4 +1,10 @@
 @import "tailwindcss";
+/* The docs at /docs (Fumadocs), drawn in this site's palette by the overrides at the end of this file. */
+@import "fumadocs-ui/css/black.css";
+@import "fumadocs-ui/css/preset.css";
+@import "fumadocs-openapi/css/preset.css";
+@source "../node_modules/fumadocs-ui/dist/**/*.js";
+@source "../node_modules/fumadocs-openapi/dist/**/*.js";
 
 /* Carbon: neutral near-black greys, one card grey for the agent and its
    wallet, lime only for ALLOW, coral only for DENY. */
@@ -93,4 +99,25 @@ button:disabled {
   .spinner {
     animation-duration: 2.4s;
   }
+}
+
+/* Fumadocs' colours, mapped onto Carbon. The site is dark only, so light and .dark get the same values. */
+:root,
+.dark {
+  --color-fd-background: var(--ink);
+  --color-fd-foreground: var(--text);
+  --color-fd-muted: var(--ink-2);
+  --color-fd-muted-foreground: var(--mute);
+  --color-fd-popover: var(--ink-2);
+  --color-fd-popover-foreground: var(--text);
+  --color-fd-card: var(--ink-2);
+  --color-fd-card-foreground: var(--text);
+  --color-fd-border: var(--line);
+  --color-fd-primary: var(--text);
+  --color-fd-primary-foreground: var(--ink);
+  --color-fd-secondary: var(--card);
+  --color-fd-secondary-foreground: var(--text);
+  --color-fd-accent: var(--card);
+  --color-fd-accent-foreground: var(--text);
+  --color-fd-ring: var(--soft);
 }

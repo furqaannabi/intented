@@ -2,7 +2,7 @@
 
 The web app: what the agent proposed, what the judge said and signed, and what the wallet did, plus the owner's own controls. **Owner: William.** It holds no private key: every change to a wallet is a transaction the owner signs in their own NEAR wallet, through [`@hot-labs/near-connect`](https://www.npmjs.com/package/@hot-labs/near-connect).
 
-The testnet build is live at [intented-near.vercel.app](https://intented-near.vercel.app), on Vercel, with `API_URL` set to the hosted testnet API. The mainnet build is live at [intented-near-mainnet.vercel.app](https://intented-near-mainnet.vercel.app), with `API_URL=https://hack.furqaannabi.com/mainnet`. Deploy it from a fresh clone of `main`, never a working folder, so no `.env` is uploaded with it.
+The testnet build is live at [intented-near.vercel.app](https://intented-near.vercel.app), on Vercel, with `API_URL` set to the hosted testnet API. The mainnet build is live at [intented-near-mainnet.vercel.app](https://intented-near-mainnet.vercel.app), with `API_URL=https://hack.furqaannabi.com/mainnet`. Both Vercel projects are connected to GitHub with root directory `web`, so every push to `main` rebuilds both from committed files ([hosting](../docs/hosting-ec2.md)). A push therefore also publishes `/docs`, so `pnpm build` has to pass first.
 
 ## Pages
 
@@ -13,6 +13,7 @@ The testnet build is live at [intented-near.vercel.app](https://intented-near.ve
 | `/rules` | The demo wallet's active rules, shown only if the text hashes to the wallet's on-chain `mandate_hash`; the browser hashes it itself |
 | `/create` | Make a wallet on testnet: the owner writes the rules, sets the caps and the agent's gas allowance, and signs one `create` call on the factory. The link `intented init` prints fills in the name and the agent's key. Afterwards the page reads the new wallet back from the chain and checks its owner, rules hash, judge, code hash and agent |
 | `/wallets` | The wallets you own, from the factory's `get_wallets`, and any you opened by name in this browser |
+| `/docs` | The developer docs, from [`content/docs/`](./content/docs/): quickstart, guides, the contract, refusal and HTTP API references, with search ([record](../docs/decisions/2026-11-10-docs-in-the-web-app.md)) |
 | `/wallets/<name>` | One wallet: its balance, rules, hard limits, agent key and gas, and its payments, live: a chart per day against the daily cap, and the latest five with the judge's reason. The owner can fund, withdraw, freeze, change the rules and add or remove the agent key |
 
 The browser talks only to this app. The API routes it uses (`/api/mandate`, `/api/mandates/:hash`, `/api/proposals`, `/api/proposals/:id`, `/api/redteam/latest`) are proxied to `API_URL` ([`next.config.ts`](./next.config.ts)), and wallet state is read from NEAR's RPC.

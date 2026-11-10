@@ -6,7 +6,7 @@ An AI agent's NEAR wallet contract executes an action only when it carries a TEE
 
 Built at the NEAR Hackathon, 1–14 November 2026. Tracks: **AI Security & Defense** (agent security, function-call keys, TEE attestation), **Agent Economy**, **Privacy & Private AI**.
 
-**Live:** testnet at [intented-near.vercel.app](https://intented-near.vercel.app) (API `https://hack.furqaannabi.com`); mainnet, showing `intented-wallet.near`'s receipts, at [intented-near-mainnet.vercel.app](https://intented-near-mainnet.vercel.app) (API `https://hack.furqaannabi.com/mainnet`).
+**Live:** testnet at [intented-near.vercel.app](https://intented-near.vercel.app) (API `https://hack.furqaannabi.com`); mainnet, showing `intented-wallet.near`'s receipts, at [intented-near-mainnet.vercel.app](https://intented-near-mainnet.vercel.app) (API `https://hack.furqaannabi.com/mainnet`). Developer docs: [intented-near.vercel.app/docs](https://intented-near.vercel.app/docs).
 
 ## Evidence
 
@@ -184,7 +184,7 @@ How to check them, without our API or web app:
 | [`agent/`](./agent/) | The demo agent and the mock x402 paywall | William |
 | [`client/`](./client/) | The `intented` package: the CLI, the `pay()` library and the MCP server, and a Claude Code skill | Furqaan |
 | [`redteam/`](./redteam/) | Attack and benign cases and the `make redteam` runner | William |
-| [`docs-site/`](./docs-site/) | The developer docs (Mintlify): quickstart, guides, the contract, refusal and HTTP API references. Preview with `npx mint dev` in that folder | William; Furqaan reviews his lane's pages |
+| [`web/content/docs/`](./web/content/docs/) | The developer docs: quickstart, guides, the contract, refusal and HTTP API references. Served at `/docs` by the web app (Fumadocs); preview with `pnpm dev` in `web/`. The HTTP API pages are generated from `openapi.yaml` with `node scripts/generate-api-docs.ts` in `web/` | William; Furqaan reviews his lane's pages |
 | [`docs/`](./docs/README.md) | The build plan, the interface spec, the glossary, decisions | Both |
 
 ## Status

@@ -1,3 +1,4 @@
+import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
 
 // The browser only talks to this app; the API routes it uses are proxied to the API host.
@@ -25,4 +26,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Compiles the content/docs/ pages served at /docs (decisions/2026-11-10-docs-in-the-web-app.md).
+// Run from web/: Fumadocs reads source.config.ts and content/docs/ relative to the working directory.
+export default createMDX()(nextConfig);

@@ -29,6 +29,9 @@ export function SiteHeader({ current }: { current?: "home" | "demo" }) {
               <span className="max-[479px]:hidden">Live demo</span>
               <span className="hidden max-[479px]:inline">Demo</span>
             </Link>
+            <Link href="/docs" className={`${link} max-[479px]:hidden`}>
+              Docs
+            </Link>
             <a href={REPO} className={`${link} inline-flex items-center gap-1 max-[479px]:hidden`}>
               GitHub <ArrowUpRight className="size-3.5" />
             </a>
