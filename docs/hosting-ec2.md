@@ -11,6 +11,8 @@ How the Intented API (`api/`) runs on AWS EC2, as of 10 November 2026. Decisions
 | Database | `/root/intented-data/testnet.db` | `/var/lib/intented/mainnet.db` |
 | Site | `https://intented-near.vercel.app` | `https://intented-near-mainnet.vercel.app` |
 
+The two sites are Vercel projects, `web` and `intented-near-mainnet`. Both are connected to `furqaannabi/intented` on GitHub, with root directory `web` and production branch `main`, so every push to `main` rebuilds both from committed files; the mainnet one was connected on 10 November. Only the APIs on this box are deployed by hand.
+
 **No secret goes in this repo or this file.** The NEAR AI key, and on mainnet the 1Click JWT, are pasted from the shared password manager into root-only (`600`) settings files on the instance. The API holds no NEAR key and no AWS credentials.
 
 ## The instance
