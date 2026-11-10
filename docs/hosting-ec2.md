@@ -1,6 +1,6 @@
 # Hosting the API on EC2
 
-How the Intented API (`api/`) runs on AWS EC2, as of 10 November 2026. Decisions: [hosting and the package](./decisions/2026-11-10-accept-npm-package-and-hosting.md), [no mainnet site](./decisions/2026-11-10-no-mainnet-site.md).
+How the Intented API (`api/`) runs on AWS EC2, as of 10 November 2026. Decisions: [hosting and the package](./decisions/2026-11-10-accept-npm-package-and-hosting.md), [the mainnet site](./decisions/2026-11-10-mainnet-site-after-all.md).
 
 | | Testnet | Mainnet |
 | --- | --- | --- |
@@ -9,7 +9,7 @@ How the Intented API (`api/`) runs on AWS EC2, as of 10 November 2026. Decisions
 | Port, local only | 3001 | 8788 |
 | Settings | `~/intented/.env` | `/etc/intented/api-mainnet.env` |
 | Database | `/root/intented-data/testnet.db` | `/var/lib/intented/mainnet.db` |
-| Site | `https://intented-near.vercel.app` | none: the README's On mainnet section and `check-tx` |
+| Site | `https://intented-near.vercel.app` | `https://intented-near-mainnet.vercel.app` |
 
 **No secret goes in this repo or this file.** The NEAR AI key, and on mainnet the 1Click JWT, are pasted from the shared password manager into root-only (`600`) settings files on the instance. The API holds no NEAR key and no AWS credentials.
 
@@ -62,7 +62,7 @@ ONECLICK_STANDIN_PUBLIC_KEY=
 ```
 
 ```sh
-mkdir -p /var/lib/intented        # it started empty on 10 November; William's mainnet database can replace it (stop first, remove -wal and -shm)
+mkdir -p /var/lib/intented        # on 10 November William's export of the 9 November run replaced the empty one (stop first, move -wal and -shm aside)
 cd ~/intented/api
 set -a; . /etc/intented/api-mainnet.env; set +a
 pm2 start node_modules/tsx/dist/cli.mjs --name intented-api-mainnet -- src/server.ts

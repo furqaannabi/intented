@@ -71,7 +71,8 @@ What this makes easier, what it rules out, what to watch.
 | 2026-11-06 | [Intented as an MCP server and a skill, in a new mcp/ folder owned by Furqaan](./2026-11-06-mcp-folder.md) (the folder became `client/`: next record) | Furqaan, William |
 | 2026-11-07 | [One npm package, `intented`: the CLI, the library and the MCP server; the API hosted on EC2](./2026-11-07-npm-package-intented.md) (accepted below) | Furqaan |
 | 2026-11-10 | [Accepted: the `intented` npm package is published, and the testnet API is hosted on EC2](./2026-11-10-accept-npm-package-and-hosting.md) | Furqaan, William |
-| 2026-11-10 | [No mainnet site; the mainnet API is at hack.furqaannabi.com/mainnet](./2026-11-10-no-mainnet-site.md) (proposed) | Furqaan |
+| 2026-11-10 | [No mainnet site; the mainnet API is at hack.furqaannabi.com/mainnet](./2026-11-10-no-mainnet-site.md) (superseded by the next record) | Furqaan |
+| 2026-11-10 | [The mainnet site is deployed after all, with the switch](./2026-11-10-mainnet-site-after-all.md) | Furqaan, William |
 | 2026-11-06 | [The API caps verdicts across all wallets in any 24 hours, set by VERDICT_DAILY_CAP](./2026-11-06-daily-verdict-cap.md) | William |
 | 2026-11-07 | [A docs site for developers in `docs-site/`, on Mintlify](./2026-11-07-docs-site-on-mintlify.md) | Furqaan, William |
 | 2026-11-09 | [William runs the mainnet runbook](./2026-11-09-william-runs-the-mainnet-runbook.md) | Furqaan, William |
