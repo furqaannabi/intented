@@ -1,23 +1,24 @@
 # Hosting the API on EC2
 
-How the Intented API (`api/`) runs on AWS EC2, as of 10 November 2026. Decision: [the record](./decisions/2026-11-10-accept-npm-package-and-hosting.md).
+How the Intented API (`api/`) runs on AWS EC2, as of 10 November 2026. Decisions: [hosting and the package](./decisions/2026-11-10-accept-npm-package-and-hosting.md), [no mainnet site](./decisions/2026-11-10-no-mainnet-site.md).
 
 | | Testnet | Mainnet |
 | --- | --- | --- |
-| URL | `https://hack.furqaannabi.com` | `https://mainnet.hack.furqaannabi.com` (next) |
+| URL | `https://hack.furqaannabi.com` | `https://hack.furqaannabi.com/mainnet` |
 | pm2 process | `intented-api` | `intented-api-mainnet` |
 | Port, local only | 3001 | 8788 |
 | Settings | `~/intented/.env` | `/etc/intented/api-mainnet.env` |
 | Database | `/root/intented-data/testnet.db` | `/var/lib/intented/mainnet.db` |
-| Site | `https://intented-near.vercel.app` | `https://intented-near-mainnet.vercel.app` (next) |
+| Site | `https://intented-near.vercel.app` | none: the README's On mainnet section and `check-tx` |
 
 **No secret goes in this repo or this file.** The NEAR AI key, and on mainnet the 1Click JWT, are pasted from the shared password manager into root-only (`600`) settings files on the instance. The API holds no NEAR key and no AWS credentials.
 
 ## The instance
 
 - **Machine:** Ubuntu 24.04, public IP `44.221.26.202` (keep it as an Elastic IP, so DNS survives a stop and start).
-- **Security group:** port 22 from the owners' IPs only, 80 and 443 from anywhere. Ports 3001 and 8788 stay closed: the API listens on every interface, so only nginx may reach it.
-- **HTTPS:** nginx proxies each hostname to its local port, with Let's Encrypt certificates from certbot.
+- **Security group** `launch-wizard-2`: 80 and 443 from anywhere. Ports 3001 and 8788 stay closed: the API listens on every interface, so only nginx may reach it. A rule opening 8000–9000 to anyone exposed 8788 and was removed on 10 November. Port 22 is still open to anyone, and 18789 too with nothing listening; both are worth narrowing.
+- **Shared box.** It also serves other projects (elapse, sponing, memed) from the same `/etc/nginx/nginx.conf`. Back up the file, edit it, run `nginx -t`, and reload only if that passes.
+- **HTTPS:** nginx serves `hack.furqaannabi.com` with a Let's Encrypt certificate from certbot. `/` goes to 3001; `/mainnet/` goes to 8788, with the prefix stripped. Both pass `X-Forwarded-For`, which `TRUST_PROXY=1` reads.
 - **Runs as root today.** Before the submission it should move to a non-root user and to Node 24, which `api/` declares. The box has Node 22.22.
 
 ## Testnet
@@ -61,14 +62,28 @@ ONECLICK_STANDIN_PUBLIC_KEY=
 ```
 
 ```sh
-mkdir -p /var/lib/intented        # then copy William's mainnet database to /var/lib/intented/mainnet.db
+mkdir -p /var/lib/intented        # it started empty on 10 November; William's mainnet database can replace it (stop first, remove -wal and -shm)
 cd ~/intented/api
 set -a; . /etc/intented/api-mainnet.env; set +a
 pm2 start node_modules/tsx/dist/cli.mjs --name intented-api-mainnet -- src/server.ts
 pm2 save
 ```
 
-**DNS and HTTPS:** an A record for `mainnet.hack.furqaannabi.com` pointing at `44.221.26.202`; an nginx server block proxying it to `127.0.0.1:8788`; then `certbot --nginx -d mainnet.hack.furqaannabi.com`.
+**nginx:** inside the `hack.furqaannabi.com` server block, before `location /`:
+
+```nginx
+location = /mainnet { return 301 /mainnet/; }
+location /mainnet/ {
+    proxy_pass http://127.0.0.1:8788/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 1M;
+}
+```
+
+No DNS record or new certificate: it rides on `hack.furqaannabi.com`'s.
 
 ## Checks
 
@@ -76,7 +91,7 @@ pm2 save
 pm2 logs intented-api --lines 10 --nostream            # api on :3001, testnet, wallet intented-wallet.testnet, model Qwen/Qwen3.8-27B
 pm2 logs intented-api-mainnet --lines 10 --nostream    # api on :8788, mainnet, wallet intented-wallet.near
 curl -s https://hack.furqaannabi.com/api/redteam/latest | head -c 120
-curl -s https://mainnet.hack.furqaannabi.com/api/proposals | head -c 120
+curl -s https://hack.furqaannabi.com/mainnet/api/proposals | head -c 120
 ```
 
 From outside, ports 3001 and 8788 must not answer.
