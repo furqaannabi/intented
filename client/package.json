@@ -1,6 +1,6 @@
 {
   "name": "intented",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Pay from an Intented wallet on NEAR: the wallet pays only on a TEE-signed ALLOW for the owner's rules. CLI, library and MCP server.",
   "license": "MIT",
   "repository": {
