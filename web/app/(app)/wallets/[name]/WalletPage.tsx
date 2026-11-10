@@ -9,7 +9,7 @@ import { PaymentsChart } from "../../../components/PaymentsChart";
 import { RulesEditor } from "../../../components/RulesEditor";
 import { Loading, Skeleton } from "../../../components/Skeleton";
 import { REPO } from "../../../components/SiteHeader";
-import { decimalInput, FACTORY_ID, formatUnits, freeNear, nearblocksAccount, nearblocksTx, NETWORK_NAME, parseUnits, TOKENS, viewOn, WALLET_ID } from "../../../lib/near";
+import { decimalInput, FACTORY_ID, formatUnits, freeNear, IS_MAINNET, nearblocksAccount, nearblocksTx, NETWORK_NAME, parseUnits, TOKENS, viewOn, WALLET_ID } from "../../../lib/near";
 import { rememberWallet, walletFromPath } from "../../../lib/myWallets";
 import { useNearWallet } from "../../../lib/useNearWallet";
 import { useProposals } from "../../../lib/useProposals";
@@ -135,6 +135,7 @@ function WalletPage({ walletId }: { walletId: string }) {
           ← My wallets
         </Link>
       </p>
+      {IS_MAINNET && walletId === WALLET_ID && !isOwner && <DemoWalletNote walletId={walletId} />}
       <div className="flex flex-wrap items-end justify-between gap-4 pt-3.5 pb-6">
         <div className="min-w-0">
           {/* Breaks before ".intented.testnet" on a narrow screen, not mid-word; a label too long for one line still wraps. */}
@@ -657,6 +658,47 @@ function GasTile({ account, agentKeys }: { account: WalletState["account"]; agen
 const RECENT = 5;
 
 /** The wallet's last few payments, live: what the agent proposed, the verdict's reason and where each stands. */
+const DEMO_NOTE_KEY = "intented:demo-note-closed";
+
+/**
+ * For a visitor on the mainnet site: this is the demo wallet, public by nature. Shown until closed, then not again
+ * in this browser. Storage can be blocked; then it simply shows each visit.
+ */
+function DemoWalletNote({ walletId }: { walletId: string }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let closed = false;
+    try {
+      closed = localStorage.getItem(DEMO_NOTE_KEY) === "1";
+    } catch {}
+    // localStorage is only readable after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpen(!closed);
+  }, []);
+  if (!open) return null;
+  function close() {
+    setOpen(false);
+    try {
+      localStorage.setItem(DEMO_NOTE_KEY, "1");
+    } catch {}
+  }
+  return (
+    <div role="note" className="mt-4 flex items-start gap-3 rounded-[14px] border border-line bg-ink-2 py-3 pr-2 pl-4 text-sm text-mute">
+      <p className="min-w-0 flex-1 leading-relaxed">
+        <span className="font-bold text-text">This is Intented&apos;s demo wallet, on NEAR mainnet.</span> Everything on this page is read
+        from the chain, so anyone can see it. Its settings change only with its owner&apos;s signature, and its agent pays only with a
+        signed <span className="font-mono text-lime">ALLOW</span>. It paid 2 USDC to Base and refused one attack.{" "}
+        <Link href={activityPage(walletId)} className="font-bold whitespace-nowrap text-text underline underline-offset-[3px]">
+          See the receipts →
+        </Link>
+      </p>
+      <button onClick={close} aria-label="Close this note" className="shrink-0 rounded-full p-1.5 text-mute hover:bg-card hover:text-text">
+        <Cross className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 function RecentPayments({ walletId, proposals, online }: { walletId: string; proposals: Proposal[] | null; online: boolean }) {
   const page = activityPage(walletId);
   return (
