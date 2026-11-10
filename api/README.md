@@ -9,7 +9,7 @@ Needs Node 24 and pnpm 11, and `.env` at the repo root (names in [`.env.example`
 ```sh
 pnpm install
 pnpm start      # http://localhost:8787
-pnpm test
+pnpm test       # 96 tests
 ```
 
 It reads `NEAR_NETWORK`, `NEAR_RPC_URL`, `NEAR_AI_API_KEY`, `NEAR_AI_MODEL`, `CONTRACT_ACCOUNT_ID`, `FACTORY_ACCOUNT_ID` (default `intented.testnet` on testnet; unset on mainnet, where the API judges only `CONTRACT_ACCOUNT_ID`), `VERDICT_DAILY_CAP` (verdicts across all wallets in any 24 hours; unset, no daily cap; set it on mainnet), `WEB_ORIGINS`, `TRUST_PROXY`, `DATABASE_PATH`, `PORT`, and for 1Click `ONECLICK_JWT`, `ONECLICK_BASE_URL` and, off mainnet, `ONECLICK_STANDIN_PUBLIC_KEY`. It holds no NEAR key and sends no transactions. It logs proposal ids, statuses and transaction hashes, never keys, tokens or prompts.
@@ -41,7 +41,7 @@ The wallet's agent proposes, asks `POST /api/verdict`, and sends `execute` itsel
 To **USDC on Base only**. The agent asks `POST /api/quote` with `{ wallet_id, intent: { token, amount, dest_chain, dest_asset, recipient } }`, where `amount` is what the recipient receives. The API:
 
 1. Refuses before spending a quote if the wallet has cross-chain payments off or accepts another 1Click key. A recipient off the wallet's list is still quoted: the model judges it, and the wallet refuses it at `execute` ([record](../docs/decisions/2026-11-05-quote-skips-recipient-list.md)).
-2. Gets an exact-output 1Click quote, with the wallet as the refund account, checks 1Click's signature on it (the same check the wallet makes), and stores it.
+2. Gets an exact-output 1Click quote, with the wallet as the refund account, checks 1Click's signature on it (the same check the wallet makes), and stores it. What the judge is told the recipient gets, `cross_chain.amount_out`, is 1Click's own signed `amountOutFormatted` and the symbol ("2.0 USDC"), because the wallet refuses an `amount_out` that doesn't start with it. A quote whose `amountOutFormatted` isn't the same amount as its `amountOut` is refused.
 3. Returns the deposit address, token, input amount and deadline. The agent proposes that `ft_transfer`, expiring before the deadline, and asks `POST /api/verdict` with the `quote_id`.
 4. Checks the proposal on chain against the stored quote, then judges with `cross_chain` filled from the quote, so the judge sees who is really paid. A quote serves one proposal. It is marked `simulated` on any network but mainnet.
 
@@ -49,7 +49,11 @@ To **USDC on Base only**. The agent asks `POST /api/quote` with `{ wallet_id, in
 
 ## KT4
 
-`pnpm kt4 preview|quote|submit|status` runs one real 1Click payment from NEAR USDC to Base USDC, step by step. The script never moves funds: the payment itself is a mainnet transfer, and it waits on a yes from both owners.
+`pnpm kt4 preview|quote|submit|status` runs one real 1Click payment from NEAR USDC to Base USDC, step by step; the script itself never moves funds. KT4 passed on mainnet on 9 November, through the whole pipeline instead: the wallet paid 1Click on a signed `ALLOW`, and 1Click delivered 2.0 USDC on Base ([record](../docs/decisions/2026-11-09-mainnet.md)).
+
+## On mainnet
+
+The same server, with `NEAR_NETWORK=mainnet`, `CONTRACT_ACCOUNT_ID=intented-wallet.near`, `VERDICT_DAILY_CAP` set, `FACTORY_ACCOUNT_ID` empty (it judges that one wallet only) and its own `DATABASE_PATH`. Quotes come from 1Click itself and are checked with 1Click's key. The `api-mainnet` entry in `.claude/launch.json` runs it on :8788 beside the testnet API.
 
 ## Limits
 

@@ -2,7 +2,7 @@
 
 The demo agent, the mock x402 paywall, and the testnet stand-in for 1Click. **Owner: William.** Why it is built this way: [the agent and paywall record](../docs/decisions/2026-11-01-demo-agent-and-paywall.md) and [the cross-chain record](../docs/decisions/2026-11-03-cross-chain-through-1click.md).
 
-The agent buys market data from an x402-style paywall. It is deliberately naive: it proposes whatever the 402 asks, to whoever it names, and leaves the judgement to Intented. It holds `intented-agent.testnet`'s function-call key and sends its own `propose` and `execute`; the API only judges. The paywall has an honest route and a poisoned one that asks for more than the price, paid to the attacker, while staying within the wallet's cap. The attack demo is never cut.
+The agent buys market data from an x402-style paywall. It is deliberately naive: it proposes whatever the 402 asks, to whoever it names, and leaves the judgement to Intented. It holds a function-call key on its own account (`intented-agent.testnet`, or `intented-agent.near` on mainnet), limited to `propose` and `execute` on the wallet, and sends its own transactions; the API only judges. The paywall has an honest route and a poisoned one that asks for more than the price, paid to the attacker, while staying within the wallet's cap. The attack demo is never cut.
 
 ## Run
 
@@ -20,12 +20,14 @@ pnpm intented init <name>  # the agent's key for <name>.intented.testnet, and th
 pnpm intented pay <name> --to <account> --amount <wNEAR> --context "..."  # propose, verdict, execute on that wallet
 pnpm check-tx <wallet> <tx hash>  # check an execute from the chain alone: the signed text, signer, verdict, outcome, transfers
 pnpm oneclick              # the 1Click stand-in, testnet only: http://localhost:8403
-pnpm test
+pnpm test                  # 66 tests
 ```
 
 `PAYWALL_PORT`, `PAYWALL_URL`, `API_URL` and `NEAR_RPC_URL` override the defaults. The Base routes need the API's cross-chain propose. On testnet it is on when the API has `ONECLICK_BASE_URL` (the stand-in) and `ONECLICK_STANDIN_PUBLIC_KEY`; without them it answers `501`.
 
 ## The agent's key: `intented init`
+
+The [`intented` package](../client/README.md) ships this same code, `init`, `pay` and `src/wallet.ts`, as `intented init` and `intented pay`; use the package from your own agent, and `pnpm intented` here.
 
 A wallet made by the factory has no agent account of its own: its owner adds the agent's public key to the wallet as a function-call key that can call only `propose` and `execute`. `pnpm intented init <name>` makes that key on the machine the agent runs on:
 
@@ -120,6 +122,17 @@ Each transaction unlocks the data once, even when two requests carrying it arriv
    - Base routes, real delivery: the Base transaction.
 
 It never retries on its own. A UI button can call the same function later.
+
+## On mainnet
+
+On 9 November the same agent made the mainnet payment and the refused attack ([record](../docs/decisions/2026-11-09-mainnet.md)), with the mainnet settings in a gitignored env file and the paywall's `paywall-mainnet` entry in `.claude/launch.json`:
+
+```sh
+(set -a; . ./.env.mainnet; set +a; pnpm --dir agent agent base)            # from the repo root
+(set -a; . ./.env.mainnet; set +a; pnpm --dir agent agent base-poisoned)
+```
+
+`.env.mainnet` sets `NEAR_NETWORK=mainnet`, `CONTRACT_ACCOUNT_ID`, `AGENT_ACCOUNT_ID`, `AGENT_PRIVATE_KEY`, `NEAR_RPC_URL`, `API_URL`, `PAYWALL_URL` and `STORAGE_SPONSOR_ID`. The sponsor signs with [near-cli-rs](https://github.com/near/near-cli-rs) (`near` on `PATH` or in `~/.cargo/bin`), with its key in the CLI's keychain. The agent's account pays about 0.3 NEAR of prepaid gas per `execute`, most of it refunded, so it needs that much free, and its key's allowance must cover it.
 
 ## Limits
 
