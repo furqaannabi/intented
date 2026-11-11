@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Martian_Mono, Schibsted_Grotesk } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const sans = Schibsted_Grotesk({
@@ -30,7 +31,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // "dark": the site is dark only, and the docs' components (Fumadocs) read their dark styles from this class.
     <html lang="en" className={`dark ${sans.variable} ${mono.variable} antialiased`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }

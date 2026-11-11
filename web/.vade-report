@@ -1,0 +1,55 @@
+# Vercel Web Analytics Installation Report
+
+## Summary
+Successfully installed and configured Vercel Web Analytics for the Next.js project following the official Vercel documentation.
+
+## Implementation Details
+
+### 1. Fetched Official Documentation
+- Retrieved the latest installation instructions from: https://vercel.com/docs/analytics/quickstart
+- Identified Next.js App Router as the appropriate framework-specific setup
+
+### 2. Package Installation
+- Installed `@vercel/analytics` version 2.0.1 using pnpm (the project's package manager)
+- Command executed: `pnpm add @vercel/analytics`
+
+### 3. Code Changes
+
+#### Modified Files:
+- **web/app/layout.tsx**: Added Analytics component to the root layout
+  - Added import: `import { Analytics } from "@vercel/analytics/next";`
+  - Added `<Analytics />` component inside the `<body>` tag, after the children
+  - Preserved existing code structure and formatting
+  
+- **web/package.json**: Updated dependencies
+  - Added `"@vercel/analytics": "^2.0.1"` to dependencies
+
+- **web/pnpm-lock.yaml**: Updated to reflect the new dependency
+  - Locked file automatically updated by pnpm
+
+### 4. Testing & Verification
+- ✅ Build completed successfully with `pnpm build`
+  - No compilation errors
+  - TypeScript validation passed
+  - All 40 pages generated successfully
+  
+- ✅ Linting verified for modified file
+  - No linting errors introduced in `app/layout.tsx`
+  - Pre-existing linting errors in `.source/` directory are unrelated to this change
+
+### 5. Implementation Notes
+- Followed Next.js App Router pattern as documented by Vercel
+- Analytics component placed at the end of the `<body>` tag as recommended
+- No additional environment variables or configuration files required
+- The Analytics component will automatically track page views once deployed to Vercel
+
+## Next Steps
+After deployment to Vercel:
+1. Navigate to the Analytics section in the Vercel dashboard
+2. Click "Enable" to activate Web Analytics
+3. Verify functionality by checking browser's Network tab for requests to `/_vercel/insights/*`
+
+## Files Modified
+- `web/app/layout.tsx` - Added Analytics component
+- `web/package.json` - Added dependency
+- `web/pnpm-lock.yaml` - Updated lockfile
