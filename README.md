@@ -8,6 +8,8 @@ Built at the NEAR Hackathon, 1–14 November 2026. Tracks: **AI Security & Defen
 
 **Live:** testnet at [intented-near.vercel.app](https://intented-near.vercel.app) (API `https://hack.furqaannabi.com`); mainnet, showing `intented-wallet.near`'s receipts, at [intented-near-mainnet.vercel.app](https://intented-near-mainnet.vercel.app) (API `https://hack.furqaannabi.com/mainnet`). Developer docs: [intented-near.vercel.app/docs](https://intented-near.vercel.app/docs).
 
+**Demo video:** 4 minutes, in [the demo post on X](https://x.com/furqaan/status/2120832233317745008). It shows the attack refused on mainnet, a wallet created on testnet, and Claude Code paying through the MCP server.
+
 ## Evidence
 
 Every row links to something you can check without our API or web app.
