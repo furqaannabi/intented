@@ -270,6 +270,28 @@ How the run works and how a run is published: [`redteam/README.md`](./redteam/RE
 
 The status board is in [`docs/README.md`](./docs/README.md).
 
+## Roadmap
+
+None of this is built. It's what we plan to do after the hackathon, in order.
+
+**Next: open mainnet to everyone, safely.**
+
+1. **An audit of the wallet contract.** Until then, mainnet stays one wallet, and the product stays on testnet.
+2. **A mainnet factory with cap ceilings.** The factory holds a maximum per-payment and daily cap for each token, and every wallet it makes refuses a cap above them. That bounds what a stranger can lose, whatever the model signs. The design is written down ([record](./docs/decisions/2026-11-06-full-protocol-on-mainnet.md)); it was set aside for the hackathon.
+3. **Mainnet in the `intented` package.** It pays on testnet only today.
+
+**Then: make the judge harder to fool, and prove more of it.**
+
+4. **A larger and adversarial red team.** Our 83 cases are our own. The next step is cases from outside the team, and an attacker that keeps rewording until the model slips.
+5. **A check of the attested image.** The attestation checker verifies the TEE's hardware quote and the signer. It can't yet compare the running image with a known-good one, because none is published.
+6. **A verdict in under 5 seconds.** The median is about 6 seconds, and the slow part is the model call.
+
+**Later: more that an agent can do, and a way to pay for it.**
+
+7. **More than token transfers.** The wallet can already carry any call, but the caps and the judge's rules are written for payments. Next come swaps and paying for APIs and compute through NEAR Intents.
+8. **Tools for owners.** Alerts when a payment is refused, shared rules across several agents, and an export of every verdict for audits.
+9. **Pricing.** Each verdict costs us one model call. The plan is a small fee per verdict with a free allowance, and a team plan on top. Nothing is charged today.
+
 ## License
 
 [MIT](./LICENSE).
